@@ -116,9 +116,9 @@ class XoroTemplate:
             'CustomerAccountNumber': '',
             
             # Order dates
-            'OrderDate': order_date or '',
-            'DateToBeShipped': shipping_date,
-            'LastDateToBeShipped': shipping_date,
+            'OrderDate': order_date.strftime('%Y-%m-%d') if order_date else '',
+            'DateToBeShipped': shipping_date.strftime('%Y-%m-%d') if shipping_date else '',
+            'LastDateToBeShipped': shipping_date.strftime('%Y-%m-%d') if shipping_date else '',
             'DateToBeCancelled': '',
             
             # Order classification - Keep empty as requested
@@ -130,8 +130,8 @@ class XoroTemplate:
             # Financial information
             'ExchangeRate': 1.0,
             'Memo': f"Imported from {source_name} - File: {order.get('source_file', '')}",
-            'PaymentTermsName': 'Net 30',
-            'PaymentTermsType': 'NET',
+            'PaymentTermsName': '',
+            'PaymentTermsType': '',
             'DepositRequiredTypeName': '',
             'DepositRequiredAmount': 0.0,
             
