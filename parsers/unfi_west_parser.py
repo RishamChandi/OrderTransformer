@@ -209,8 +209,9 @@ class UNFIWestParser(BaseParser):
             cases = parts[2] if len(parts) > 2 else ""
             plts = parts[3] if len(parts) > 3 else ""
             
-            # Extract Prod# (5th column, index 4)
-            prod_number = parts[4] if len(parts) > 4 else "UNKNOWN"
+            # Extract Prod# (5th column, index 4) and normalize by removing leading zeros
+            raw_prod_number = parts[4] if len(parts) > 4 else "UNKNOWN"
+            prod_number = raw_prod_number.lstrip('0') or '0'  # Remove leading zeros, keep '0' if all zeros
             
             # Find cost by looking for decimal numbers
             cost = 0.0
@@ -245,7 +246,7 @@ class UNFIWestParser(BaseParser):
             
             return {
                 'item_number': mapped_item,
-                'raw_item_number': prod_number,  # Now using Prod# instead of Vendor P.N.
+                'raw_item_number': raw_prod_number,  # Store original Prod# with leading zeros
                 'item_description': description.strip(),
                 'quantity': qty,
                 'unit_price': cost,

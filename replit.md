@@ -119,6 +119,7 @@ Name Mapping → Xoro Conversion → CSV Output
 - Hardcoded SaleStoreName and StoreName to "KL - Richmond" for UNFI West orders
 - Added dual date extraction: order date from "Dated:" field and pickup date from "PICK UP" section
 - Uses pickup date for DateToBeShipped and LastDateToBeShipped in Xoro template
+- Fixed Prod# mapping issue by normalizing leading zeros (05885 -> 5885) for accurate item mapping
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback
