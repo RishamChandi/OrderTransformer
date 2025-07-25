@@ -177,3 +177,71 @@ class MappingUtils:
             self._load_mapping(source)
         
         return self.mapping_cache.get(mapping_key, {})
+    
+    def get_item_mapping(self, raw_item: str, source: str) -> str:
+        """
+        Get mapped item number for a given raw item and source
+        
+        Args:
+            raw_item: Original item number/vendor P.N from order file
+            source: Order source (wholefoods, unfi_west, unfi, tkmaxx)
+            
+        Returns:
+            Mapped item number or original item if no mapping found
+        """
+        
+        if not raw_item or not raw_item.strip():
+            return "UNKNOWN"
+        
+        # Load item mapping if not cached
+        item_mapping_key = f"{source}_item_mapping"
+        if item_mapping_key not in self.mapping_cache:
+            self._load_item_mapping(source)
+        
+        # Get mapping
+        item_mapping_dict = self.mapping_cache.get(item_mapping_key, {})
+        
+        # Try exact match first
+        raw_item_clean = raw_item.strip()
+        if raw_item_clean in item_mapping_dict:
+            return item_mapping_dict[raw_item_clean]
+        
+        # Try case-insensitive match
+        raw_item_lower = raw_item_clean.lower()
+        for key, value in item_mapping_dict.items():
+            if key.lower() == raw_item_lower:
+                return value
+        
+        # Return original item if no mapping found
+        return raw_item_clean
+    
+    def _load_item_mapping(self, source: str) -> None:
+        """Load item mapping file for the given source"""
+        
+        item_mapping_file = f"mappings/{source}/item_mapping.xlsx"
+        item_mapping_key = f"{source}_item_mapping"
+        
+        try:
+            if os.path.exists(item_mapping_file):
+                df = pd.read_excel(item_mapping_file)
+                
+                # Expected columns: Vendor P.N, Mapped Item (or similar)
+                if len(df.columns) >= 2:
+                    raw_col = df.columns[0]  # First column: raw item number
+                    mapped_col = df.columns[1]  # Second column: mapped item number
+                    
+                    item_mapping_dict = {}
+                    for _, row in df.iterrows():
+                        if pd.notna(row[raw_col]) and pd.notna(row[mapped_col]):
+                            item_mapping_dict[str(row[raw_col]).strip()] = str(row[mapped_col]).strip()
+                    
+                    self.mapping_cache[item_mapping_key] = item_mapping_dict
+                else:
+                    self.mapping_cache[item_mapping_key] = {}
+            else:
+                # Use empty mapping if file doesn't exist
+                self.mapping_cache[item_mapping_key] = {}
+                
+        except Exception as e:
+            # Use empty mapping on error
+            self.mapping_cache[item_mapping_key] = {}

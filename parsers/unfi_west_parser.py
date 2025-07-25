@@ -73,77 +73,176 @@ class UNFIWestParser(BaseParser):
             'source_file': filename
         }
         
-        # Look for order number patterns
-        order_patterns = [
-            r'Purchase Order[:\s#]*(\d+)',
-            r'PO[:\s#]*(\d+)',
-            r'Order[:\s#]*(\d+)',
-            r'(\d{8,})'  # Long number sequences
-        ]
-        
         html_text = soup.get_text()
-        for pattern in order_patterns:
-            match = re.search(pattern, html_text, re.IGNORECASE)
-            if match:
-                order_info['order_number'] = match.group(1)
-                break
         
-        # Look for customer/store name
-        customer_patterns = [
-            r'Ship To[:\s]*([^\n\r]+)',
-            r'Customer[:\s]*([^\n\r]+)',
-            r'Store[:\s]*([^\n\r]+)',
-            r'Bill To[:\s]*([^\n\r]+)'
-        ]
+        # Look for purchase order number (specific to UNFI West format)
+        po_match = re.search(r'P\.O\.B\.\s*(\d+[-]\d+)', html_text)
+        if not po_match:
+            po_match = re.search(r'PURCH ORDER\s*(\d+)', html_text)
+        if not po_match:
+            po_match = re.search(r'(\d{9,})', html_text)  # Long number sequences
         
-        for pattern in customer_patterns:
-            match = re.search(pattern, html_text, re.IGNORECASE)
-            if match:
-                raw_customer = match.group(1).strip()
+        if po_match:
+            order_info['order_number'] = po_match.group(1)
+        
+        # Look for ship to information (for customer/store name)
+        # Based on your image, the customer appears to be "KL - Richmond"
+        ship_to_match = re.search(r'Ship To:\s*([^\n\r]+)', html_text)
+        if ship_to_match:
+            raw_customer = ship_to_match.group(1).strip()
+            order_info['raw_customer_name'] = raw_customer
+        else:
+            # Look for buyer information
+            buyer_match = re.search(r'Buyer[:\s]*([^\n\r]*?)\s*P\.O', html_text)
+            if buyer_match:
+                raw_customer = buyer_match.group(1).strip()
                 order_info['raw_customer_name'] = raw_customer
-                # Apply mapping
-                order_info['customer_name'] = self.mapping_utils.get_store_mapping(
-                    raw_customer, 
-                    'unfi_west'
-                )
-                break
         
-        # Look for order date patterns
-        date_patterns = [
-            r'Date[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
-            r'(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
-            r'(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})'
-        ]
+        # Apply store mapping
+        if order_info['raw_customer_name']:
+            order_info['customer_name'] = self.mapping_utils.get_store_mapping(
+                order_info['raw_customer_name'], 
+                'unfi_west'
+            )
         
-        for pattern in date_patterns:
-            matches = re.findall(pattern, html_text)
-            if matches:
-                order_info['order_date'] = self.parse_date(matches[0])
-                break
+        # Look for pickup date
+        pickup_match = re.search(r'PICK UP\s*(\d{2}/\d{2}/\d{2})', html_text)
+        if pickup_match:
+            order_info['order_date'] = self.parse_date(pickup_match.group(1))
+        else:
+            # Look for other date patterns
+            date_match = re.search(r'(\d{2}/\d{2}/\d{4})', html_text)
+            if date_match:
+                order_info['order_date'] = self.parse_date(date_match.group(1))
         
         return order_info
     
     def _extract_line_items(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Extract line items from HTML tables"""
+        """Extract line items from UNFI West HTML format"""
         
         line_items = []
+        html_text = soup.get_text()
         
-        # Find all tables that might contain line items
-        tables = soup.find_all('table')
+        # Look for the main table with line items - it starts after "Line Qty Cases Plts Prod# Description"
+        table_section = self._find_table_section(html_text)
         
-        for table in tables:
-            items = self._process_item_table(table)
+        if table_section:
+            items = self._parse_line_items_from_text(table_section)
             line_items.extend(items)
         
-        # If no tables found, try to extract from structured divs
-        if not line_items:
-            divs = soup.find_all('div', class_=re.compile(r'item|product|line'))
-            for div in divs:
-                item = self._extract_item_from_div(div)
-                if item:
-                    line_items.append(item)
-        
         return line_items
+    
+    def _find_table_section(self, html_text: str) -> Optional[str]:
+        """Find the table section with line items"""
+        
+        # Look for the line items table header
+        header_pattern = r'Line\s+Qty\s+Cases\s+Plts\s+Prod#\s+Description\s+Units\s+Vendor\s+P\.N\.\s+Cost\s+Extension'
+        match = re.search(header_pattern, html_text, re.IGNORECASE)
+        
+        if match:
+            # Extract everything from the header to SUBTOTAL
+            start_pos = match.end()
+            subtotal_match = re.search(r'SUBTOTAL', html_text[start_pos:], re.IGNORECASE)
+            
+            if subtotal_match:
+                end_pos = start_pos + subtotal_match.start()
+                return html_text[start_pos:end_pos].strip()
+            else:
+                # If no SUBTOTAL found, take a reasonable chunk
+                return html_text[start_pos:start_pos + 5000].strip()
+        
+        return None
+    
+    def _parse_line_items_from_text(self, table_text: str) -> List[Dict[str, Any]]:
+        """Parse line items from the extracted table text"""
+        
+        items = []
+        lines = table_text.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line or len(line) < 10:  # Skip empty or very short lines
+                continue
+                
+            # Parse line using regex pattern for UNFI West format
+            # Pattern: Line# Qty Cases Plts Prod# Description Units Vendor_PN Cost Extension
+            item = self._parse_unfi_west_line(line)
+            if item:
+                items.append(item)
+        
+        return items
+    
+    def _parse_unfi_west_line(self, line: str) -> Optional[Dict[str, Any]]:
+        """Parse a single UNFI West line item"""
+        
+        # Clean the line
+        line = re.sub(r'\s+', ' ', line.strip())
+        
+        # Skip lines that don't start with a number (line number)
+        if not re.match(r'^\d+\s', line):
+            return None
+        
+        # Split the line into parts
+        parts = line.split()
+        
+        if len(parts) < 8:  # Need at least 8 fields
+            return None
+        
+        try:
+            # Extract fields based on UNFI West format
+            line_num = parts[0]
+            qty = int(parts[1])
+            
+            # Find vendor P.N. by looking for patterns like "12-042", "17-006", etc.
+            vendor_pn = None
+            cost = 0.0
+            description = ""
+            
+            # Look for vendor P.N. pattern (numbers with dashes/letters)
+            for i, part in enumerate(parts):
+                if re.match(r'^\d+[-]\d+[-]?\d*$', part) or re.match(r'^[A-Z][-]\d+[-]\d+$', part):
+                    vendor_pn = part
+                    # Cost should be one of the next parts
+                    for j in range(i+1, min(i+4, len(parts))):
+                        try:
+                            cost = float(parts[j])
+                            break
+                        except ValueError:
+                            continue
+                    break
+            
+            # Extract description (between prod# and vendor P.N.)
+            desc_parts = []
+            capturing_desc = False
+            for part in parts[4:]:  # Start after line, qty, cases, plts
+                if re.match(r'^\d+[-]\d+', part):  # Found vendor P.N.
+                    break
+                if part and not part.replace('.', '').replace('-', '').isdigit():
+                    desc_parts.append(part)
+            
+            description = ' '.join(desc_parts)
+            
+            if not vendor_pn:
+                # Fallback: use last alphanumeric part as vendor P.N.
+                for part in reversed(parts):
+                    if re.match(r'^[A-Za-z0-9\-]+$', part) and not part.replace('.', '').isdigit():
+                        vendor_pn = part
+                        break
+            
+            # Apply item mapping
+            mapped_item = self.mapping_utils.get_item_mapping(vendor_pn or "UNKNOWN", 'unfi_west')
+            
+            return {
+                'item_number': mapped_item,
+                'raw_item_number': vendor_pn or "UNKNOWN",
+                'item_description': description.strip(),
+                'quantity': qty,
+                'unit_price': cost,
+                'total_price': cost * qty
+            }
+            
+        except (ValueError, IndexError):
+            return None
     
     def _process_item_table(self, table) -> List[Dict[str, Any]]:
         """Process a table to extract line items"""
