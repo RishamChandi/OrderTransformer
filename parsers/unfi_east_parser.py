@@ -112,29 +112,56 @@ class UNFIEastParser(BaseParser):
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
         
         # Extract warehouse/location information for customer mapping
-        # Look for warehouse info in "Ship To:" section like "Manchester", "Howell Warehouse", etc.
-        ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
-        if ship_to_match:
-            warehouse_location = ship_to_match.group(1).strip()
-            order_info['warehouse_location'] = warehouse_location
-            print(f"DEBUG: Found Ship To location: {warehouse_location}")
+        # First, try to extract the location code from the Int Ref# (like "mm-85950-G25" -> "MAN")
+        int_ref_match = re.search(r'Int Ref#:\s*([a-zA-Z]+)-', text_content)
+        if int_ref_match:
+            location_prefix = int_ref_match.group(1).upper()
+            print(f"DEBUG: Found Int Ref location prefix: {location_prefix}")
             
-            # Try to map warehouse location to customer name
-            mapped_customer = self.mapping_utils.get_store_mapping(warehouse_location, 'unfi_east')
-            if mapped_customer and mapped_customer != warehouse_location:
+            # Map Int Ref prefixes to warehouse codes
+            prefix_to_warehouse = {
+                'MM': 'MAN',  # Manchester
+                'JJ': 'HOW',  # Howell  
+                'AA': 'ATL',  # Atlanta
+                'SS': 'SAR',  # Sarasota
+                'YY': 'YOR',  # York
+                'RR': 'RCH'   # Richburg
+            }
+            
+            location_code = prefix_to_warehouse.get(location_prefix, location_prefix)
+            print(f"DEBUG: Mapped prefix {location_prefix} -> warehouse code {location_code}")
+            
+            # Try to map warehouse code to customer name using the mapping
+            mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
+            if mapped_customer and mapped_customer != location_code:
                 order_info['customer_name'] = mapped_customer
-                order_info['raw_customer_name'] = warehouse_location
-                print(f"DEBUG: Mapped {warehouse_location} -> {mapped_customer}")
+                order_info['raw_customer_name'] = location_code
+                print(f"DEBUG: Final mapping {location_code} -> {mapped_customer}")
         
-        # Fallback 1: Look for warehouse names like "Sarasota Warehouse", "Atlanta Warehouse"
+        # Fallback 1: Look for warehouse info in "Ship To:" section like "Manchester", "Howell Warehouse", etc.
         if order_info['customer_name'] == 'UNKNOWN':
-            warehouse_match = re.search(r'(Sarasota|Atlanta|Howell|Manchester|[A-Z][a-z]+)\s+Warehouse', text_content)
-            if warehouse_match:
-                warehouse_name = warehouse_match.group(1)
-                order_info['raw_customer_name'] = f"UNFI EAST - {warehouse_name.upper()}"
-                mapped_customer = self.mapping_utils.get_store_mapping(order_info['raw_customer_name'], 'unfi_east')
-                if mapped_customer and mapped_customer != order_info['raw_customer_name']:
+            ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
+            if ship_to_match:
+                warehouse_location = ship_to_match.group(1).strip()
+                order_info['warehouse_location'] = warehouse_location
+                print(f"DEBUG: Found Ship To location: {warehouse_location}")
+                
+                # Convert full warehouse names to 3-letter codes for mapping
+                warehouse_to_code = {
+                    'Manchester': 'MAN',
+                    'Howell': 'HOW', 
+                    'Atlanta': 'ATL',
+                    'Sarasota': 'SAR',
+                    'York': 'YOR',
+                    'Richburg': 'RCH'
+                }
+                
+                location_code = warehouse_to_code.get(warehouse_location, warehouse_location.upper()[:3])
+                mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
+                if mapped_customer and mapped_customer != location_code:
                     order_info['customer_name'] = mapped_customer
+                    order_info['raw_customer_name'] = warehouse_location
+                    print(f"DEBUG: Mapped {warehouse_location} ({location_code}) -> {mapped_customer}")
         
         # Fallback 2: Apply store mapping based on Order To number
         if order_info['customer_name'] == 'UNKNOWN' and order_info['order_to_number']:
