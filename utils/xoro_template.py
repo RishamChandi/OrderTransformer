@@ -54,13 +54,16 @@ class XoroTemplate:
         customer_name = str(order.get('customer_name', ''))
         first_name, last_name = self._split_customer_name(customer_name)
         
-        # For UNFI West, always use hardcoded store values
+        # For UNFI West, always use hardcoded store values but use mapped customer name
         if source_name.lower() == 'unfi_west':
             sale_store_name = 'KL - Richmond'
             store_name = 'KL - Richmond'
+            # Use the mapped customer name (e.g., "UNFI MORENO VALLEY #2")
+            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
         else:
             sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
             store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
+            final_customer_name = customer_name
         
         # Create Xoro order
         xoro_order = {
@@ -77,7 +80,7 @@ class XoroTemplate:
             'CurrencyCode': 'USD',  # Default currency
             
             # Customer information
-            'CustomerName': customer_name,
+            'CustomerName': final_customer_name,
             'CustomerFirstName': first_name,
             'CustomerLastName': last_name,
             'CustomerMainPhone': '',

@@ -85,18 +85,25 @@ class UNFIWestParser(BaseParser):
         if po_match:
             order_info['order_number'] = po_match.group(1)
         
-        # Look for ship to information (for customer/store name)
-        # Based on your image, the customer appears to be "KL - Richmond"
-        ship_to_match = re.search(r'Ship To:\s*([^\n\r]+)', html_text)
-        if ship_to_match:
-            raw_customer = ship_to_match.group(1).strip()
+        # Look for UNFI location information (e.g., "UNFI - MORENO VALLEY, CA")
+        # This appears in the header section of UNFI West HTML files
+        unfi_location_match = re.search(r'UNFI\s*-\s*([^<\n\r]+)', html_text)
+        if unfi_location_match:
+            # Extract the full UNFI location string
+            raw_customer = f"UNFI - {unfi_location_match.group(1).strip()}"
             order_info['raw_customer_name'] = raw_customer
         else:
-            # Look for buyer information
-            buyer_match = re.search(r'Buyer[:\s]*([^\n\r]*?)\s*P\.O', html_text)
-            if buyer_match:
-                raw_customer = buyer_match.group(1).strip()
+            # Fallback: Look for ship to information
+            ship_to_match = re.search(r'Ship To:\s*([^\n\r]+)', html_text)
+            if ship_to_match:
+                raw_customer = ship_to_match.group(1).strip()
                 order_info['raw_customer_name'] = raw_customer
+            else:
+                # Look for buyer information
+                buyer_match = re.search(r'Buyer[:\s]*([^\n\r]*?)\s*P\.O', html_text)
+                if buyer_match:
+                    raw_customer = buyer_match.group(1).strip()
+                    order_info['raw_customer_name'] = raw_customer
         
         # Apply store mapping
         if order_info['raw_customer_name']:
