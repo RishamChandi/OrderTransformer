@@ -131,29 +131,43 @@ class UNFIEastParser(BaseParser):
         
         line_items = []
         
+        # Debug: Print extracted text to understand structure
+        print("=== DEBUG: Extracted PDF Text ===")
+        print(text_content[:1000])  # Print first 1000 chars
+        print("=== END DEBUG ===")
+        
         # Find the line items section
         # Look for the table with Prod#, Seq, Ord Qty, etc.
         lines = text_content.split('\n')
         in_items_section = False
         
-        for line in lines:
+        print(f"=== DEBUG: Total lines in PDF: {len(lines)} ===")
+        
+        for i, line in enumerate(lines):
             line = line.strip()
             
-            # Start of items section
-            if 'Prod# Seq Ord Qty' in line and 'Product Description' in line:
+            # Start of items section - look for header
+            if 'Prod#' in line and ('Seq' in line or 'Ord' in line or 'Product Description' in line):
                 in_items_section = True
+                print(f"DEBUG: Found items section header at line {i}: {line}")
                 continue
             
             # End of items section
-            if in_items_section and ('Total Pieces' in line or line.startswith('---')):
+            if in_items_section and ('Total Pieces' in line or 'Total Vendor Cases' in line or line.startswith('---')):
+                print(f"DEBUG: End of items section at line {i}: {line}")
                 break
             
             # Parse line items
-            if in_items_section and line:
+            if in_items_section and line and len(line) > 10:  # Skip very short lines
+                print(f"DEBUG: Trying to parse line {i}: {line}")
                 item = self._parse_unfi_east_line(line)
                 if item:
+                    print(f"DEBUG: Successfully parsed item: {item}")
                     line_items.append(item)
+                else:
+                    print(f"DEBUG: Failed to parse line: {line}")
         
+        print(f"=== DEBUG: Total line items extracted: {len(line_items)} ===")
         return line_items
     
     def _parse_unfi_east_line(self, line: str) -> Optional[Dict[str, Any]]:
