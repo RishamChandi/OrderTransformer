@@ -129,7 +129,9 @@ Name Mapping → Xoro Conversion → CSV Output
 - Added 71 item mappings and 14 store mappings for UNFI East
 - Supports dual date extraction: order date and pickup date from PDF structure
 - Maps warehouse locations (Sarasota, Atlanta, etc.) to proper customer names
-- Extracts line items with Vend ID mapping to Xoro ItemNumbers
+- Extracts line items with Prod# mapping to Xoro ItemNumbers using normalized Prod# values
+- Maps line item fields: Prod#→ItemNumber, Description→ItemDescription, Qty→Qty, Unit Cost→UnitPrice
+- Creates separate Xoro records for each line item with header information merged
 - Implements Order To number-based store mapping: 85948→PSS-NJ, 85950→IDI-Richmond
 
 ### Mapping System Enhancement

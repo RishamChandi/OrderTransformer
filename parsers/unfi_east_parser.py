@@ -167,43 +167,53 @@ class UNFIEastParser(BaseParser):
         # Prod# Seq Ord Qty Vend ID MC Pack U/M Brand Product Description Unit Cst Vend CS Extension
         # Example: 268066   1   40   40 8-907        1    6 8 OZ    KTCHLV RICE,CAULIFLOWER,RTH     10.20   10.20    408.00
         
-        # Use regex to parse the structured line
-        pattern = r'^(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([^\s]+)\s+.*?(\d+\.\d+)\s+(\d+\.\d+)\s+([\d,]+\.\d+)$'
-        match = re.match(pattern, line)
+        # Try to parse the line by splitting and extracting fields
+        parts = line.split()
+        if len(parts) < 8:  # Need at least 8 parts for a valid line
+            return None
         
-        if not match:
-            # Try simpler pattern for lines without all fields
-            simple_pattern = r'^(\d+).*?([^\s]+)\s+.*?(\d+)\s+(\d+).*?(\d+\.\d+)'
-            simple_match = re.search(simple_pattern, line)
-            if simple_match:
-                prod_number = simple_match.group(1)
-                vend_id = simple_match.group(2)
-                qty = int(simple_match.group(3))
-                cost = float(simple_match.group(5))
+        try:
+            # Extract basic fields
+            prod_number = parts[0]  # Prod# (like 268066)
+            seq = parts[1]          # Seq (like 1)
+            ord_qty = int(parts[2]) # Ord Qty (like 40)
+            qty = int(parts[3])     # Qty (like 40)
+            vend_id = parts[4]      # Vend ID (like 8-907)
+            
+            # Find unit cost - look for decimal numbers in the line
+            unit_costs = re.findall(r'\b(\d+\.\d+)\b', line)
+            if len(unit_costs) >= 2:
+                unit_cost = float(unit_costs[0])  # First decimal is usually unit cost
             else:
-                return None
-        else:
-            prod_number = match.group(1)
-            seq = match.group(2)
-            qty = int(match.group(3))
-            vend_id = match.group(5)
-            unit_cost = float(match.group(6))
-            cost = unit_cost
-        
-        # Extract description from the middle part of the line
-        # Find description between vend_id and cost
-        desc_pattern = rf'{re.escape(vend_id)}.*?([A-Z][A-Z\s,&]+?)\s+\d+\.\d+'
-        desc_match = re.search(desc_pattern, line)
-        description = desc_match.group(1).strip() if desc_match else ""
-        
-        # Apply item mapping using Vend ID (like "8-907", "12-006-1")
-        mapped_item = self.mapping_utils.get_item_mapping(vend_id, 'unfi_east')
-        
-        return {
-            'item_number': mapped_item,
-            'raw_item_number': vend_id,
-            'item_description': description,
-            'quantity': qty,
-            'unit_price': cost,
-            'total_price': cost * qty
-        }
+                unit_cost = 0.0
+            
+            # Extract description - find text between vend_id and first decimal number
+            # Look for the brand and product description pattern
+            desc_pattern = r'[A-Z]+\s+([A-Z][A-Z\s,&\.\-]+?)\s+\d+\.\d+'
+            desc_match = re.search(desc_pattern, line)
+            if desc_match:
+                description = desc_match.group(1).strip()
+            else:
+                # Fallback: extract text after brand code
+                brand_pattern = r'[A-Z]{2,}\s+([A-Z][A-Z\s,&\.\-]+)'
+                brand_match = re.search(brand_pattern, line)
+                description = brand_match.group(1).strip() if brand_match else ""
+            
+            # Normalize Prod# by removing leading zeros (like UNFI West)
+            normalized_prod = prod_number.lstrip('0') or '0'
+            
+            # Apply item mapping using normalized Prod# 
+            mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
+            
+            return {
+                'item_number': mapped_item,
+                'raw_item_number': prod_number,  # Keep original Prod#
+                'item_description': description,
+                'quantity': qty,
+                'unit_price': unit_cost,
+                'total_price': unit_cost * qty
+            }
+            
+        except (ValueError, IndexError) as e:
+            # If parsing fails, return None
+            return None
