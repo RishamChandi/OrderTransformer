@@ -115,6 +115,7 @@ Name Mapping → Xoro Conversion → CSV Output
 - Fixed UTF-8 encoding issues with multiple fallback encodings
 - Enhanced table parsing for specific UNFI West format
 - Added item mapping support with Vendor P.N. handling
+- Hardcoded SaleStoreName and StoreName to "KL - Richmond" for UNFI West orders
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback

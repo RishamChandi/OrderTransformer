@@ -64,8 +64,8 @@ class XoroTemplate:
             'ThirdPartyDisplayName': source_name,
             
             # Store information
-            'SaleStoreName': customer_name,
-            'StoreName': customer_name,
+            'SaleStoreName': 'KL - Richmond' if source_name.lower() == 'unfi_west' else customer_name,
+            'StoreName': 'KL - Richmond' if source_name.lower() == 'unfi_west' else customer_name,
             'CurrencyCode': 'USD',  # Default currency
             
             # Customer information
