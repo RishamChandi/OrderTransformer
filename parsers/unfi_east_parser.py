@@ -131,69 +131,49 @@ class UNFIEastParser(BaseParser):
         
         line_items = []
         
-        # Split text into lines and look for lines starting with 6-digit product numbers
-        lines = text_content.split('\n')
+        # The PDF extraction combines all line items into one long string
+        # We need to use regex to find all product items within the text
+        # Pattern to match each product line in the combined text
+        # Format: 142630   1   96   96 17-041-1     1    6 7.9 OZ  CUCAMO BRUSCHETTA,ARTICHOKE     13.50   13.50  1,296.00
         
-        print(f"DEBUG: Processing {len(lines)} lines from PDF")
+        # More flexible pattern to catch all variations
+        item_pattern = r'(\d{6})\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d\-]+)\s+.*?OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+([\d,]+\.\d+)'
         
-        # First, let's find all lines that contain 6-digit numbers (not necessarily at start)
-        lines_with_numbers = []
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
-            if re.search(r'\d{6}', line_stripped):
-                print(f"DEBUG: Line {i} contains 6-digit number: {line_stripped}")
-                lines_with_numbers.append(line_stripped)
+        # Find all matches in the entire text content
+        matches = re.finditer(item_pattern, text_content)
         
-        print(f"DEBUG: Found {len(lines_with_numbers)} lines with 6-digit numbers")
-        
-        for line in lines:
-            line = line.strip()
-            
-            # Skip empty lines or lines that don't start with a 6-digit number
-            if not line or not re.match(r'^\d{6}', line):
-                continue
+        for match in matches:
+            try:
+                prod_number = match.group(1)  # Prod# (like 142630)
+                seq = match.group(2)          # Seq (like 1)
+                ord_qty = int(match.group(3)) # Ord Qty (like 96)
+                qty = int(match.group(4))     # Qty (like 96)
+                vend_id = match.group(5)      # Vend ID (like 17-041-1)
+                description = match.group(6).strip()  # Product Description
+                unit_cost = float(match.group(7))     # Unit Cost
+                extension = float(match.group(9).replace(',', ''))  # Extension (remove commas)
                 
-            print(f"DEBUG: Processing line starting with 6-digit number: {line}")
-            
-            # Parse each line that starts with a product number
-            # Format: 142630   1   96   96 17-041-1     1    6 7.9 OZ  CUCAMO BRUSCHETTA,ARTICHOKE     13.50   13.50  1,296.00
-            item_pattern = r'^(\d{6})\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d\-]+)\s+.*?([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+([\d,]+\.\d+)'
-            
-            match = re.search(item_pattern, line)
-            if match:
-                try:
-                    prod_number = match.group(1)  # Prod# (like 142630)
-                    seq = match.group(2)          # Seq (like 1)
-                    ord_qty = int(match.group(3)) # Ord Qty (like 96)
-                    qty = int(match.group(4))     # Qty (like 96)
-                    vend_id = match.group(5)      # Vend ID (like 17-041-1)
-                    description = match.group(6).strip()  # Product Description
-                    unit_cost = float(match.group(7))     # Unit Cost
-                    extension = float(match.group(9).replace(',', ''))  # Extension (remove commas)
-                    
-                    # Normalize Prod# by removing leading zeros 
-                    normalized_prod = prod_number.lstrip('0') or '0'
-                    
-                    # Apply item mapping using normalized Prod# 
-                    mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
-                    
-                    item = {
-                        'item_number': mapped_item,
-                        'raw_item_number': prod_number,  # Keep original Prod#
-                        'item_description': description,
-                        'quantity': qty,
-                        'unit_price': unit_cost,
-                        'total_price': extension
-                    }
-                    
-                    line_items.append(item)
-                    print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
-                    
-                except (ValueError, IndexError) as e:
-                    print(f"DEBUG: Failed to parse line: {line}")
-                    continue
-            else:
-                print(f"DEBUG: Pattern didn't match line: {line}")
+                # Normalize Prod# by removing leading zeros 
+                normalized_prod = prod_number.lstrip('0') or '0'
+                
+                # Apply item mapping using normalized Prod# 
+                mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
+                
+                item = {
+                    'item_number': mapped_item,
+                    'raw_item_number': prod_number,  # Keep original Prod#
+                    'item_description': description,
+                    'quantity': qty,
+                    'unit_price': unit_cost,
+                    'total_price': extension
+                }
+                
+                line_items.append(item)
+                print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                
+            except (ValueError, IndexError) as e:
+                print(f"DEBUG: Failed to parse match - Error: {e}")
+                continue
         
         print(f"=== DEBUG: Total line items extracted: {len(line_items)} ===")
         return line_items
