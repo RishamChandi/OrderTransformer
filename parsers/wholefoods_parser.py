@@ -21,8 +21,9 @@ class WholeFoodsParser(BaseParser):
             raise ValueError("Whole Foods parser only supports HTML files")
         
         try:
-            # Parse HTML content
-            soup = BeautifulSoup(file_content.decode('utf-8'), 'html.parser')
+            # Try multiple encodings to handle different file formats
+            html_content = self._decode_file_content(file_content)
+            soup = BeautifulSoup(html_content, 'html.parser')
             
             # Extract order information
             orders = []
@@ -43,6 +44,21 @@ class WholeFoodsParser(BaseParser):
             
         except Exception as e:
             raise ValueError(f"Error parsing Whole Foods HTML: {str(e)}")
+    
+    def _decode_file_content(self, file_content: bytes) -> str:
+        """Try multiple encodings to decode file content"""
+        
+        # List of encodings to try
+        encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'iso-8859-1']
+        
+        for encoding in encodings:
+            try:
+                return file_content.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        
+        # If all encodings fail, use utf-8 with error handling
+        return file_content.decode('utf-8', errors='replace')
     
     def _extract_order_from_table(self, table_element, filename: str) -> List[Dict[str, Any]]:
         """Extract order data from HTML table element"""
