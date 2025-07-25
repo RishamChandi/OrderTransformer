@@ -60,12 +60,32 @@ def process_orders_page(db_service: DatabaseService):
     
     st.subheader(f"Processing {selected_source} Orders")
     
+    # Determine accepted file types based on selected source
+    if selected_source == "Whole Foods":
+        accepted_types = ['html']
+        help_text = "Upload HTML files exported from Whole Foods orders"
+    elif selected_source == "UNFI West":
+        accepted_types = ['html']
+        help_text = "Upload HTML files from UNFI West purchase orders"
+    elif selected_source == "UNFI East":
+        accepted_types = ['pdf']
+        help_text = "Upload PDF files from UNFI East purchase orders"
+    elif selected_source == "UNFI":
+        accepted_types = ['csv', 'xlsx']
+        help_text = "Upload CSV or Excel files from UNFI orders"
+    elif selected_source == "TK Maxx":
+        accepted_types = ['csv', 'xlsx']
+        help_text = "Upload CSV or Excel files from TK Maxx orders"
+    else:
+        accepted_types = ['html', 'csv', 'xlsx', 'pdf']
+        help_text = f"Upload {selected_source} order files for conversion"
+    
     # File upload
     uploaded_files = st.file_uploader(
         "Upload order files",
-        type=['html', 'csv', 'xlsx'],
+        type=accepted_types,
         accept_multiple_files=True,
-        help=f"Upload {selected_source} order files for conversion"
+        help=help_text
     )
     
     if uploaded_files:
