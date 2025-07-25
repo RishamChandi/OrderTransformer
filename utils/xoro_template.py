@@ -52,8 +52,8 @@ class XoroTemplate:
         eta_date = order.get('eta_date')
         
         if source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
-            # For UNFI East: use ETA date for shipping dates
-            shipping_date = eta_date if eta_date else self._calculate_shipping_date(order_date)
+            # For UNFI East: use Pck Date (pickup date) for shipping dates
+            shipping_date = pickup_date if pickup_date else self._calculate_shipping_date(order_date)
         elif pickup_date:
             # For other sources: use pickup_date if available
             shipping_date = pickup_date
