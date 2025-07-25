@@ -130,6 +130,7 @@ Name Mapping → Xoro Conversion → CSV Output
 - Supports dual date extraction: order date and pickup date from PDF structure
 - Maps warehouse locations (Sarasota, Atlanta, etc.) to proper customer names
 - Extracts line items with Vend ID mapping to Xoro ItemNumbers
+- Implements Order To number-based store mapping: 85948→PSS-NJ, 85950→IDI-Richmond
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback

@@ -58,13 +58,28 @@ class XoroTemplate:
         customer_name = str(order.get('customer_name', ''))
         first_name, last_name = self._split_customer_name(customer_name)
         
-        # For UNFI West, always use hardcoded store values but use mapped customer name
+        # Handle store name mapping based on source
         if source_name.lower().replace(' ', '_') == 'unfi_west' or source_name.lower() == 'unfi west':
+            # UNFI West: always use hardcoded store values
             sale_store_name = 'KL - Richmond'
             store_name = 'KL - Richmond'
-            # Use the mapped customer name (e.g., "UNFI MORENO VALLEY #2")
+            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
+        elif source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
+            # UNFI East: map based on Order To number
+            order_to_number = order.get('order_to_number')
+            if order_to_number == '85948':
+                sale_store_name = 'PSS - NJ'
+                store_name = 'PSS - NJ'
+            elif order_to_number == '85950':
+                sale_store_name = 'IDI - Richmond'
+                store_name = 'IDI - Richmond'
+            else:
+                # Default to mapped customer name for other order numbers
+                sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
+                store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
             final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
         else:
+            # Other sources: use mapped customer name
             sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
             store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
             final_customer_name = customer_name

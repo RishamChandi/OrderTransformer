@@ -76,6 +76,7 @@ class UNFIEastParser(BaseParser):
         
         order_info = {
             'order_number': filename,
+            'order_to_number': None,
             'order_date': None,
             'pickup_date': None,
             'customer_name': 'UNKNOWN',
@@ -87,6 +88,11 @@ class UNFIEastParser(BaseParser):
         po_match = re.search(r'Purchase Order Number:\s*(\d+)', text_content)
         if po_match:
             order_info['order_number'] = po_match.group(1)
+        
+        # Extract "Order To" number (like 85948, 85950) for store mapping
+        order_to_match = re.search(r'Order To:\s*(\d+)', text_content)
+        if order_to_match:
+            order_info['order_to_number'] = order_to_match.group(1)
         
         # Extract order date (Ord Date)
         order_date_match = re.search(r'Ord Date.*?(\d{2}/\d{2}/\d{2})', text_content)
