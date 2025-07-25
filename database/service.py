@@ -16,16 +16,7 @@ class DatabaseService:
         
         try:
             with get_session() as session:
-                conversion_record = ConversionHistory(
-                    filename=filename,
-                    source=source,
-                    orders_count=len(orders_data),
-                    line_items_count=len(orders_data),
-                    success=True
-                )
-                session.add(conversion_record)
-                
-                # Group orders by order number
+                # Group orders by order number first to get accurate counts
                 orders_by_number = {}
                 for order_data in orders_data:
                     order_num = order_data.get('order_number', filename)
@@ -35,6 +26,15 @@ class DatabaseService:
                             'line_items': []
                         }
                     orders_by_number[order_num]['line_items'].append(order_data)
+                
+                conversion_record = ConversionHistory(
+                    filename=filename,
+                    source=source,
+                    orders_count=len(orders_by_number),  # Count unique orders
+                    line_items_count=len(orders_data),   # Total line items
+                    success=True
+                )
+                session.add(conversion_record)
                 
                 # Save orders and line items
                 for order_num, order_group in orders_by_number.items():

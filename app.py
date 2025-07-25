@@ -132,7 +132,8 @@ def process_orders(uploaded_files, parser, source_name, db_service: DatabaseServ
         df_converted = pd.DataFrame(all_converted_data)
         
         # Display summary
-        st.write(f"**Total Orders Processed:** {len(all_converted_data)}")
+        unique_orders = df_converted['ThirdPartyRefNo'].nunique()
+        st.write(f"**Total Orders Processed:** {unique_orders}")
         st.write(f"**Unique Customers:** {df_converted['CustomerName'].nunique()}")
         st.write(f"**Total Line Items:** {len(df_converted)}")
         
