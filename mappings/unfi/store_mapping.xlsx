@@ -1,0 +1,28 @@
+import pandas as pd
+import os
+
+# Create directory if it doesn't exist
+os.makedirs('mappings/unfi', exist_ok=True)
+
+# Create sample mapping data for UNFI
+data = {
+    'Raw Name': [
+        'UNFI Distribution Center',
+        'UNFI - East Coast',
+        'UNFI - West Coast',
+        'UNFI Regional Hub',
+        'Sample UNFI Store',
+        'Generic Store Name'
+    ],
+    'Mapped Name': [
+        'UNFI Distribution',
+        'UNFI East Coast',
+        'UNFI West Coast',
+        'UNFI Regional',
+        'Mapped UNFI Store',
+        'Generic Mapped Store'
+    ]
+}
+
+df = pd.DataFrame(data)
+df.to_excel('mappings/unfi/store_mapping.xlsx', index=False)

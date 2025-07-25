@@ -1,0 +1,28 @@
+import pandas as pd
+import os
+
+# Create directory if it doesn't exist
+os.makedirs('mappings/wholefoods', exist_ok=True)
+
+# Create sample mapping data for Whole Foods
+data = {
+    'Raw Name': [
+        'Whole Foods Market - Downtown',
+        'Whole Foods Market - Uptown', 
+        'Whole Foods Market - West Side',
+        'WFM Central',
+        'Whole Foods - Main Street',
+        'Sample Store Name'
+    ],
+    'Mapped Name': [
+        'Whole Foods Downtown',
+        'Whole Foods Uptown',
+        'Whole Foods West Side', 
+        'Whole Foods Central',
+        'Whole Foods Main Street',
+        'Mapped Store Name'
+    ]
+}
+
+df = pd.DataFrame(data)
+df.to_excel('mappings/wholefoods/store_mapping.xlsx', index=False)

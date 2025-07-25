@@ -1,0 +1,179 @@
+"""
+Utilities for handling customer and store name mappings
+"""
+
+import pandas as pd
+import os
+from typing import Optional, Dict
+
+class MappingUtils:
+    """Utilities for mapping customer/store names"""
+    
+    def __init__(self):
+        self.mapping_cache = {}
+    
+    def get_store_mapping(self, raw_name: str, source: str) -> str:
+        """
+        Get mapped store name for a given raw name and source
+        
+        Args:
+            raw_name: Original customer/store name from order file
+            source: Order source (wholefoods, unfi_west, unfi, tkmaxx)
+            
+        Returns:
+            Mapped store name or original name if no mapping found
+        """
+        
+        if not raw_name or not raw_name.strip():
+            return "UNKNOWN"
+        
+        # Load mapping if not cached
+        mapping_key = f"{source}_mapping"
+        if mapping_key not in self.mapping_cache:
+            self._load_mapping(source)
+        
+        # Get mapping
+        mapping_dict = self.mapping_cache.get(mapping_key, {})
+        
+        # Try exact match first
+        raw_name_clean = raw_name.strip()
+        if raw_name_clean in mapping_dict:
+            return mapping_dict[raw_name_clean]
+        
+        # Try case-insensitive match
+        raw_name_lower = raw_name_clean.lower()
+        for key, value in mapping_dict.items():
+            if key.lower() == raw_name_lower:
+                return value
+        
+        # Try partial match
+        for key, value in mapping_dict.items():
+            if key.lower() in raw_name_lower or raw_name_lower in key.lower():
+                return value
+        
+        # Return original name if no mapping found
+        return raw_name_clean
+    
+    def _load_mapping(self, source: str) -> None:
+        """Load mapping file for the given source"""
+        
+        mapping_file = f"mappings/{source}/store_mapping.xlsx"
+        mapping_key = f"{source}_mapping"
+        
+        try:
+            if os.path.exists(mapping_file):
+                df = pd.read_excel(mapping_file)
+                
+                # Expected columns: raw_name, mapped_name
+                if len(df.columns) >= 2:
+                    raw_col = df.columns[0]
+                    mapped_col = df.columns[1]
+                    
+                    mapping_dict = {}
+                    for _, row in df.iterrows():
+                        if pd.notna(row[raw_col]) and pd.notna(row[mapped_col]):
+                            mapping_dict[str(row[raw_col]).strip()] = str(row[mapped_col]).strip()
+                    
+                    self.mapping_cache[mapping_key] = mapping_dict
+                else:
+                    self.mapping_cache[mapping_key] = {}
+            else:
+                # Create default mapping structure
+                self.mapping_cache[mapping_key] = {}
+                self._create_default_mapping_file(source)
+                
+        except Exception as e:
+            # Use empty mapping on error
+            self.mapping_cache[mapping_key] = {}
+    
+    def _create_default_mapping_file(self, source: str) -> None:
+        """Create a default mapping file with sample entries"""
+        
+        mapping_dir = f"mappings/{source}"
+        os.makedirs(mapping_dir, exist_ok=True)
+        
+        mapping_file = os.path.join(mapping_dir, "store_mapping.xlsx")
+        
+        # Create sample mapping data
+        sample_data = {
+            'Raw Name': [
+                'Sample Store 1',
+                'Sample Customer A',
+                'Example Location',
+                'Default Entry'
+            ],
+            'Mapped Name': [
+                'Mapped Store 1',
+                'Mapped Customer A', 
+                'Mapped Location',
+                'Default Mapped'
+            ]
+        }
+        
+        try:
+            df = pd.DataFrame(sample_data)
+            df.to_excel(mapping_file, index=False)
+        except Exception:
+            # Ignore file creation errors
+            pass
+    
+    def add_mapping(self, raw_name: str, mapped_name: str, source: str) -> bool:
+        """
+        Add a new mapping entry
+        
+        Args:
+            raw_name: Original name from order file
+            mapped_name: Standardized name to map to
+            source: Order source
+            
+        Returns:
+            True if mapping was added successfully
+        """
+        
+        try:
+            mapping_key = f"{source}_mapping"
+            
+            # Load existing mapping if not cached
+            if mapping_key not in self.mapping_cache:
+                self._load_mapping(source)
+            
+            # Add to cache
+            self.mapping_cache[mapping_key][raw_name.strip()] = mapped_name.strip()
+            
+            # Update file
+            mapping_file = f"mappings/{source}/store_mapping.xlsx"
+            
+            # Read existing data
+            if os.path.exists(mapping_file):
+                df = pd.read_excel(mapping_file)
+            else:
+                df = pd.DataFrame(columns=['Raw Name', 'Mapped Name'])
+            
+            # Add new row
+            new_row = pd.DataFrame({
+                'Raw Name': [raw_name.strip()],
+                'Mapped Name': [mapped_name.strip()]
+            })
+            
+            df = pd.concat([df, new_row], ignore_index=True)
+            
+            # Remove duplicates
+            df = df.drop_duplicates(subset=['Raw Name'], keep='last')
+            
+            # Save file
+            os.makedirs(os.path.dirname(mapping_file), exist_ok=True)
+            df.to_excel(mapping_file, index=False)
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def get_all_mappings(self, source: str) -> Dict[str, str]:
+        """Get all mappings for a source"""
+        
+        mapping_key = f"{source}_mapping"
+        if mapping_key not in self.mapping_cache:
+            self._load_mapping(source)
+        
+        return self.mapping_cache.get(mapping_key, {})

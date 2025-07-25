@@ -1,0 +1,28 @@
+import pandas as pd
+import os
+
+# Create directory if it doesn't exist
+os.makedirs('mappings/tkmaxx', exist_ok=True)
+
+# Create sample mapping data for TK Maxx
+data = {
+    'Raw Name': [
+        'TK Maxx - London',
+        'TK Maxx - Manchester',
+        'TK Maxx - Birmingham',
+        'TK Maxx Regional',
+        'Sample TK Maxx Store',
+        'Example Store'
+    ],
+    'Mapped Name': [
+        'TK Maxx London',
+        'TK Maxx Manchester',
+        'TK Maxx Birmingham',
+        'TK Maxx Regional',
+        'Mapped TK Maxx Store',
+        'Example Mapped Store'
+    ]
+}
+
+df = pd.DataFrame(data)
+df.to_excel('mappings/tkmaxx/store_mapping.xlsx', index=False)

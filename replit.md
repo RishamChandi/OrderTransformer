@@ -1,0 +1,101 @@
+# Order Transformer - Xoro CSV Converter
+
+## Overview
+
+This is a Streamlit application that converts sales orders from multiple retail sources (Whole Foods, UNFI West, UNFI, and TK Maxx) into a standardized Xoro import CSV format. The application uses a modular parser architecture with source-specific parsers that inherit from a common base parser.
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+- **Technology**: Streamlit web application
+- **Purpose**: Provides a simple file upload interface with source selection
+- **Key Features**: 
+  - Multi-file upload support
+  - Source-specific parser selection
+  - Real-time processing feedback
+
+### Backend Architecture
+- **Pattern**: Modular parser architecture with inheritance
+- **Core Components**:
+  - Base parser class with common functionality
+  - Source-specific parser implementations
+  - Utility classes for mapping and template conversion
+- **File Processing**: Handles HTML, CSV, and Excel file formats
+
+## Key Components
+
+### Parser System
+- **BaseParser**: Abstract base class providing common parsing utilities
+  - Numeric value cleaning
+  - Field validation
+  - Mapping utilities integration
+- **Source-Specific Parsers**:
+  - WholeFoodsParser: Handles HTML order files
+  - UNFIWestParser: Processes HTML purchase orders
+  - UNFIParser: Handles CSV/Excel files
+  - TKMaxxParser: Processes CSV/Excel files
+
+### Utility Classes
+- **MappingUtils**: Handles customer/store name mapping and normalization
+  - Caching system for performance
+  - Fuzzy matching capabilities
+  - Source-specific mapping support
+- **XoroTemplate**: Converts parsed data to standardized Xoro CSV format
+  - Defines required Xoro fields schema
+  - Handles data transformation and validation
+
+### Data Processing Flow
+1. User selects order source and uploads files
+2. Appropriate parser is selected based on source
+3. Files are parsed using source-specific logic
+4. Data is normalized using mapping utilities
+5. Orders are converted to Xoro format using template converter
+6. Results are presented to user for download
+
+## Data Flow
+
+```
+File Upload → Source Selection → Parser Selection → Data Extraction → 
+Name Mapping → Xoro Conversion → CSV Output
+```
+
+### Input Formats
+- **HTML**: Whole Foods and UNFI West order pages
+- **CSV/Excel**: UNFI and TK Maxx order exports
+
+### Output Format
+- Standardized Xoro CSV with predefined schema including customer info, order details, and line items
+
+## External Dependencies
+
+### Core Libraries
+- **streamlit**: Web application framework
+- **pandas**: Data manipulation and CSV/Excel processing
+- **beautifulsoup4**: HTML parsing for web-scraped order pages
+- **io**: File content handling
+
+### File Format Support
+- HTML parsing for web order pages
+- CSV/Excel processing for exported order data
+- Multi-file batch processing capability
+
+## Deployment Strategy
+
+### Development Environment
+- Streamlit application suitable for local development and testing
+- Modular structure allows easy addition of new order sources
+- File-based processing without persistent storage requirements
+
+### Scalability Considerations
+- Parser system designed for easy extension
+- Mapping utilities support caching for performance
+- Memory-efficient file processing using streaming where possible
+
+### Configuration Management
+- Source-specific parsers can be configured independently
+- Mapping files can be updated without code changes
+- Template conversion rules centralized in XoroTemplate class
