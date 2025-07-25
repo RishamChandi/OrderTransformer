@@ -111,25 +111,37 @@ class UNFIEastParser(BaseParser):
         if eta_date_match:
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
         
-        # Extract warehouse/location information for store mapping
-        # Look for warehouse names like "Sarasota Warehouse", "Atlanta Warehouse"
-        warehouse_match = re.search(r'(Sarasota|Atlanta|[A-Z][a-z]+)\s+Warehouse', text_content)
-        if warehouse_match:
-            warehouse_name = warehouse_match.group(1)
-            order_info['raw_customer_name'] = f"UNFI EAST - {warehouse_name.upper()}"
-        else:
-            # Look for location codes like "SAR", "ATL"
-            location_match = re.search(r'\b([A-Z]{3})\s*$', text_content, re.MULTILINE)
-            if location_match:
-                location_code = location_match.group(1)
-                order_info['raw_customer_name'] = f"UNFI EAST - {location_code}"
+        # Extract warehouse/location information for customer mapping
+        # Look for warehouse info in "Ship To:" section like "Manchester", "Howell Warehouse", etc.
+        ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
+        if ship_to_match:
+            warehouse_location = ship_to_match.group(1).strip()
+            order_info['warehouse_location'] = warehouse_location
+            print(f"DEBUG: Found Ship To location: {warehouse_location}")
+            
+            # Try to map warehouse location to customer name
+            mapped_customer = self.mapping_utils.get_store_mapping(warehouse_location, 'unfi_east')
+            if mapped_customer and mapped_customer != warehouse_location:
+                order_info['customer_name'] = mapped_customer
+                order_info['raw_customer_name'] = warehouse_location
+                print(f"DEBUG: Mapped {warehouse_location} -> {mapped_customer}")
         
-        # Apply store mapping
-        if order_info['raw_customer_name']:
-            order_info['customer_name'] = self.mapping_utils.get_store_mapping(
-                order_info['raw_customer_name'], 
-                'unfi_east'
-            )
+        # Fallback 1: Look for warehouse names like "Sarasota Warehouse", "Atlanta Warehouse"
+        if order_info['customer_name'] == 'UNKNOWN':
+            warehouse_match = re.search(r'(Sarasota|Atlanta|Howell|Manchester|[A-Z][a-z]+)\s+Warehouse', text_content)
+            if warehouse_match:
+                warehouse_name = warehouse_match.group(1)
+                order_info['raw_customer_name'] = f"UNFI EAST - {warehouse_name.upper()}"
+                mapped_customer = self.mapping_utils.get_store_mapping(order_info['raw_customer_name'], 'unfi_east')
+                if mapped_customer and mapped_customer != order_info['raw_customer_name']:
+                    order_info['customer_name'] = mapped_customer
+        
+        # Fallback 2: Apply store mapping based on Order To number
+        if order_info['customer_name'] == 'UNKNOWN' and order_info['order_to_number']:
+            mapped_customer = self.mapping_utils.get_store_mapping(order_info['order_to_number'], 'unfi_east')
+            if mapped_customer and mapped_customer != order_info['order_to_number']:
+                order_info['customer_name'] = mapped_customer
+                order_info['raw_customer_name'] = order_info['order_to_number']
         
         return order_info
     
