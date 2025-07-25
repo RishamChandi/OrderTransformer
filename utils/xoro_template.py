@@ -46,12 +46,19 @@ class XoroTemplate:
     def _convert_single_order(self, order: Dict[str, Any], source_name: str) -> Dict[str, Any]:
         """Convert a single order to Xoro format"""
         
-        # Use pickup_date for shipping dates if available, otherwise calculate from order_date
+        # For UNFI East, use ETA date for shipping dates, otherwise use pickup_date or calculate from order_date
         order_date = order.get('order_date')
         pickup_date = order.get('pickup_date')
-        if pickup_date:
+        eta_date = order.get('eta_date')
+        
+        if source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
+            # For UNFI East: use ETA date for shipping dates
+            shipping_date = eta_date if eta_date else self._calculate_shipping_date(order_date)
+        elif pickup_date:
+            # For other sources: use pickup_date if available
             shipping_date = pickup_date
         else:
+            # Fallback: calculate from order_date
             shipping_date = self._calculate_shipping_date(order_date)
         
         # Split customer name into first/last if possible

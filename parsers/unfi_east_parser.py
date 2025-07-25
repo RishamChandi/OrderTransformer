@@ -79,6 +79,7 @@ class UNFIEastParser(BaseParser):
             'order_to_number': None,
             'order_date': None,
             'pickup_date': None,
+            'eta_date': None,
             'customer_name': 'UNKNOWN',
             'raw_customer_name': '',
             'source_file': filename
@@ -94,15 +95,20 @@ class UNFIEastParser(BaseParser):
         if order_to_match:
             order_info['order_to_number'] = order_to_match.group(1)
         
-        # Extract order date (Ord Date)
+        # Extract order date (Ord Date) - for OrderDate in Xoro
         order_date_match = re.search(r'Ord Date.*?(\d{2}/\d{2}/\d{2})', text_content)
         if order_date_match:
             order_info['order_date'] = self.parse_date(order_date_match.group(1))
         
-        # Extract pickup date (Pck Date)
+        # Extract pickup date (Pck Date) - for reference
         pickup_date_match = re.search(r'Pck Date.*?(\d{2}/\d{2}/\d{2})', text_content)
         if pickup_date_match:
             order_info['pickup_date'] = self.parse_date(pickup_date_match.group(1))
+            
+        # Extract ETA date - for DateToBeShipped and LastDateToBeShipped in Xoro
+        eta_date_match = re.search(r'ETA Date.*?(\d{2}/\d{2}/\d{2})', text_content)
+        if eta_date_match:
+            order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
         
         # Extract warehouse/location information for store mapping
         # Look for warehouse names like "Sarasota Warehouse", "Atlanta Warehouse"

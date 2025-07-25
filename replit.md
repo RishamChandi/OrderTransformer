@@ -127,7 +127,8 @@ Name Mapping → Xoro Conversion → CSV Output
 - Created new parser for UNFI East PDF purchase orders
 - Integrated PyPDF2 for PDF text extraction
 - Added 71 item mappings and 14 store mappings for UNFI East
-- Supports dual date extraction: order date and pickup date from PDF structure
+- Supports triple date extraction: order date (Ord Date), pickup date (Pck Date), and ETA date from PDF structure
+- Uses Ord Date for OrderDate and ETA Date for DateToBeShipped/LastDateToBeShipped in Xoro template
 - Maps warehouse locations (Sarasota, Atlanta, etc.) to proper customer names
 - Extracts line items with Prod# mapping to Xoro ItemNumbers using normalized Prod# values
 - Maps line item fields: Prod#→ItemNumber, Description→ItemDescription, Qty→Qty, Unit Cost→UnitPrice
