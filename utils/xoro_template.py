@@ -81,8 +81,8 @@ class XoroTemplate:
             
             # Customer information
             'CustomerName': final_customer_name,
-            'CustomerFirstName': first_name,
-            'CustomerLastName': last_name,
+            'CustomerFirstName': '',  # Keep empty as requested
+            'CustomerLastName': '',   # Keep empty as requested
             'CustomerMainPhone': '',
             'CustomerEmailMain': '',
             'CustomerPO': str(order.get('order_number', '')),
@@ -95,17 +95,17 @@ class XoroTemplate:
             'LastDateToBeShipped': shipping_date,
             'DateToBeCancelled': '',
             
-            # Order classification
-            'OrderClassCode': 'STANDARD',
-            'OrderClassName': 'Standard Order',
-            'OrderTypeCode': 'SALE',
-            'OrderTypeName': 'Sales Order',
+            # Order classification - Keep empty as requested
+            'OrderClassCode': '',
+            'OrderClassName': '',
+            'OrderTypeCode': '',
+            'OrderTypeName': '',
             
             # Financial information
             'ExchangeRate': 1.0,
             'Memo': f"Imported from {source_name} - File: {order.get('source_file', '')}",
             'PaymentTermsName': 'Net 30',
-            'PaymentTermsType': 'Net',
+            'PaymentTermsType': 'NET',
             'DepositRequiredTypeName': '',
             'DepositRequiredAmount': 0.0,
             
