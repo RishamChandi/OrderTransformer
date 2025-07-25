@@ -196,19 +196,29 @@ class UNFIWestParser(BaseParser):
             return None
         
         try:
-            # Extract fields based on UNFI West format
+            # Extract fields based on UNFI West format: Line Qty Cases Plts Prod# Description Units Vendor_PN Cost Extension
             line_num = parts[0]
             qty = int(parts[1])
+            cases = parts[2] if len(parts) > 2 else ""
+            plts = parts[3] if len(parts) > 3 else ""
             
-            # Find vendor P.N. by looking for patterns like "12-042", "17-006", etc.
-            vendor_pn = None
+            # Extract Prod# (5th column, index 4)
+            prod_number = parts[4] if len(parts) > 4 else "UNKNOWN"
+            
+            # Find cost by looking for decimal numbers
             cost = 0.0
+            vendor_pn = ""
             description = ""
             
-            # Look for vendor P.N. pattern (numbers with dashes/letters)
-            for i, part in enumerate(parts):
-                if re.match(r'^\d+[-]\d+[-]?\d*$', part) or re.match(r'^[A-Z][-]\d+[-]\d+$', part):
+            # Look for vendor P.N. pattern and cost
+            desc_parts = []
+            found_vendor_pn = False
+            
+            for i, part in enumerate(parts[5:], 5):  # Start after prod#
+                # Look for vendor P.N. pattern (numbers with dashes/letters)
+                if not found_vendor_pn and (re.match(r'^\d+[-]\d+[-]?\d*$', part) or re.match(r'^[A-Z][-]\d+[-]\d+$', part)):
                     vendor_pn = part
+                    found_vendor_pn = True
                     # Cost should be one of the next parts
                     for j in range(i+1, min(i+4, len(parts))):
                         try:
@@ -217,31 +227,18 @@ class UNFIWestParser(BaseParser):
                         except ValueError:
                             continue
                     break
-            
-            # Extract description (between prod# and vendor P.N.)
-            desc_parts = []
-            capturing_desc = False
-            for part in parts[4:]:  # Start after line, qty, cases, plts
-                if re.match(r'^\d+[-]\d+', part):  # Found vendor P.N.
-                    break
-                if part and not part.replace('.', '').replace('-', '').isdigit():
+                # Collect description parts before vendor P.N.
+                elif not found_vendor_pn and part and not part.replace('.', '').replace('-', '').isdigit():
                     desc_parts.append(part)
             
             description = ' '.join(desc_parts)
             
-            if not vendor_pn:
-                # Fallback: use last alphanumeric part as vendor P.N.
-                for part in reversed(parts):
-                    if re.match(r'^[A-Za-z0-9\-]+$', part) and not part.replace('.', '').isdigit():
-                        vendor_pn = part
-                        break
-            
-            # Apply item mapping
-            mapped_item = self.mapping_utils.get_item_mapping(vendor_pn or "UNKNOWN", 'unfi_west')
+            # Apply item mapping using Prod# instead of Vendor P.N.
+            mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_west')
             
             return {
                 'item_number': mapped_item,
-                'raw_item_number': vendor_pn or "UNKNOWN",
+                'raw_item_number': prod_number,  # Now using Prod# instead of Vendor P.N.
                 'item_description': description.strip(),
                 'quantity': qty,
                 'unit_price': cost,
