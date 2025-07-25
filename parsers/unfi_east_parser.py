@@ -202,8 +202,14 @@ class UNFIEastParser(BaseParser):
                 # Normalize Prod# by removing leading zeros 
                 normalized_prod = prod_number.lstrip('0') or '0'
                 
-                # Apply item mapping using normalized Prod# 
-                mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
+                # Apply item mapping using the original Prod# (not normalized)
+                mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
+                print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
+                
+                # If not found, try with normalized Prod# (without leading zeros)
+                if mapped_item == prod_number:
+                    mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
+                    print(f"DEBUG: Fallback item mapping: {normalized_prod} -> {mapped_item}")
                 
                 item = {
                     'item_number': mapped_item,

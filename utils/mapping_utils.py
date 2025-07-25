@@ -279,19 +279,33 @@ class MappingUtils:
             if os.path.exists(item_mapping_file):
                 df = pd.read_excel(item_mapping_file)
                 
-                # Expected columns: Vendor P.N, Mapped Item (or similar)
-                if len(df.columns) >= 2:
-                    raw_col = df.columns[0]  # First column: raw item number
-                    mapped_col = df.columns[1]  # Second column: mapped item number
-                    
-                    item_mapping_dict = {}
-                    for _, row in df.iterrows():
-                        if pd.notna(row[raw_col]) and pd.notna(row[mapped_col]):
-                            item_mapping_dict[str(row[raw_col]).strip()] = str(row[mapped_col]).strip()
-                    
-                    self.mapping_cache[item_mapping_key] = item_mapping_dict
+                # Handle different column structures for each source
+                item_mapping_dict = {}
+                
+                if source == 'unfi_east':
+                    # For UNFI East: columns are ['UPC', 'UNFI East ', 'Description', 'Xoro Item#', 'Xoro Description']
+                    # We want to map 'UNFI East ' (column 1) -> 'Xoro Item#' (column 3)
+                    if len(df.columns) >= 4:
+                        raw_col = df.columns[1]  # 'UNFI East ' column
+                        mapped_col = df.columns[3]  # 'Xoro Item#' column
+                        
+                        for _, row in df.iterrows():
+                            if pd.notna(row[raw_col]) and pd.notna(row[mapped_col]):
+                                raw_item = str(row[raw_col]).strip()
+                                mapped_item = str(row[mapped_col]).strip()
+                                item_mapping_dict[raw_item] = mapped_item
+                                print(f"DEBUG: Loaded item mapping: {raw_item} -> {mapped_item}")
                 else:
-                    self.mapping_cache[item_mapping_key] = {}
+                    # For other sources: use first two columns
+                    if len(df.columns) >= 2:
+                        raw_col = df.columns[0]  # First column: raw item number
+                        mapped_col = df.columns[1]  # Second column: mapped item number
+                        
+                        for _, row in df.iterrows():
+                            if pd.notna(row[raw_col]) and pd.notna(row[mapped_col]):
+                                item_mapping_dict[str(row[raw_col]).strip()] = str(row[mapped_col]).strip()
+                
+                self.mapping_cache[item_mapping_key] = item_mapping_dict
             else:
                 # Use empty mapping if file doesn't exist
                 self.mapping_cache[item_mapping_key] = {}
