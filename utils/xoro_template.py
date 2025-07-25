@@ -55,7 +55,7 @@ class XoroTemplate:
         first_name, last_name = self._split_customer_name(customer_name)
         
         # For UNFI West, always use hardcoded store values but use mapped customer name
-        if source_name.lower() == 'unfi_west':
+        if source_name.lower().replace(' ', '_') == 'unfi_west' or source_name.lower() == 'unfi west':
             sale_store_name = 'KL - Richmond'
             store_name = 'KL - Richmond'
             # Use the mapped customer name (e.g., "UNFI MORENO VALLEY #2")
