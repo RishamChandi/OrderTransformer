@@ -131,103 +131,48 @@ class UNFIEastParser(BaseParser):
         
         line_items = []
         
-        # Debug: Print extracted text to understand structure
-        print("=== DEBUG: Extracted PDF Text ===")
-        print(text_content[:1000])  # Print first 1000 chars
-        print("=== END DEBUG ===")
+        # Use regex to find all line items directly from the text
+        # Pattern to match UNFI East line items in the format:
+        # Prod# Seq Ord Qty Vend ID MC Pack U/M Brand Product Description Unit Cst Vend CS Extension
+        # Example: 142630   1   96   96 17-041-1     1    6 7.9 OZ CUCAMO BRUSCHETTA,ARTICHOKE       13.50   13.50 1,296.00
         
-        # Find the line items section
-        # Look for the table with Prod#, Seq, Ord Qty, etc.
-        lines = text_content.split('\n')
-        in_items_section = False
+        # Look for lines that start with a product number followed by structured data
+        item_pattern = r'(\d{6})\s+(\d+)\s+(\d+)\s+(\d+)\s+([^\s]+)\s+.*?([A-Z][A-Z\s,&\.\-]+?)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+([\d,]+\.\d+)'
         
-        print(f"=== DEBUG: Total lines in PDF: {len(lines)} ===")
+        matches = re.finditer(item_pattern, text_content)
         
-        for i, line in enumerate(lines):
-            line = line.strip()
-            
-            # Start of items section - look for header
-            if 'Prod#' in line and ('Seq' in line or 'Ord' in line or 'Product Description' in line):
-                in_items_section = True
-                print(f"DEBUG: Found items section header at line {i}: {line}")
+        for match in matches:
+            try:
+                prod_number = match.group(1)  # Prod# (like 142630)
+                seq = match.group(2)          # Seq (like 1)
+                ord_qty = int(match.group(3)) # Ord Qty (like 96)
+                qty = int(match.group(4))     # Qty (like 96)
+                vend_id = match.group(5)      # Vend ID (like 17-041-1)
+                description = match.group(6).strip()  # Product Description
+                unit_cost = float(match.group(7))     # Unit Cost
+                extension = float(match.group(9))     # Extension
+                
+                # Normalize Prod# by removing leading zeros 
+                normalized_prod = prod_number.lstrip('0') or '0'
+                
+                # Apply item mapping using normalized Prod# 
+                mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
+                
+                item = {
+                    'item_number': mapped_item,
+                    'raw_item_number': prod_number,  # Keep original Prod#
+                    'item_description': description,
+                    'quantity': qty,
+                    'unit_price': unit_cost,
+                    'total_price': extension
+                }
+                
+                line_items.append(item)
+                print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                
+            except (ValueError, IndexError) as e:
+                print(f"DEBUG: Failed to parse match: {match.group(0)}")
                 continue
-            
-            # End of items section
-            if in_items_section and ('Total Pieces' in line or 'Total Vendor Cases' in line or line.startswith('---')):
-                print(f"DEBUG: End of items section at line {i}: {line}")
-                break
-            
-            # Parse line items
-            if in_items_section and line and len(line) > 10:  # Skip very short lines
-                print(f"DEBUG: Trying to parse line {i}: {line}")
-                item = self._parse_unfi_east_line(line)
-                if item:
-                    print(f"DEBUG: Successfully parsed item: {item}")
-                    line_items.append(item)
-                else:
-                    print(f"DEBUG: Failed to parse line: {line}")
         
         print(f"=== DEBUG: Total line items extracted: {len(line_items)} ===")
         return line_items
-    
-    def _parse_unfi_east_line(self, line: str) -> Optional[Dict[str, Any]]:
-        """Parse a single UNFI East line item"""
-        
-        # Skip lines that are comments or special instructions
-        if line.startswith('?') or line.startswith('MIN ') or line.startswith('-'):
-            return None
-        
-        # Pattern for UNFI East line items:
-        # Prod# Seq Ord Qty Vend ID MC Pack U/M Brand Product Description Unit Cst Vend CS Extension
-        # Example: 268066   1   40   40 8-907        1    6 8 OZ    KTCHLV RICE,CAULIFLOWER,RTH     10.20   10.20    408.00
-        
-        # Try to parse the line by splitting and extracting fields
-        parts = line.split()
-        if len(parts) < 8:  # Need at least 8 parts for a valid line
-            return None
-        
-        try:
-            # Extract basic fields
-            prod_number = parts[0]  # Prod# (like 268066)
-            seq = parts[1]          # Seq (like 1)
-            ord_qty = int(parts[2]) # Ord Qty (like 40)
-            qty = int(parts[3])     # Qty (like 40)
-            vend_id = parts[4]      # Vend ID (like 8-907)
-            
-            # Find unit cost - look for decimal numbers in the line
-            unit_costs = re.findall(r'\b(\d+\.\d+)\b', line)
-            if len(unit_costs) >= 2:
-                unit_cost = float(unit_costs[0])  # First decimal is usually unit cost
-            else:
-                unit_cost = 0.0
-            
-            # Extract description - find text between vend_id and first decimal number
-            # Look for the brand and product description pattern
-            desc_pattern = r'[A-Z]+\s+([A-Z][A-Z\s,&\.\-]+?)\s+\d+\.\d+'
-            desc_match = re.search(desc_pattern, line)
-            if desc_match:
-                description = desc_match.group(1).strip()
-            else:
-                # Fallback: extract text after brand code
-                brand_pattern = r'[A-Z]{2,}\s+([A-Z][A-Z\s,&\.\-]+)'
-                brand_match = re.search(brand_pattern, line)
-                description = brand_match.group(1).strip() if brand_match else ""
-            
-            # Normalize Prod# by removing leading zeros (like UNFI West)
-            normalized_prod = prod_number.lstrip('0') or '0'
-            
-            # Apply item mapping using normalized Prod# 
-            mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
-            
-            return {
-                'item_number': mapped_item,
-                'raw_item_number': prod_number,  # Keep original Prod#
-                'item_description': description,
-                'quantity': qty,
-                'unit_price': unit_cost,
-                'total_price': unit_cost * qty
-            }
-            
-        except (ValueError, IndexError) as e:
-            # If parsing fails, return None
-            return None
