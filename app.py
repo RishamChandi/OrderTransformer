@@ -8,10 +8,37 @@ from parsers.unfi_west_parser import UNFIWestParser
 from parsers.unfi_parser import UNFIParser
 from parsers.tkmaxx_parser import TKMaxxParser
 from utils.xoro_template import XoroTemplate
+from database.service import DatabaseService
 
 def main():
     st.title("Order Transformer - Multiple Sources to Xoro CSV")
     st.write("Convert sales orders from different sources into standardized Xoro import CSV format")
+    
+    # Initialize database service
+    db_service = DatabaseService()
+    
+    # Sidebar for configuration and navigation
+    st.sidebar.header("Navigation")
+    
+    # Add navigation options
+    page = st.sidebar.selectbox(
+        "Choose a page",
+        ["Process Orders", "Conversion History", "View Processed Orders", "Manage Mappings"]
+    )
+    
+    if page == "Process Orders":
+        process_orders_page(db_service)
+    elif page == "Conversion History":
+        conversion_history_page(db_service)
+    elif page == "View Processed Orders":
+        processed_orders_page(db_service)
+    elif page == "Manage Mappings":
+        manage_mappings_page(db_service)
+
+def process_orders_page(db_service: DatabaseService):
+    """Main order processing page"""
+    
+    st.header("Process Orders")
     
     # Sidebar for configuration
     st.sidebar.header("Configuration")
@@ -44,15 +71,16 @@ def main():
         
         # Process files button
         if st.button("Process Orders", type="primary"):
-            process_orders(uploaded_files, order_sources[selected_source], selected_source)
+            process_orders(uploaded_files, order_sources[selected_source], selected_source, db_service)
 
-def process_orders(uploaded_files, parser, source_name):
+def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
     
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     all_converted_data = []
+    all_parsed_data = []  # Keep original parsed data for database storage
     errors = []
     
     for i, uploaded_file in enumerate(uploaded_files):
@@ -67,12 +95,21 @@ def process_orders(uploaded_files, parser, source_name):
             parsed_data = parser.parse(file_content, file_extension, uploaded_file.name)
             
             if parsed_data:
+                # Store parsed data for database
+                all_parsed_data.extend(parsed_data)
+                
                 # Convert to Xoro format
                 xoro_template = XoroTemplate()
                 converted_data = xoro_template.convert_to_xoro(parsed_data, source_name)
                 all_converted_data.extend(converted_data)
                 
-                st.success(f"✅ Successfully processed {uploaded_file.name}")
+                # Save to database
+                db_saved = db_service.save_processed_orders(parsed_data, source_name, uploaded_file.name)
+                
+                if db_saved:
+                    st.success(f"✅ Successfully processed and saved {uploaded_file.name}")
+                else:
+                    st.warning(f"⚠️ Processed {uploaded_file.name} but database save failed")
             else:
                 errors.append(f"Failed to parse {uploaded_file.name}")
                 st.error(f"❌ Failed to process {uploaded_file.name}")
@@ -122,6 +159,166 @@ def process_orders(uploaded_files, parser, source_name):
         st.subheader("Errors")
         for error in errors:
             st.error(error)
+
+def conversion_history_page(db_service: DatabaseService):
+    """Display conversion history from database"""
+    
+    st.header("Conversion History")
+    
+    try:
+        history = db_service.get_conversion_history(limit=100)
+        
+        if history:
+            df_history = pd.DataFrame(history)
+            
+            # Display summary stats
+            total_conversions = len(df_history)
+            successful_conversions = len(df_history[df_history['success'] == True])
+            failed_conversions = total_conversions - successful_conversions
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Conversions", total_conversions)
+            with col2:
+                st.metric("Successful", successful_conversions)
+            with col3:
+                st.metric("Failed", failed_conversions)
+            
+            # Display history table
+            st.subheader("Recent Conversions")
+            st.dataframe(df_history[['filename', 'source', 'conversion_date', 'orders_count', 'success']])
+            
+            # Show errors in expander
+            failed_records = df_history[df_history['success'] == False]
+            if not failed_records.empty:
+                with st.expander("View Failed Conversions"):
+                    for _, record in failed_records.iterrows():
+                        st.error(f"**{record['filename']}**: {record['error_message']}")
+        else:
+            st.info("No conversion history found.")
+            
+    except Exception as e:
+        st.error(f"Error loading conversion history: {str(e)}")
+
+def processed_orders_page(db_service: DatabaseService):
+    """Display processed orders from database"""
+    
+    st.header("Processed Orders")
+    
+    # Filter options
+    col1, col2 = st.columns(2)
+    with col1:
+        source_filter = st.selectbox(
+            "Filter by Source",
+            ["All", "Whole Foods", "UNFI West", "UNFI", "TK Maxx"]
+        )
+    
+    with col2:
+        limit = st.number_input("Number of orders to display", min_value=10, max_value=1000, value=50)
+    
+    try:
+        source = None if source_filter == "All" else source_filter.lower().replace(" ", "_")
+        orders = db_service.get_processed_orders(source=source, limit=int(limit))
+        
+        if orders:
+            st.write(f"Found {len(orders)} orders")
+            
+            # Display orders summary
+            for order in orders:
+                with st.expander(f"Order {order['order_number']} - {order['customer_name']} ({len(order['line_items'])} items)"):
+                    
+                    # Order details
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.write(f"**Source:** {order['source']}")
+                        st.write(f"**Customer:** {order['customer_name']}")
+                    with col2:
+                        st.write(f"**Order Date:** {order['order_date']}")
+                        st.write(f"**Processed:** {order['processed_at']}")
+                    with col3:
+                        st.write(f"**Source File:** {order['source_file']}")
+                    
+                    # Line items
+                    if order['line_items']:
+                        st.write("**Line Items:**")
+                        df_items = pd.DataFrame(order['line_items'])
+                        st.dataframe(df_items[['item_number', 'item_description', 'quantity', 'unit_price', 'total_price']])
+        else:
+            st.info("No processed orders found.")
+            
+    except Exception as e:
+        st.error(f"Error loading processed orders: {str(e)}")
+
+def manage_mappings_page(db_service: DatabaseService):
+    """Manage store and item mappings"""
+    
+    st.header("Manage Mappings")
+    
+    tab1, tab2 = st.tabs(["Store Mappings", "Item Mappings"])
+    
+    with tab1:
+        st.subheader("Store/Customer Name Mappings")
+        
+        # Add new mapping
+        with st.expander("Add New Store Mapping"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                new_source = st.selectbox("Source", ["wholefoods", "unfi_west", "unfi", "tkmaxx"], key="store_source")
+            with col2:
+                new_raw_name = st.text_input("Raw Name", key="store_raw")
+            with col3:
+                new_mapped_name = st.text_input("Mapped Name", key="store_mapped")
+            
+            if st.button("Add Store Mapping"):
+                if new_raw_name and new_mapped_name:
+                    success = db_service.save_store_mapping(new_source, new_raw_name, new_mapped_name)
+                    if success:
+                        st.success("Store mapping added successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to add store mapping")
+                else:
+                    st.error("Please fill in all fields")
+        
+        # Display existing mappings
+        for source in ["wholefoods", "unfi_west", "unfi", "tkmaxx"]:
+            mappings = db_service.get_store_mappings(source)
+            if mappings:
+                st.write(f"**{source.replace('_', ' ').title()} Mappings:**")
+                df_mappings = pd.DataFrame(list(mappings.items()), columns=['Raw Name', 'Mapped Name'])
+                st.dataframe(df_mappings)
+    
+    with tab2:
+        st.subheader("Item Number Mappings")
+        
+        # Add new mapping
+        with st.expander("Add New Item Mapping"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                new_source = st.selectbox("Source", ["wholefoods", "unfi_west", "unfi", "tkmaxx"], key="item_source")
+            with col2:
+                new_raw_item = st.text_input("Raw Item Number", key="item_raw")
+            with col3:
+                new_mapped_item = st.text_input("Mapped Item Number", key="item_mapped")
+            
+            if st.button("Add Item Mapping"):
+                if new_raw_item and new_mapped_item:
+                    success = db_service.save_item_mapping(new_source, new_raw_item, new_mapped_item)
+                    if success:
+                        st.success("Item mapping added successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to add item mapping")
+                else:
+                    st.error("Please fill in all fields")
+        
+        # Display existing mappings
+        for source in ["wholefoods", "unfi_west", "unfi", "tkmaxx"]:
+            mappings = db_service.get_item_mappings(source)
+            if mappings:
+                st.write(f"**{source.replace('_', ' ').title()} Item Mappings:**")
+                df_mappings = pd.DataFrame(list(mappings.items()), columns=['Raw Item', 'Mapped Item'])
+                st.dataframe(df_mappings)
 
 if __name__ == "__main__":
     main()

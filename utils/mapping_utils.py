@@ -9,8 +9,19 @@ from typing import Optional, Dict
 class MappingUtils:
     """Utilities for mapping customer/store names"""
     
-    def __init__(self):
+    def __init__(self, use_database: bool = True):
         self.mapping_cache = {}
+        self.use_database = use_database
+        
+        if use_database:
+            try:
+                from database.service import DatabaseService
+                self.db_service = DatabaseService()
+            except ImportError:
+                self.use_database = False
+                self.db_service = None
+        else:
+            self.db_service = None
     
     def get_store_mapping(self, raw_name: str, source: str) -> str:
         """
@@ -27,7 +38,32 @@ class MappingUtils:
         if not raw_name or not raw_name.strip():
             return "UNKNOWN"
         
-        # Load mapping if not cached
+        raw_name_clean = raw_name.strip()
+        
+        # Try database first if available
+        if self.use_database and self.db_service:
+            try:
+                mapping_dict = self.db_service.get_store_mappings(source)
+                
+                # Try exact match first
+                if raw_name_clean in mapping_dict:
+                    return mapping_dict[raw_name_clean]
+                
+                # Try case-insensitive match
+                raw_name_lower = raw_name_clean.lower()
+                for key, value in mapping_dict.items():
+                    if key.lower() == raw_name_lower:
+                        return value
+                
+                # Try partial match
+                for key, value in mapping_dict.items():
+                    if key.lower() in raw_name_lower or raw_name_lower in key.lower():
+                        return value
+                        
+            except Exception:
+                pass  # Fall back to file-based mapping
+        
+        # Fallback to file-based mapping
         mapping_key = f"{source}_mapping"
         if mapping_key not in self.mapping_cache:
             self._load_mapping(source)
@@ -36,7 +72,6 @@ class MappingUtils:
         mapping_dict = self.mapping_cache.get(mapping_key, {})
         
         # Try exact match first
-        raw_name_clean = raw_name.strip()
         if raw_name_clean in mapping_dict:
             return mapping_dict[raw_name_clean]
         
@@ -193,7 +228,27 @@ class MappingUtils:
         if not raw_item or not raw_item.strip():
             return "UNKNOWN"
         
-        # Load item mapping if not cached
+        raw_item_clean = raw_item.strip()
+        
+        # Try database first if available
+        if self.use_database and self.db_service:
+            try:
+                item_mapping_dict = self.db_service.get_item_mappings(source)
+                
+                # Try exact match first
+                if raw_item_clean in item_mapping_dict:
+                    return item_mapping_dict[raw_item_clean]
+                
+                # Try case-insensitive match
+                raw_item_lower = raw_item_clean.lower()
+                for key, value in item_mapping_dict.items():
+                    if key.lower() == raw_item_lower:
+                        return value
+                        
+            except Exception:
+                pass  # Fall back to file-based mapping
+        
+        # Fallback to file-based mapping
         item_mapping_key = f"{source}_item_mapping"
         if item_mapping_key not in self.mapping_cache:
             self._load_item_mapping(source)
@@ -202,7 +257,6 @@ class MappingUtils:
         item_mapping_dict = self.mapping_cache.get(item_mapping_key, {})
         
         # Try exact match first
-        raw_item_clean = raw_item.strip()
         if raw_item_clean in item_mapping_dict:
             return item_mapping_dict[raw_item_clean]
         

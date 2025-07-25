@@ -94,8 +94,39 @@ Name Mapping → Xoro Conversion → CSV Output
 - Parser system designed for easy extension
 - Mapping utilities support caching for performance
 - Memory-efficient file processing using streaming where possible
+- Database integration for persistent storage and audit trails
 
 ### Configuration Management
 - Source-specific parsers can be configured independently
-- Mapping files can be updated without code changes
+- Mapping files can be updated without code changes or through web interface
 - Template conversion rules centralized in XoroTemplate class
+- Database automatically initialized with existing Excel mapping data
+
+## Recent Changes
+
+### Database Integration (January 2025)
+- Added PostgreSQL database for persistent storage
+- Created models for processed orders, conversion history, and mappings
+- Integrated database service with automatic order saving
+- Added navigation pages for viewing history and managing mappings
+
+### UNFI West Parser Enhancement
+- Improved encoding support and line item extraction
+- Fixed UTF-8 encoding issues with multiple fallback encodings
+- Enhanced table parsing for specific UNFI West format
+- Added item mapping support with Vendor P.N. handling
+
+### Mapping System Enhancement
+- Database-backed mapping with Excel file fallback
+- Store and item mappings now stored in database
+- Added management interface for mappings
+- Maintained backward compatibility with Excel files
+
+## Database Schema
+
+### Tables
+- **processed_orders**: Stores order headers with customer and date information
+- **order_line_items**: Stores individual line items linked to orders
+- **conversion_history**: Tracks all conversion attempts with success/error status
+- **store_mappings**: Customer/store name mappings by source
+- **item_mappings**: Item number mappings by source
