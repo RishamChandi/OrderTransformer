@@ -59,7 +59,9 @@ class BaseParser(ABC):
         formats = [
             '%Y-%m-%d',
             '%m/%d/%Y',
+            '%m/%d/%y',  # Added for 07/25/25 format
             '%d/%m/%Y',
+            '%d/%m/%y',  # Added for day/month/year short format
             '%Y-%m-%d %H:%M:%S',
             '%m/%d/%Y %H:%M:%S',
             '%B %d, %Y',

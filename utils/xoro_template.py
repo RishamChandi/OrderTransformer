@@ -115,10 +115,10 @@ class XoroTemplate:
             'CustomerId': '',
             'CustomerAccountNumber': '',
             
-            # Order dates
-            'OrderDate': order_date.strftime('%Y-%m-%d') if order_date else '',
-            'DateToBeShipped': shipping_date.strftime('%Y-%m-%d') if shipping_date else '',
-            'LastDateToBeShipped': shipping_date.strftime('%Y-%m-%d') if shipping_date else '',
+            # Order dates - handle both datetime objects and strings
+            'OrderDate': order_date.strftime('%Y-%m-%d') if hasattr(order_date, 'strftime') else (order_date if order_date else ''),
+            'DateToBeShipped': shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else ''),
+            'LastDateToBeShipped': shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else ''),
             'DateToBeCancelled': '',
             
             # Order classification - Keep empty as requested

@@ -11,9 +11,10 @@ from .base_parser import BaseParser
 class UNFIEastParser(BaseParser):
     """Parser for UNFI East PDF order files"""
     
-    def __init__(self):
+    def __init__(self, mapping_utils):
         super().__init__()
         self.source_name = "UNFI East"
+        self.mapping_utils = mapping_utils
     
     def parse(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """Parse UNFI East PDF order file"""

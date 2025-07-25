@@ -9,6 +9,7 @@ from parsers.unfi_east_parser import UNFIEastParser
 from parsers.unfi_parser import UNFIParser
 from parsers.tkmaxx_parser import TKMaxxParser
 from utils.xoro_template import XoroTemplate
+from utils.mapping_utils import MappingUtils
 from database.service import DatabaseService
 
 def main():
@@ -44,11 +45,14 @@ def process_orders_page(db_service: DatabaseService):
     # Sidebar for configuration
     st.sidebar.header("Configuration")
     
+    # Initialize mapping utils
+    mapping_utils = MappingUtils()
+    
     # Order source selection
     order_sources = {
         "Whole Foods": WholeFoodsParser(),
         "UNFI West": UNFIWestParser(),
-        "UNFI East": UNFIEastParser(),
+        "UNFI East": UNFIEastParser(mapping_utils),
         "UNFI": UNFIParser(),
         "TK Maxx": TKMaxxParser()
     }
