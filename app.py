@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from parsers.wholefoods_parser import WholeFoodsParser
 from parsers.unfi_west_parser import UNFIWestParser
+from parsers.unfi_east_parser import UNFIEastParser
 from parsers.unfi_parser import UNFIParser
 from parsers.tkmaxx_parser import TKMaxxParser
 from utils.xoro_template import XoroTemplate
@@ -47,6 +48,7 @@ def process_orders_page(db_service: DatabaseService):
     order_sources = {
         "Whole Foods": WholeFoodsParser(),
         "UNFI West": UNFIWestParser(),
+        "UNFI East": UNFIEastParser(),
         "UNFI": UNFIParser(),
         "TK Maxx": TKMaxxParser()
     }

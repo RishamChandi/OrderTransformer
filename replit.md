@@ -36,6 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Source-Specific Parsers**:
   - WholeFoodsParser: Handles HTML order files
   - UNFIWestParser: Processes HTML purchase orders
+  - UNFIEastParser: Processes PDF purchase orders
   - UNFIParser: Handles CSV/Excel files
   - TKMaxxParser: Processes CSV/Excel files
 
@@ -65,6 +66,7 @@ Name Mapping → Xoro Conversion → CSV Output
 
 ### Input Formats
 - **HTML**: Whole Foods and UNFI West order pages
+- **PDF**: UNFI East purchase orders
 - **CSV/Excel**: UNFI and TK Maxx order exports
 
 ### Output Format
@@ -120,6 +122,14 @@ Name Mapping → Xoro Conversion → CSV Output
 - Added dual date extraction: order date from "Dated:" field and pickup date from "PICK UP" section
 - Uses pickup date for DateToBeShipped and LastDateToBeShipped in Xoro template
 - Fixed Prod# mapping issue by normalizing leading zeros (05885 -> 5885) for accurate item mapping
+
+### UNFI East Parser Implementation (January 2025)
+- Created new parser for UNFI East PDF purchase orders
+- Integrated PyPDF2 for PDF text extraction
+- Added 71 item mappings and 14 store mappings for UNFI East
+- Supports dual date extraction: order date and pickup date from PDF structure
+- Maps warehouse locations (Sarasota, Atlanta, etc.) to proper customer names
+- Extracts line items with Vend ID mapping to Xoro ItemNumbers
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback
