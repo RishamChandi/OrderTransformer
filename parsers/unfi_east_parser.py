@@ -134,12 +134,26 @@ class UNFIEastParser(BaseParser):
         # Split text into lines and look for lines starting with 6-digit product numbers
         lines = text_content.split('\n')
         
+        print(f"DEBUG: Processing {len(lines)} lines from PDF")
+        
+        # First, let's find all lines that contain 6-digit numbers (not necessarily at start)
+        lines_with_numbers = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if re.search(r'\d{6}', line_stripped):
+                print(f"DEBUG: Line {i} contains 6-digit number: {line_stripped}")
+                lines_with_numbers.append(line_stripped)
+        
+        print(f"DEBUG: Found {len(lines_with_numbers)} lines with 6-digit numbers")
+        
         for line in lines:
             line = line.strip()
             
             # Skip empty lines or lines that don't start with a 6-digit number
             if not line or not re.match(r'^\d{6}', line):
                 continue
+                
+            print(f"DEBUG: Processing line starting with 6-digit number: {line}")
             
             # Parse each line that starts with a product number
             # Format: 142630   1   96   96 17-041-1     1    6 7.9 OZ  CUCAMO BRUSCHETTA,ARTICHOKE     13.50   13.50  1,296.00
