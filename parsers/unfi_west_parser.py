@@ -68,6 +68,7 @@ class UNFIWestParser(BaseParser):
         order_info = {
             'order_number': filename,
             'order_date': None,
+            'pickup_date': None,
             'customer_name': 'UNKNOWN',
             'raw_customer_name': '',
             'source_file': filename
@@ -112,12 +113,18 @@ class UNFIWestParser(BaseParser):
                 'unfi_west'
             )
         
-        # Look for pickup date
+        # Look for order date from "Dated:" field
+        dated_match = re.search(r'Dated:\s*(\d{2}/\d{2}/\d{2})', html_text)
+        if dated_match:
+            order_info['order_date'] = self.parse_date(dated_match.group(1))
+        
+        # Look for pickup date from "PICK UP" section
         pickup_match = re.search(r'PICK UP\s*(\d{2}/\d{2}/\d{2})', html_text)
         if pickup_match:
-            order_info['order_date'] = self.parse_date(pickup_match.group(1))
-        else:
-            # Look for other date patterns
+            order_info['pickup_date'] = self.parse_date(pickup_match.group(1))
+        
+        # If no specific dates found, try general date patterns
+        if not order_info['order_date'] and not order_info['pickup_date']:
             date_match = re.search(r'(\d{2}/\d{2}/\d{4})', html_text)
             if date_match:
                 order_info['order_date'] = self.parse_date(date_match.group(1))

@@ -117,6 +117,8 @@ Name Mapping → Xoro Conversion → CSV Output
 - Updated to use Prod# instead of Vendor P.N. for item mapping
 - Added comprehensive item mapping database with 71 Prod# to ItemNumber mappings
 - Hardcoded SaleStoreName and StoreName to "KL - Richmond" for UNFI West orders
+- Added dual date extraction: order date from "Dated:" field and pickup date from "PICK UP" section
+- Uses pickup date for DateToBeShipped and LastDateToBeShipped in Xoro template
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback

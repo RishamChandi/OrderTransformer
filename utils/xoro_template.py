@@ -46,9 +46,13 @@ class XoroTemplate:
     def _convert_single_order(self, order: Dict[str, Any], source_name: str) -> Dict[str, Any]:
         """Convert a single order to Xoro format"""
         
-        # Calculate shipping date (default to 7 days from order date)
+        # Use pickup_date for shipping dates if available, otherwise calculate from order_date
         order_date = order.get('order_date')
-        shipping_date = self._calculate_shipping_date(order_date)
+        pickup_date = order.get('pickup_date')
+        if pickup_date:
+            shipping_date = pickup_date
+        else:
+            shipping_date = self._calculate_shipping_date(order_date)
         
         # Split customer name into first/last if possible
         customer_name = str(order.get('customer_name', ''))
