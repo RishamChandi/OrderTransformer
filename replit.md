@@ -134,6 +134,8 @@ Name Mapping → Xoro Conversion → CSV Output
 - Maps line item fields: Prod#→ItemNumber, Description→ItemDescription, Qty→Qty, Unit Cost→UnitPrice
 - Creates separate Xoro records for each line item with header information merged
 - Implements Order To number-based store mapping: 85948→PSS-NJ, 85950→IDI-Richmond
+- Enhanced with robust manual extraction fallback for complex PDF text formats (January 28, 2025)
+- Successfully extracts all line items including problematic cases with concatenated text structure
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback
