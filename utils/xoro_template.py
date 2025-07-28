@@ -147,7 +147,7 @@ class XoroTemplate:
             'TaxPercent': 0.0,
             
             # Custom fields
-            'CustomFieldD1': '',
+            'CustomFieldD1': float(order.get('unit_price', 0.0)),
             'CustomFieldD2': ''
         }
         
