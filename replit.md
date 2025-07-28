@@ -146,6 +146,14 @@ Name Mapping → Xoro Conversion → CSV Output
 - Added management interface for mappings
 - Maintained backward compatibility with Excel files
 
+### Whole Foods Parser Enhancement (January 2025)
+- Complete Whole Foods parser implementation with HTML support
+- Added comprehensive store mapping with 51 Whole Foods locations
+- Includes all major California stores plus Boise, Reno, and Vancouver locations
+- Fixed date handling issues for robust parsing
+- Added item mapping support for Whole Foods products
+- Unit price values copied to CustomFieldD1 field like other parsers
+
 ## Database Schema
 
 ### Tables
