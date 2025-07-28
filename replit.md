@@ -122,6 +122,7 @@ Name Mapping → Xoro Conversion → CSV Output
 - Added dual date extraction: order date from "Dated:" field and pickup date from "PICK UP" section
 - Uses pickup date for DateToBeShipped and LastDateToBeShipped in Xoro template
 - Fixed Prod# mapping issue by normalizing leading zeros (05885 -> 5885) for accurate item mapping
+- Updated to use Cost column (removing 'p' suffix) as unit price instead of Extension column (January 28, 2025)
 
 ### UNFI East Parser Implementation (January 2025)
 - Created new parser for UNFI East PDF purchase orders

@@ -213,30 +213,44 @@ class UNFIWestParser(BaseParser):
             raw_prod_number = parts[4] if len(parts) > 4 else "UNKNOWN"
             prod_number = raw_prod_number.lstrip('0') or '0'  # Remove leading zeros, keep '0' if all zeros
             
-            # Find cost by looking for decimal numbers
+            # Find cost and extension columns
             cost = 0.0
+            extension = 0.0
             vendor_pn = ""
             description = ""
             
-            # Look for vendor P.N. pattern and cost
+            # Look for vendor P.N. pattern and cost/extension
             desc_parts = []
             found_vendor_pn = False
+            cost_found = False
             
             for i, part in enumerate(parts[5:], 5):  # Start after prod#
                 # Look for vendor P.N. pattern (numbers with dashes/letters)
                 if not found_vendor_pn and (re.match(r'^\d+[-]\d+[-]?\d*$', part) or re.match(r'^[A-Z][-]\d+[-]\d+$', part)):
                     vendor_pn = part
                     found_vendor_pn = True
-                    # Cost should be one of the next parts
-                    for j in range(i+1, min(i+4, len(parts))):
-                        try:
-                            cost = float(parts[j])
-                            break
-                        except ValueError:
-                            continue
+                    
+                    # After vendor P.N., look for Cost (with 'p' suffix) and Extension
+                    for j in range(i+1, min(i+5, len(parts))):
+                        if j < len(parts):
+                            current_part = parts[j]
+                            # Check for cost with 'p' suffix (e.g., "16.1400p")
+                            if current_part.endswith('p') and not cost_found:
+                                try:
+                                    cost = float(current_part[:-1])  # Remove 'p' suffix
+                                    cost_found = True
+                                except ValueError:
+                                    pass
+                            # Check for extension (next numeric value after cost)
+                            elif cost_found and re.match(r'^\d+\.?\d*$', current_part):
+                                try:
+                                    extension = float(current_part)
+                                    break
+                                except ValueError:
+                                    pass
                     break
                 # Collect description parts before vendor P.N.
-                elif not found_vendor_pn and part and not part.replace('.', '').replace('-', '').isdigit():
+                elif not found_vendor_pn and part and not part.replace('.', '').replace('-', '').isdigit() and not part.endswith('p'):
                     desc_parts.append(part)
             
             description = ' '.join(desc_parts)
@@ -249,8 +263,9 @@ class UNFIWestParser(BaseParser):
                 'raw_item_number': raw_prod_number,  # Store original Prod# with leading zeros
                 'item_description': description.strip(),
                 'quantity': qty,
-                'unit_price': cost,
-                'total_price': cost * qty
+                'unit_price': cost,  # Use cost column (with 'p' suffix removed) as unit price
+                'total_price': cost * qty,  # Calculate total from cost, not extension
+                'extension': extension  # Store extension separately for reference
             }
             
         except (ValueError, IndexError):
