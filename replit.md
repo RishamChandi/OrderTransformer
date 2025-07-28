@@ -151,7 +151,8 @@ Name Mapping → Xoro Conversion → CSV Output
 - Added comprehensive store mapping with 51 Whole Foods locations
 - Includes all major California stores plus Boise, Reno, and Vancouver locations
 - Fixed date handling issues for robust parsing
-- Added item mapping support for Whole Foods products
+- Added item mapping support for Whole Foods products with 29 authentic item mappings
+- Maps various WF item number formats (spaces, dashes, compressed) to standardized Xoro format
 - Unit price values copied to CustomFieldD1 field like other parsers
 
 ## Database Schema
