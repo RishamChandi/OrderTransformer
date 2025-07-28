@@ -66,17 +66,33 @@ class WholeFoodsParser(BaseParser):
         orders = []
         
         try:
-            # Extract basic order information
-            order_number = self._extract_text_by_label(table_element, ['order number', 'purchase order', 'po', 'reference'])
-            order_date = self._extract_text_by_label(table_element, ['order date', 'date', 'created'])
-            customer_name = self._extract_text_by_label(table_element, ['store no', 'customer', 'store', 'location'])
+            # Extract basic order information - Whole Foods specific patterns
+            order_number = None
+            order_date = None
+            customer_name = None
+            
+            # Look for "Whole Foods Market Purchase Order # XXXXXXX" pattern
+            all_text = table_element.get_text()
+            import re
+            order_match = re.search(r'Purchase Order #\s*(\d+)', all_text)
+            if order_match:
+                order_number = order_match.group(1)
             
             # Extract order number from filename if not found (e.g., order_154533670.html -> 154533670)
             if not order_number:
-                import re
                 match = re.search(r'order_(\d+)', filename)
                 if match:
                     order_number = match.group(1)
+            
+            # Extract order date
+            date_match = re.search(r'Order Date:\s*(\d{4}-\d{2}-\d{2})', all_text)
+            if date_match:
+                order_date = date_match.group(1)
+            
+            # Extract store number
+            store_match = re.search(r'Store No:\s*(\d+)', all_text)
+            if store_match:
+                customer_name = f"WHOLE FOODS #{store_match.group(1)}"
             
             # Extract line items
             rows = table_element.find_all('tr')
@@ -172,6 +188,13 @@ class WholeFoodsParser(BaseParser):
                         parts = full_text.split(':', 1)
                         if len(parts) > 1:
                             return parts[1].strip()
+                    
+                    # Special case for Whole Foods order number (look for # pattern)
+                    if 'order' in label.lower():
+                        import re
+                        order_match = re.search(r'#\s*(\d+)', full_text)
+                        if order_match:
+                            return order_match.group(1)
         
         return None
     
@@ -208,23 +231,27 @@ class WholeFoodsParser(BaseParser):
         unit_price = 0.0
         total_price = 0.0
         
+        # Parse Whole Foods table structure: Item No, Qty, Description, Size, Cost, UPC
         for i, text in enumerate(cell_texts):
-            if text and not item_number and len(text) <= 50:  # Reasonable item number length
-                # Check if this looks like an item number (not a long description)
-                if not any(word in text.lower() for word in ['whole foods', 'market', 'purchase', 'order', 'delivery', 'buyer']):
-                    item_number = text
+            if text and not item_number and text.isdigit() and len(text) <= 10:
+                # First numeric cell is likely item number
+                item_number = text
             elif text and not description and text != item_number and len(text) <= 200:
-                # Description should be reasonably sized
-                description = text
+                # Non-numeric text is likely description
+                if not text.isdigit() and not any(word in text.lower() for word in ['ounce', 'lb', 'oz', 'ca']):
+                    description = text
             elif text and any(char.isdigit() for char in text):
-                # Try to parse as quantity or price
+                # Parse numeric values
                 numeric_value = self.clean_numeric_value(text)
                 if numeric_value > 0:
-                    if quantity == 1 and numeric_value < 1000:  # Likely quantity
-                        quantity = int(numeric_value)
-                    elif unit_price == 0.0:  # Likely unit price
+                    if '.' in text and numeric_value < 1000 and unit_price == 0.0:
+                        # Decimal value likely price
                         unit_price = numeric_value
-                    else:  # Likely total price
+                    elif numeric_value < 100 and quantity == 1:
+                        # Small integer likely quantity
+                        quantity = int(numeric_value)
+                    elif numeric_value > unit_price and total_price == 0.0:
+                        # Larger value likely total
                         total_price = numeric_value
         
         if not item_number or len(item_number) > 50:
