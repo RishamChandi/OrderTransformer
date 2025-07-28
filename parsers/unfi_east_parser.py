@@ -182,9 +182,9 @@ class UNFIEastParser(BaseParser):
         # Pattern to match each product line in the combined text
         # Format: 142630   1   96   96 17-041-1     1    6 7.9 OZ  CUCAMO BRUSCHETTA,ARTICHOKE     13.50   13.50  1,296.00
         
-        # Precise pattern for UNFI East PDF line items
-        # Format: Prod# Seq OrdQty Qty VendID MC Pack Size OZ Description UnitCost UnitCost Extension
-        item_pattern = r'(\d{6})\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d\-]+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+([\d,]+\.\d+)'
+        # Pattern based on actual PDF text format (text runs together without line breaks)
+        # Format from PDF: 315851   1    6    6 8-900-2      1   54 8 OZ    KTCHLV DSP,GRAIN POUCH,RTH,    102.60  102.60    615.60
+        item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+[\d\-]+\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+\d+\.\d+\s+([\d,]+\.\d+)'
         
         # Find all matches in the entire text content
         matches = re.finditer(item_pattern, text_content)
@@ -192,15 +192,11 @@ class UNFIEastParser(BaseParser):
         for match in matches:
             try:
                 prod_number = match.group(1)  # Prod# (like 315851)
-                seq = match.group(2)          # Seq (like 1)
-                ord_qty = int(match.group(3)) # Ord Qty (like 6)
-                qty = int(match.group(4))     # Qty (like 6) - this is the actual quantity
-                vend_id = match.group(5)      # Vend ID (like 8-900-2)
-                mc = match.group(6)           # MC (like 1)
-                size = match.group(7)         # Size (like 54 or 3.5)
-                description = match.group(8).strip()  # Product Description
-                unit_cost = float(match.group(9))     # Unit Cost
-                extension = float(match.group(11).replace(',', ''))  # Extension (remove commas)
+                qty = int(match.group(2))     # Qty - simplified to capture actual quantity
+                size = match.group(3)         # Size (like 54 or 3.5)
+                description = match.group(4).strip()  # Product Description
+                unit_cost = float(match.group(5))     # Unit Cost
+                extension = float(match.group(6).replace(',', ''))  # Extension (remove commas)
                 
                 # Normalize Prod# by removing leading zeros 
                 normalized_prod = prod_number.lstrip('0') or '0'
