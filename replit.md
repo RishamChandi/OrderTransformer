@@ -136,6 +136,8 @@ Name Mapping → Xoro Conversion → CSV Output
 - Implements Order To number-based store mapping: 85948→PSS-NJ, 85950→IDI-Richmond
 - Enhanced with robust manual extraction fallback for complex PDF text formats (January 28, 2025)
 - Successfully extracts all line items including problematic cases with concatenated text structure
+- Improved dynamic product number detection to handle various UNFI East PDF formats automatically
+- Smart extraction now works for any UNFI East PDF with proper item mapping and data extraction
 
 ### Mapping System Enhancement
 - Database-backed mapping with Excel file fallback
