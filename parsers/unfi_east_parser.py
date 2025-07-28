@@ -321,49 +321,79 @@ class UNFIEastParser(BaseParser):
             if 'KTCHLV' in text_content and 'Prod#' in text_content:
                 print("DEBUG: UNFI East PDF detected, attempting smart manual extraction")
                 
-                # Find all 6-digit product numbers in the text
-                prod_numbers = re.findall(r'\b(\d{6})\b', text_content)
-                print(f"DEBUG: Found product numbers: {prod_numbers}")
-                
-                # Look for the concatenated line with all the data
+                # Look for the concatenated line with all the data first
                 item_data_line = None
                 for line in text_content.split('\n'):
-                    if any(prod in line for prod in prod_numbers) and 'KTCHLV' in line:
+                    if 'KTCHLV' in line and len([p for p in re.findall(r'\d{6}', line) if len(p) == 6]) > 1:
                         item_data_line = line
                         break
                 
                 if item_data_line:
+                    # Find all 6-digit product numbers in the item data line
+                    prod_numbers = re.findall(r'\b(\d{6})\b', item_data_line)
+                    print(f"DEBUG: Found product numbers in item line: {prod_numbers}")
+                else:
+                    # Fallback: search entire text
+                    prod_numbers = re.findall(r'\b(\d{6})\b', text_content)
+                    print(f"DEBUG: Found product numbers in full text: {prod_numbers}")
+                
+                if item_data_line and prod_numbers:
                     print(f"DEBUG: Found item data line with length {len(item_data_line)}")
+                    print(f"DEBUG: Processing {len(prod_numbers)} product numbers: {prod_numbers}")
                     
                     # Extract each product number and its associated data
                     for prod_num in prod_numbers:
                         # Look for this product number in our mapping
                         mapped_item = self.mapping_utils.get_item_mapping(prod_num, 'unfi_east')
                         if mapped_item:  # Only process if we have a mapping
-                            # Use regex to find the product data pattern
-                            pattern = rf'{prod_num}\s+\d+\s+(\d+)\s+\d+\s+([\d\-]+).*?KTCHLV\s+([^0-9]+?)\s+([\d\.]+)\s+[\d\.]+\s+([\d,]+\.?\d*)'
-                            match = re.search(pattern, item_data_line)
+                            print(f"DEBUG: Processing product {prod_num} -> {mapped_item}")
+                            
+                            # Use more flexible regex patterns
+                            patterns = [
+                                rf'{prod_num}\s+\d+\s+(\d+)\s+\d+\s+([\d\-]+).*?KTCHLV\s+([^0-9]+?)\s+([\d\.]+)\s+[\d\.]+\s+([\d,]+\.?\d*)',
+                                rf'{prod_num}.*?(\d+)\s+(\d+)\s+([\d\-]+).*?KTCHLV\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)',
+                                rf'{prod_num}.*?(\d+)\s+([\d\-]+).*?([\d\.]+)\s+[\d\.]+\s+([\d,]+\.?\d*)'
+                            ]
+                            
+                            match = None
+                            for i, pattern in enumerate(patterns):
+                                match = re.search(pattern, item_data_line)
+                                if match:
+                                    print(f"DEBUG: Pattern {i+1} matched for {prod_num}")
+                                    break
                             
                             if match:
-                                qty = int(match.group(1))
-                                vend_id = match.group(2)
-                                description = f"KTCHLV {match.group(3).strip()}"
-                                unit_cost = float(match.group(4))
-                                total_cost = float(match.group(5).replace(',', ''))
-                                
-                                item = {
-                                    'item_number': mapped_item,
-                                    'raw_item_number': prod_num,
-                                    'item_description': description,
-                                    'quantity': qty,
-                                    'unit_price': unit_cost,
-                                    'total_price': total_cost
-                                }
-                                
-                                line_items.append(item)
-                                print(f"DEBUG: Smart extraction - Prod#{prod_num} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                                try:
+                                    if len(match.groups()) >= 5:  # Full pattern match
+                                        qty = int(match.group(1))
+                                        vend_id = match.group(2) 
+                                        description = f"KTCHLV {match.group(3).strip()}"
+                                        unit_cost = float(match.group(4))
+                                        total_cost = float(match.group(5).replace(',', ''))
+                                    else:  # Partial pattern match, extract what we can
+                                        qty = int(match.group(1)) if len(match.groups()) >= 1 else 1
+                                        vend_id = match.group(2) if len(match.groups()) >= 2 else 'unknown'
+                                        description = f"KTCHLV Item {prod_num}"
+                                        unit_cost = float(match.group(3)) if len(match.groups()) >= 3 else 0.0
+                                        total_cost = float(match.group(4).replace(',', '')) if len(match.groups()) >= 4 else 0.0
+                                    
+                                    item = {
+                                        'item_number': mapped_item,
+                                        'raw_item_number': prod_num,
+                                        'item_description': description,
+                                        'quantity': qty,
+                                        'unit_price': unit_cost,
+                                        'total_price': total_cost
+                                    }
+                                    
+                                    line_items.append(item)
+                                    print(f"DEBUG: Smart extraction - Prod#{prod_num} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                                except (ValueError, IndexError) as e:
+                                    print(f"DEBUG: Error parsing data for {prod_num}: {e}")
                             else:
                                 print(f"DEBUG: Could not extract data for product {prod_num}")
+                        else:
+                            print(f"DEBUG: No mapping found for product {prod_num}")
                 
                 if line_items:
                     print(f"=== DEBUG: Total line items extracted: {len(line_items)} ===")
