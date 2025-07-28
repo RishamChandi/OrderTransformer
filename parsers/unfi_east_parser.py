@@ -180,6 +180,11 @@ class UNFIEastParser(BaseParser):
         # Debug: print the text content to see what we're working with
         print(f"DEBUG: PDF text content length: {len(text_content)}")
         
+        # Print first few lines to debug
+        first_lines = text_content.split('\n')[:20]
+        for i, line in enumerate(first_lines):
+            print(f"DEBUG Line {i}: {repr(line)}")
+        
         # Look for the line items section and extract it
         lines = text_content.split('\n')
         item_section_started = False
@@ -195,9 +200,12 @@ class UNFIEastParser(BaseParser):
                 print(f"DEBUG: Found item section header")
                 continue
             elif item_section_started:
-                # Check if we've reached the end of items
-                if 'Total Pieces' in line or '-------' in line and 'Total' in line:
-                    print(f"DEBUG: End of items section")
+                # Check if we've reached the end of items (skip the separator line)
+                if '-------' in line and len(line) > 50:
+                    print(f"DEBUG: Skipping separator line: {line[:50]}...")
+                    continue
+                elif 'Total Pieces' in line or ('Total' in line and 'Order Net' in line):
+                    print(f"DEBUG: End of items section: {line[:50]}...")
                     # Add the last item if we were collecting one
                     if current_item_text.strip():
                         item_lines.append(current_item_text.strip())
@@ -218,6 +226,8 @@ class UNFIEastParser(BaseParser):
                         # This is a continuation line for the current item
                         current_item_text += " " + line.strip()
                         print(f"DEBUG: Adding to current item: {line.strip()[:50]}...")
+                    else:
+                        print(f"DEBUG: Skipping line: {line.strip()[:50]}...")
         
         # Add the last item if we ended while collecting
         if current_item_text.strip():
