@@ -189,16 +189,28 @@ class UNFIEastParser(BaseParser):
             # Check if we've reached the line items section
             if 'Prod# Seq' in line and 'Product Description' in line:
                 item_section_started = True
-                print(f"DEBUG: Found item section header: {line}")
+                print(f"DEBUG: Found item section header")
+                # The next line contains all the items together, split by the product numbers
                 continue
             elif item_section_started:
                 # Check if we've reached the end of items
                 if 'Total Pieces' in line or '-------' in line:
-                    print(f"DEBUG: End of items section: {line}")
+                    print(f"DEBUG: End of items section")
                     break
                 elif line.strip() and not line.startswith('Total'):
-                    item_lines.append(line.strip())
-                    print(f"DEBUG: Found item line: {line.strip()}")
+                    # Split the line by product numbers if it contains multiple items
+                    if re.search(r'\d{6}.*\d{6}', line):
+                        # This line contains multiple items concatenated together
+                        print(f"DEBUG: Found combined item line: {line[:100]}...")
+                        # Split by product number patterns
+                        parts = re.split(r'(?=\d{6}\s+\d+\s+\d+\s+\d+)', line.strip())
+                        for part in parts:
+                            if part.strip() and re.match(r'\d{6}', part.strip()):
+                                item_lines.append(part.strip())
+                                print(f"DEBUG: Split item part: {part.strip()[:80]}...")
+                    else:
+                        item_lines.append(line.strip())
+                        print(f"DEBUG: Found single item line: {line.strip()[:80]}...")
         
         print(f"DEBUG: Extracted {len(item_lines)} item lines")
         
