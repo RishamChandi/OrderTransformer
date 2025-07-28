@@ -177,54 +177,105 @@ class UNFIEastParser(BaseParser):
         
         line_items = []
         
-        # The PDF extraction combines all line items into one long string
-        # We need to use regex to find all product items within the text
-        # Pattern to match each product line in the combined text
-        # Format: 142630   1   96   96 17-041-1     1    6 7.9 OZ  CUCAMO BRUSCHETTA,ARTICHOKE     13.50   13.50  1,296.00
+        # Debug: print the text content to see what we're working with
+        print(f"DEBUG: PDF text content length: {len(text_content)}")
         
-        # Pattern based on actual PDF text format (text runs together without line breaks)
-        # Format from PDF: 315851   1    6    6 8-900-2      1   54 8 OZ    KTCHLV DSP,GRAIN POUCH,RTH,    102.60  102.60    615.60
-        item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+[\d\-]+\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+\d+\.\d+\s+([\d,]+\.\d+)'
+        # Look for the line items section and extract it
+        lines = text_content.split('\n')
+        item_section_started = False
+        item_lines = []
         
-        # Find all matches in the entire text content
-        matches = re.finditer(item_pattern, text_content)
-        
-        for match in matches:
-            try:
-                prod_number = match.group(1)  # Prod# (like 315851)
-                qty = int(match.group(2))     # Qty - simplified to capture actual quantity
-                size = match.group(3)         # Size (like 54 or 3.5)
-                description = match.group(4).strip()  # Product Description
-                unit_cost = float(match.group(5))     # Unit Cost
-                extension = float(match.group(6).replace(',', ''))  # Extension (remove commas)
-                
-                # Normalize Prod# by removing leading zeros 
-                normalized_prod = prod_number.lstrip('0') or '0'
-                
-                # Apply item mapping using the original Prod# (not normalized)
-                mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
-                print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
-                
-                # If not found, try with normalized Prod# (without leading zeros)
-                if mapped_item == prod_number:
-                    mapped_item = self.mapping_utils.get_item_mapping(normalized_prod, 'unfi_east')
-                    print(f"DEBUG: Fallback item mapping: {normalized_prod} -> {mapped_item}")
-                
-                item = {
-                    'item_number': mapped_item,
-                    'raw_item_number': prod_number,  # Keep original Prod#
-                    'item_description': description,
-                    'quantity': qty,
-                    'unit_price': unit_cost,
-                    'total_price': extension
-                }
-                
-                line_items.append(item)
-                print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
-                
-            except (ValueError, IndexError) as e:
-                print(f"DEBUG: Failed to parse match - Error: {e}")
+        for line in lines:
+            # Check if we've reached the line items section
+            if 'Prod# Seq' in line and 'Product Description' in line:
+                item_section_started = True
+                print(f"DEBUG: Found item section header: {line}")
                 continue
+            elif item_section_started:
+                # Check if we've reached the end of items
+                if 'Total Pieces' in line or '-------' in line:
+                    print(f"DEBUG: End of items section: {line}")
+                    break
+                elif line.strip() and not line.startswith('Total'):
+                    item_lines.append(line.strip())
+                    print(f"DEBUG: Found item line: {line.strip()}")
+        
+        print(f"DEBUG: Extracted {len(item_lines)} item lines")
+        
+        # Process each item line individually
+        for line in item_lines:
+            # Pattern for individual line items based on the actual PDF format
+            # Format: 315851   1    6    6 8-900-2      1   54 8 OZ    KTCHLV DSP,GRAIN POUCH,RTH,     102.60 102.60    615.60
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+[\d\.,]+\s+([\d,]+\.\d+)'
+            
+            match = re.search(item_pattern, line)
+            if match:
+                try:
+                    prod_number = match.group(1)  # Prod# (like 315851)
+                    qty = int(match.group(2))     # Qty
+                    vend_id = match.group(3)      # Vend ID (like 8-900-2)
+                    size = match.group(4)         # Size (like 54 or 3.5)
+                    description = match.group(5).strip()  # Product Description
+                    unit_cost = float(match.group(6))     # Unit Cost
+                    extension = float(match.group(7).replace(',', ''))  # Extension
+                    
+                    # Apply item mapping using the original Prod#
+                    mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
+                    print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
+                    
+                    item = {
+                        'item_number': mapped_item,
+                        'raw_item_number': prod_number,
+                        'item_description': description,
+                        'quantity': qty,
+                        'unit_price': unit_cost,
+                        'total_price': extension
+                    }
+                    
+                    line_items.append(item)
+                    print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                    
+                except (ValueError, IndexError) as e:
+                    print(f"DEBUG: Failed to parse line: {line} - Error: {e}")
+                    continue
+            else:
+                print(f"DEBUG: No match for line: {line}")
+        
+        if not line_items:
+            print("DEBUG: No items found with line-by-line method, trying regex on full text")
+            # Fallback: try regex on the entire text content
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+[\d\.,]+\s+([\d,]+\.\d+)'
+            matches = re.finditer(item_pattern, text_content)
+            
+            for match in matches:
+                try:
+                    prod_number = match.group(1)  # Prod# (like 315851)
+                    qty = int(match.group(2))     # Qty
+                    vend_id = match.group(3)      # Vend ID (like 8-900-2)
+                    size = match.group(4)         # Size (like 54 or 3.5)
+                    description = match.group(5).strip()  # Product Description
+                    unit_cost = float(match.group(6))     # Unit Cost
+                    extension = float(match.group(7).replace(',', ''))  # Extension
+                    
+                    # Apply item mapping using the original Prod#
+                    mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
+                    print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
+                    
+                    item = {
+                        'item_number': mapped_item,
+                        'raw_item_number': prod_number,
+                        'item_description': description,
+                        'quantity': qty,
+                        'unit_price': unit_cost,
+                        'total_price': extension
+                    }
+                    
+                    line_items.append(item)
+                    print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                    
+                except (ValueError, IndexError) as e:
+                    print(f"DEBUG: Failed to parse match - Error: {e}")
+                    continue
         
         print(f"=== DEBUG: Total line items extracted: {len(line_items)} ===")
         return line_items
