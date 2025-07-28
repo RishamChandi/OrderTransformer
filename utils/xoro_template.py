@@ -20,7 +20,7 @@ class XoroTemplate:
             'ExchangeRate', 'Memo', 'PaymentTermsName', 'PaymentTermsType',
             'DepositRequiredTypeName', 'DepositRequiredAmount', 'ItemNumber',
             'ItemDescription', 'UnitPrice', 'Qty', 'LineTotal', 'DiscountAmount',
-            'DiscountPercent', 'TaxAmount', 'TaxPercent'
+            'DiscountPercent', 'TaxAmount', 'TaxPercent', 'CustomFieldD1', 'CustomFieldD2'
         ]
     
     def convert_to_xoro(self, parsed_orders: List[Dict[str, Any]], source_name: str) -> List[Dict[str, Any]]:
@@ -144,7 +144,11 @@ class XoroTemplate:
             'DiscountAmount': 0.0,
             'DiscountPercent': 0.0,
             'TaxAmount': 0.0,
-            'TaxPercent': 0.0
+            'TaxPercent': 0.0,
+            
+            # Custom fields
+            'CustomFieldD1': '',
+            'CustomFieldD2': ''
         }
         
         # Calculate line total if not provided
