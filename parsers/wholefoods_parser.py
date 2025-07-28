@@ -89,12 +89,19 @@ class WholeFoodsParser(BaseParser):
                             'wholefoods'
                         )
                         
+                        # Apply item mapping
+                        mapped_item = self.mapping_utils.get_item_mapping(
+                            item_data['item_number'], 
+                            'wholefoods'
+                        )
+                        
                         order_item = {
                             'order_number': order_number or filename,
-                            'order_date': self.parse_date(order_date),
+                            'order_date': self.parse_date(order_date) if order_date else None,
                             'customer_name': mapped_customer,
                             'raw_customer_name': customer_name,
-                            'item_number': item_data['item_number'],
+                            'item_number': mapped_item,
+                            'raw_item_number': item_data['item_number'],
                             'item_description': item_data.get('description', ''),
                             'quantity': item_data.get('quantity', 1),
                             'unit_price': item_data.get('unit_price', 0.0),
@@ -113,7 +120,7 @@ class WholeFoodsParser(BaseParser):
                 
                 orders.append({
                     'order_number': order_number or filename,
-                    'order_date': self.parse_date(order_date),
+                    'order_date': self.parse_date(order_date) if order_date else None,
                     'customer_name': mapped_customer,
                     'raw_customer_name': customer_name,
                     'item_number': 'UNKNOWN',
