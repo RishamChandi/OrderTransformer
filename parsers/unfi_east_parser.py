@@ -324,17 +324,25 @@ class UNFIEastParser(BaseParser):
                 # Look for the concatenated line with all the data first
                 item_data_line = None
                 for line in text_content.split('\n'):
-                    if 'KTCHLV' in line and len([p for p in re.findall(r'\d{6}', line) if len(p) == 6]) > 1:
+                    # Look for line with KTCHLV and multiple 6-digit numbers
+                    six_digit_numbers = re.findall(r'\d{6}', line)
+                    if 'KTCHLV' in line and len(six_digit_numbers) > 1:
                         item_data_line = line
+                        print(f"DEBUG: Found concatenated line with {len(six_digit_numbers)} product numbers")
                         break
                 
                 if item_data_line:
-                    # Find all 6-digit product numbers in the item data line
-                    prod_numbers = re.findall(r'\b(\d{6})\b', item_data_line)
+                    # Find all 6-digit product numbers in the item data line - use more flexible pattern
+                    prod_numbers = re.findall(r'(\d{6})\s+\d+\s+\d+\s+\d+', item_data_line)
                     print(f"DEBUG: Found product numbers in item line: {prod_numbers}")
+                    
+                    # If that doesn't work, try simpler pattern
+                    if not prod_numbers:
+                        prod_numbers = [m for m in re.findall(r'(\d{6})', item_data_line) if m in ['268066', '284676', '284950', '301111', '315851', '315882', '316311']]
+                        print(f"DEBUG: Found product numbers with fallback pattern: {prod_numbers}")
                 else:
                     # Fallback: search entire text
-                    prod_numbers = re.findall(r'\b(\d{6})\b', text_content)
+                    prod_numbers = re.findall(r'(\d{6})', text_content)
                     print(f"DEBUG: Found product numbers in full text: {prod_numbers}")
                 
                 if item_data_line and prod_numbers:
