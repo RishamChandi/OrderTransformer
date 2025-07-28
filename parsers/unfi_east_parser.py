@@ -180,10 +180,11 @@ class UNFIEastParser(BaseParser):
         # Debug: print the text content to see what we're working with
         print(f"DEBUG: PDF text content length: {len(text_content)}")
         
-        # Print first few lines to debug
-        first_lines = text_content.split('\n')[:20]
-        for i, line in enumerate(first_lines):
-            print(f"DEBUG Line {i}: {repr(line)}")
+        # Print key lines to debug
+        all_lines = text_content.split('\n')
+        for i, line in enumerate(all_lines):
+            if 'Prod#' in line or re.search(r'\d{6}', line):
+                print(f"DEBUG Line {i}: {repr(line)}")
         
         # Look for the line items section and extract it
         lines = text_content.split('\n')
@@ -289,19 +290,20 @@ class UNFIEastParser(BaseParser):
         
         if not line_items:
             print("DEBUG: No items found with line-by-line method, trying regex on full text")
-            # Fallback: try regex on the entire text content with simpler pattern
-            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+[\d\.]+\s+([\d,]+\.?\d*)'
+            # Fallback: try regex on the entire text content - more flexible pattern
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+([\d\.]+)\s+([\d,]+\.?\d*)'
             matches = re.finditer(item_pattern, text_content)
             
             for match in matches:
                 try:
-                    prod_number = match.group(1)  # Prod# (like 268066)
+                    prod_number = match.group(1)  # Prod# (like 315851)
                     qty = int(match.group(2))     # Qty
-                    vend_id = match.group(3)      # Vend ID (like 8-907)
-                    size = match.group(4)         # Size (like 6)
+                    vend_id = match.group(3)      # Vend ID (like 8-900-2)
+                    size = match.group(4)         # Size (like 54)
                     description = match.group(5).strip()  # Product Description
                     unit_cost = float(match.group(6))     # Unit Cost
-                    extension = float(match.group(7).replace(',', ''))  # Extension
+                    unit_cost_vend = float(match.group(7))  # Unit Cost Vend
+                    extension = float(match.group(8).replace(',', ''))  # Extension
                     
                     # Apply item mapping using the original Prod#
                     mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
