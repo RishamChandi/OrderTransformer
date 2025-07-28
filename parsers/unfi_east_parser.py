@@ -185,40 +185,53 @@ class UNFIEastParser(BaseParser):
         item_section_started = False
         item_lines = []
         
+        collecting_item = False
+        current_item_text = ""
+        
         for line in lines:
             # Check if we've reached the line items section
             if 'Prod# Seq' in line and 'Product Description' in line:
                 item_section_started = True
                 print(f"DEBUG: Found item section header")
-                # The next line contains all the items together, split by the product numbers
                 continue
             elif item_section_started:
                 # Check if we've reached the end of items
-                if 'Total Pieces' in line or '-------' in line:
+                if 'Total Pieces' in line or '-------' in line and 'Total' in line:
                     print(f"DEBUG: End of items section")
+                    # Add the last item if we were collecting one
+                    if current_item_text.strip():
+                        item_lines.append(current_item_text.strip())
+                        print(f"DEBUG: Final item: {current_item_text.strip()[:80]}...")
                     break
-                elif line.strip() and not line.startswith('Total'):
-                    # Split the line by product numbers if it contains multiple items
-                    if re.search(r'\d{6}.*\d{6}', line):
-                        # This line contains multiple items concatenated together
-                        print(f"DEBUG: Found combined item line: {line[:100]}...")
-                        # Split by product number patterns
-                        parts = re.split(r'(?=\d{6}\s+\d+\s+\d+\s+\d+)', line.strip())
-                        for part in parts:
-                            if part.strip() and re.match(r'\d{6}', part.strip()):
-                                item_lines.append(part.strip())
-                                print(f"DEBUG: Split item part: {part.strip()[:80]}...")
-                    else:
-                        item_lines.append(line.strip())
-                        print(f"DEBUG: Found single item line: {line.strip()[:80]}...")
+                elif line.strip():
+                    # Check if this line starts with a product number (new item)
+                    if re.match(r'\s*\d{6}\s+\d+', line):
+                        # Save previous item if we have one
+                        if current_item_text.strip():
+                            item_lines.append(current_item_text.strip())
+                            print(f"DEBUG: Completed item: {current_item_text.strip()[:80]}...")
+                        # Start new item
+                        current_item_text = line.strip()
+                        collecting_item = True
+                        print(f"DEBUG: Starting new item: {line.strip()[:80]}...")
+                    elif collecting_item:
+                        # This is a continuation line for the current item
+                        current_item_text += " " + line.strip()
+                        print(f"DEBUG: Adding to current item: {line.strip()[:50]}...")
+        
+        # Add the last item if we ended while collecting
+        if current_item_text.strip():
+            item_lines.append(current_item_text.strip())
+            print(f"DEBUG: Final collected item: {current_item_text.strip()[:80]}...")
         
         print(f"DEBUG: Extracted {len(item_lines)} item lines")
         
         # Process each item line individually
         for line in item_lines:
-            # Pattern for individual line items based on the actual PDF format
-            # Format: 315851   1    6    6 8-900-2      1   54 8 OZ    KTCHLV DSP,GRAIN POUCH,RTH,     102.60 102.60    615.60
-            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+[\d\.,]+\s+([\d,]+\.\d+)'
+            # Pattern for individual line items - handle multi-line format
+            # Example: 156227   1  100  100 8-200-1      1    6 7.9 OZ  KTCHLV QUINOA MEAL,ARTCHK&P     11.94   11.94 ALLOWANCE... 1,075.00
+            # Look for the main product line first, then extract the final total
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+[\d\.]+.*?([\d,]+\.\d+)(?:\s|$)'
             
             match = re.search(item_pattern, line)
             if match:
