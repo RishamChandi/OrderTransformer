@@ -44,8 +44,8 @@ class DatabaseService:
                     order = ProcessedOrder(
                         order_number=order_num,
                         source=source,
-                        customer_name=order_info.get('customer_name'),
-                        raw_customer_name=order_info.get('raw_customer_name'),
+                        customer_name=order_info.get('customer_name', 'UNKNOWN'),
+                        raw_customer_name=order_info.get('raw_customer_name', ''),
                         order_date=self._parse_date(order_info.get('order_date')),
                         source_file=filename
                     )
@@ -56,8 +56,8 @@ class DatabaseService:
                     for item_data in order_group['line_items']:
                         line_item = OrderLineItem(
                             order_id=order.id,
-                            item_number=item_data.get('item_number'),
-                            raw_item_number=item_data.get('raw_item_number'),
+                            item_number=item_data.get('item_number', 'UNKNOWN'),
+                            raw_item_number=item_data.get('raw_item_number', ''),
                             item_description=item_data.get('item_description', ''),
                             quantity=int(item_data.get('quantity', 1)),
                             unit_price=float(item_data.get('unit_price', 0.0)),
@@ -80,6 +80,11 @@ class DatabaseService:
                     session.add(error_record)
             except:
                 pass
+            
+            # Print error for debugging
+            print(f"Database save error for {filename}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             
             return False
     
