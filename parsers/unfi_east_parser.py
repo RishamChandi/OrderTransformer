@@ -213,8 +213,9 @@ class UNFIEastParser(BaseParser):
                     break
                 elif line.strip():
                     # Special handling for concatenated lines that contain multiple items
-                    if re.search(r'\d{6}.*\d{6}.*\d{6}', line):
-                        print(f"DEBUG: Found concatenated line with multiple items: {line[:100]}...")
+                    item_count = len(re.findall(r'\d{6}\s+\d+\s+\d+\s+\d+', line))
+                    if item_count >= 2:
+                        print(f"DEBUG: Found concatenated line with {item_count} items: {line[:100]}...")
                         # Split by product number pattern at the beginning of each item
                         parts = re.split(r'(?=\d{6}\s+\d+\s+\d+\s+\d+)', line)
                         for part in parts:
@@ -288,23 +289,23 @@ class UNFIEastParser(BaseParser):
         
         if not line_items:
             print("DEBUG: No items found with line-by-line method, trying regex on full text")
-            # Fallback: try regex on the entire text content
-            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+(\d+\.\d+)\s+[\d\.,]+\s+([\d,]+\.\d+)'
+            # Fallback: try regex on the entire text content with simpler pattern
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+[\d\.]+\s+([\d,]+\.?\d*)'
             matches = re.finditer(item_pattern, text_content)
             
             for match in matches:
                 try:
-                    prod_number = match.group(1)  # Prod# (like 315851)
+                    prod_number = match.group(1)  # Prod# (like 268066)
                     qty = int(match.group(2))     # Qty
-                    vend_id = match.group(3)      # Vend ID (like 8-900-2)
-                    size = match.group(4)         # Size (like 54 or 3.5)
+                    vend_id = match.group(3)      # Vend ID (like 8-907)
+                    size = match.group(4)         # Size (like 6)
                     description = match.group(5).strip()  # Product Description
                     unit_cost = float(match.group(6))     # Unit Cost
                     extension = float(match.group(7).replace(',', ''))  # Extension
                     
                     # Apply item mapping using the original Prod#
                     mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
-                    print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
+                    print(f"DEBUG: Fallback item mapping lookup: {prod_number} -> {mapped_item}")
                     
                     item = {
                         'item_number': mapped_item,
@@ -316,10 +317,10 @@ class UNFIEastParser(BaseParser):
                     }
                     
                     line_items.append(item)
-                    print(f"DEBUG: Successfully parsed item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
+                    print(f"DEBUG: Successfully parsed fallback item: Prod#{prod_number} -> {mapped_item}, Qty: {qty}, Price: {unit_cost}")
                     
                 except (ValueError, IndexError) as e:
-                    print(f"DEBUG: Failed to parse match - Error: {e}")
+                    print(f"DEBUG: Failed to parse fallback match - Error: {e}")
                     continue
         
         print(f"=== DEBUG: Total line items extracted: {len(line_items)} ===")
