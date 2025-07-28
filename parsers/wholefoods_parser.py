@@ -67,9 +67,16 @@ class WholeFoodsParser(BaseParser):
         
         try:
             # Extract basic order information
-            order_number = self._extract_text_by_label(table_element, ['order', 'po', 'reference'])
-            order_date = self._extract_text_by_label(table_element, ['date', 'order date', 'created'])
-            customer_name = self._extract_text_by_label(table_element, ['customer', 'store', 'location'])
+            order_number = self._extract_text_by_label(table_element, ['order number', 'purchase order', 'po', 'reference'])
+            order_date = self._extract_text_by_label(table_element, ['order date', 'date', 'created'])
+            customer_name = self._extract_text_by_label(table_element, ['store no', 'customer', 'store', 'location'])
+            
+            # Extract order number from filename if not found (e.g., order_154533670.html -> 154533670)
+            if not order_number:
+                import re
+                match = re.search(r'order_(\d+)', filename)
+                if match:
+                    order_number = match.group(1)
             
             # Extract line items
             rows = table_element.find_all('tr')
@@ -83,11 +90,8 @@ class WholeFoodsParser(BaseParser):
                     
                     if item_data and item_data.get('item_number'):
                         
-                        # Apply store mapping
-                        mapped_customer = self.mapping_utils.get_store_mapping(
-                            customer_name or filename, 
-                            'wholefoods'
-                        )
+                        # Apply store mapping - always use "IDI - Richmond" for Whole Foods
+                        mapped_customer = "IDI - Richmond"
                         
                         # Apply item mapping
                         mapped_item = self.mapping_utils.get_item_mapping(
@@ -113,10 +117,7 @@ class WholeFoodsParser(BaseParser):
             
             # If no line items found, create a single order entry
             if not orders and (order_number or customer_name):
-                mapped_customer = self.mapping_utils.get_store_mapping(
-                    customer_name or filename, 
-                    'wholefoods'
-                )
+                mapped_customer = "IDI - Richmond"
                 
                 orders.append({
                     'order_number': order_number or filename,
