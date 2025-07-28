@@ -201,7 +201,7 @@ class UNFIEastParser(BaseParser):
                 continue
             elif item_section_started:
                 # Check if we've reached the end of items (skip the separator line)
-                if '-------' in line and len(line) > 50:
+                if '-------' in line and len(line) > 50 and not re.search(r'\d{6}', line):
                     print(f"DEBUG: Skipping separator line: {line[:50]}...")
                     continue
                 elif 'Total Pieces' in line or ('Total' in line and 'Order Net' in line):
@@ -212,6 +212,17 @@ class UNFIEastParser(BaseParser):
                         print(f"DEBUG: Final item: {current_item_text.strip()[:80]}...")
                     break
                 elif line.strip():
+                    # Special handling for concatenated lines that contain multiple items
+                    if re.search(r'\d{6}.*\d{6}.*\d{6}', line):
+                        print(f"DEBUG: Found concatenated line with multiple items: {line[:100]}...")
+                        # Split by product number pattern at the beginning of each item
+                        parts = re.split(r'(?=\d{6}\s+\d+\s+\d+\s+\d+)', line)
+                        for part in parts:
+                            if part.strip() and re.match(r'\d{6}', part.strip()):
+                                item_lines.append(part.strip())
+                                print(f"DEBUG: Extracted item from concatenated line: {part.strip()[:80]}...")
+                        continue
+                    
                     # Check if this line starts with a product number (new item)
                     if re.match(r'\s*\d{6}\s+\d+', line):
                         # Save previous item if we have one
@@ -238,10 +249,9 @@ class UNFIEastParser(BaseParser):
         
         # Process each item line individually
         for line in item_lines:
-            # Pattern for individual line items - handle multi-line format
-            # Example: 156227   1  100  100 8-200-1      1    6 7.9 OZ  KTCHLV QUINOA MEAL,ARTCHK&P     11.94   11.94 ALLOWANCE... 1,075.00
-            # Look for the main product line first, then extract the final total
-            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z][A-Z\s,&\.\-:]+?)\s+[\d\.]+.*?([\d,]+\.\d+)(?:\s|$)'
+            # Pattern for UNFI East items - simpler pattern to match the concatenated format
+            # Example: 315851   1    6    6 8-900-2      1   54 8 OZ    KTCHLV DSP,GRAIN POUCH,RTH,    102.60  102.60    615.60
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+[\d\.]+\s+([\d,]+\.?\d*)'
             
             match = re.search(item_pattern, line)
             if match:
