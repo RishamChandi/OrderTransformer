@@ -186,6 +186,20 @@ class UNFIEastParser(BaseParser):
             if 'Prod#' in line or re.search(r'\d{6}', line):
                 print(f"DEBUG Line {i}: {repr(line)}")
         
+        # Also test the regex pattern on the concatenated line to debug
+        test_line = None
+        for line in all_lines:
+            if '315851' in line and '315882' in line and '316311' in line:
+                test_line = line
+                break
+        
+        if test_line:
+            print(f"DEBUG: Testing pattern on concatenated line")
+            test_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+([\d\.]+)\s+([\d,]+\.?\d*)'
+            test_matches = re.finditer(test_pattern, test_line)
+            for i, match in enumerate(test_matches):
+                print(f"DEBUG: Test match {i+1}: Prod#{match.group(1)}, Qty: {match.group(2)}, Size: {match.group(4)} OZ")
+        
         # Look for the line items section and extract it
         lines = text_content.split('\n')
         item_section_started = False
@@ -290,8 +304,8 @@ class UNFIEastParser(BaseParser):
         
         if not line_items:
             print("DEBUG: No items found with line-by-line method, trying regex on full text")
-            # Fallback: try regex on the entire text content - more flexible pattern
-            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+\d+\s+([\d\.]+)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+([\d\.]+)\s+([\d,]+\.?\d*)'
+            # Fallback: try regex on the entire text content - handle both integer and decimal sizes
+            item_pattern = r'(\d{6})\s+\d+\s+\d+\s+(\d+)\s+([\d\-]+)\s+\d+\s+(\d+(?:\.\d+)?)\s+OZ\s+([A-Z\s,&\.\-:]+?)\s+([\d\.]+)\s+([\d\.]+)\s+([\d,]+\.?\d*)'
             matches = re.finditer(item_pattern, text_content)
             
             for match in matches:
