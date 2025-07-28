@@ -154,6 +154,11 @@ Name Mapping → Xoro Conversion → CSV Output
 - Added item mapping support for Whole Foods products with 29 authentic item mappings
 - Maps various WF item number formats (spaces, dashes, compressed) to standardized Xoro format
 - Unit price values copied to CustomFieldD1 field like other parsers
+- Enhanced table parsing to correctly extract line items from HTML structure (January 28, 2025)
+- Fixed order number extraction using regex patterns for "Purchase Order #" format
+- Improved line item extraction to handle 6-column table structure: Line, Item No., Qty, Description, Size, Cost, UPC
+- Always uses "IDI - Richmond" for SaleStoreName and StoreName as specified
+- ThirdPartyRefNo and CustomerPO now correctly populated with order number from HTML content
 
 ## Database Schema
 

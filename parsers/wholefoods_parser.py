@@ -94,52 +94,78 @@ class WholeFoodsParser(BaseParser):
             if store_match:
                 customer_name = f"WHOLE FOODS #{store_match.group(1)}"
             
-            # Extract line items
-            rows = table_element.find_all('tr')
+            # Extract line items from the main table with headers: Line, Item No., Qty, Description, Size, Cost, UPC
+            main_table = None
             
-            for row in rows:
-                cells = row.find_all(['td', 'th'])
-                if len(cells) >= 3:  # Minimum columns for item data
-                    
-                    # Try to extract item information
-                    item_data = self._extract_item_from_row(cells)
-                    
-                    if item_data and item_data.get('item_number'):
+            # Find the table with the line items (has headers like "Line", "Item No.", etc.)
+            for table in table_element.find_all('table'):
+                header_row = table.find('tr')
+                if header_row:
+                    header_text = header_row.get_text().lower()
+                    if 'item no' in header_text and 'description' in header_text and 'cost' in header_text:
+                        main_table = table
+                        break
+            
+            if main_table:
+                rows = main_table.find_all('tr')
+                
+                for row in rows[1:]:  # Skip header row
+                    cells = row.find_all('td')
+                    if len(cells) >= 6:  # Expect: Line, Item No, Qty, Description, Size, Cost, UPC
                         
-                        # Apply store mapping - always use "IDI - Richmond" for Whole Foods
-                        mapped_customer = "IDI - Richmond"
+                        # Extract data from specific columns
+                        line_num = cells[0].get_text(strip=True) if len(cells) > 0 else ""
+                        item_number = cells[1].get_text(strip=True) if len(cells) > 1 else ""
+                        qty_text = cells[2].get_text(strip=True) if len(cells) > 2 else ""
+                        description = cells[3].get_text(strip=True) if len(cells) > 3 else ""
+                        size = cells[4].get_text(strip=True) if len(cells) > 4 else ""
+                        cost_text = cells[5].get_text(strip=True) if len(cells) > 5 else ""
+                        upc = cells[6].get_text(strip=True) if len(cells) > 6 else ""
+                        
+                        # Skip totals row and empty rows
+                        if not item_number or item_number.lower() == 'totals:' or not item_number.isdigit():
+                            continue
+                        
+                        # Parse quantity (e.g., "1  CA" -> 1)
+                        quantity = 1
+                        if qty_text:
+                            qty_match = re.search(r'^(\d+)', qty_text)
+                            if qty_match:
+                                quantity = int(qty_match.group(1))
+                        
+                        # Parse cost (e.g., "  14.94" -> 14.94)
+                        unit_price = 0.0
+                        if cost_text:
+                            cost_value = self.clean_numeric_value(cost_text)
+                            if cost_value > 0:
+                                unit_price = cost_value
                         
                         # Apply item mapping
-                        mapped_item = self.mapping_utils.get_item_mapping(
-                            item_data['item_number'], 
-                            'wholefoods'
-                        )
+                        mapped_item = self.mapping_utils.get_item_mapping(item_number, 'wholefoods')
                         
                         order_item = {
                             'order_number': order_number or filename,
                             'order_date': self.parse_date(order_date) if order_date else None,
-                            'customer_name': mapped_customer,
+                            'customer_name': "IDI - Richmond",
                             'raw_customer_name': customer_name,
                             'item_number': mapped_item,
-                            'raw_item_number': item_data['item_number'],
-                            'item_description': item_data.get('description', ''),
-                            'quantity': item_data.get('quantity', 1),
-                            'unit_price': item_data.get('unit_price', 0.0),
-                            'total_price': item_data.get('total_price', 0.0),
+                            'raw_item_number': item_number,
+                            'item_description': description,
+                            'quantity': quantity,
+                            'unit_price': unit_price,
+                            'total_price': unit_price * quantity,
                             'source_file': filename
                         }
                         
                         orders.append(order_item)
             
             # If no line items found, create a single order entry
-            if not orders and (order_number or customer_name):
-                mapped_customer = "IDI - Richmond"
-                
+            if not orders:
                 orders.append({
                     'order_number': order_number or filename,
                     'order_date': self.parse_date(order_date) if order_date else None,
-                    'customer_name': mapped_customer,
-                    'raw_customer_name': customer_name,
+                    'customer_name': "IDI - Richmond",
+                    'raw_customer_name': customer_name or 'UNKNOWN',
                     'item_number': 'UNKNOWN',
                     'item_description': 'Order item details not found',
                     'quantity': 1,
