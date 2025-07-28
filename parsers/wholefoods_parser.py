@@ -184,14 +184,23 @@ class WholeFoodsParser(BaseParser):
         cell_texts = [cell.get_text(strip=True) for cell in cells]
         
         # Skip header rows
-        if any(header in ' '.join(cell_texts).lower() for header in ['item', 'product', 'description', 'qty', 'price']):
+        if any(header in ' '.join(cell_texts).lower() for header in ['item', 'product', 'description', 'qty', 'price', 'order number', 'purchase order']):
             return None
         
         # Skip empty rows
         if all(not text for text in cell_texts):
             return None
+            
+        # Skip rows with order header information
+        combined_text = ' '.join(cell_texts).lower()
+        if any(keyword in combined_text for keyword in ['purchase order', 'order number', 'order date', 'delivery date', 'store no', 'account no', 'buyer']):
+            return None
         
-        # Try to identify item number (usually first non-empty cell)
+        # Skip very long text that looks like headers (over 50 chars for first cell)
+        if cell_texts[0] and len(cell_texts[0]) > 50:
+            return None
+        
+        # Try to identify item number (usually first non-empty cell that looks like an item code)
         item_number = None
         description = None
         quantity = 1
@@ -199,9 +208,12 @@ class WholeFoodsParser(BaseParser):
         total_price = 0.0
         
         for i, text in enumerate(cell_texts):
-            if text and not item_number:
-                item_number = text
-            elif text and not description and text != item_number:
+            if text and not item_number and len(text) <= 50:  # Reasonable item number length
+                # Check if this looks like an item number (not a long description)
+                if not any(word in text.lower() for word in ['whole foods', 'market', 'purchase', 'order', 'delivery', 'buyer']):
+                    item_number = text
+            elif text and not description and text != item_number and len(text) <= 200:
+                # Description should be reasonably sized
                 description = text
             elif text and any(char.isdigit() for char in text):
                 # Try to parse as quantity or price
@@ -214,7 +226,7 @@ class WholeFoodsParser(BaseParser):
                     else:  # Likely total price
                         total_price = numeric_value
         
-        if not item_number:
+        if not item_number or len(item_number) > 50:
             return None
         
         # Calculate total if not provided

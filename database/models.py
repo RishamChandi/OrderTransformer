@@ -32,8 +32,8 @@ class OrderLineItem(Base):
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey('processed_orders.id'), nullable=False)
     
-    item_number = Column(String(100))
-    raw_item_number = Column(String(100))
+    item_number = Column(String(200))
+    raw_item_number = Column(String(200))
     item_description = Column(Text)
     quantity = Column(Integer, default=1)
     unit_price = Column(Float, default=0.0)
