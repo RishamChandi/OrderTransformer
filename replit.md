@@ -176,6 +176,16 @@ Name Mapping → Xoro Conversion → CSV Output
 - Example: 130357 → 13-035-7, 130356 → 13-035-6 using authentic WF_ItemNo to Xoro_ItemNo mapping
 - Replaced previous test mapping (1, 2) with proper Whole Foods item number conversion system
 
+### KEHE - SPS Parser Implementation (January 2025)
+- Created new KEHE - SPS parser to replace UNFI in dropdown menu
+- Handles CSV format with header (H) and line item (D) record types
+- Added 88 authentic KEHE item mappings from Buyer's Catalog/Stock Keeping # to Xoro ItemNumber
+- Maps KEHE numbers like 334790 → 17-041-7, 308376 → 8-400-1, 2207887 → 8-501
+- Extracts order metadata from header records (PO Number, PO Date, Requested Delivery Date)
+- Processes line items with quantity, unit price, and product descriptions
+- Uses "IDI - Richmond" as CustomerName consistent with other parsers
+- Successfully tested with provided KEHE CSV files and verified accurate mapping conversion
+
 ## Database Schema
 
 ### Tables
