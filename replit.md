@@ -171,6 +171,10 @@ Name Mapping → Xoro Conversion → CSV Output
 - DateToBeShipped now uses actual Expected Delivery Date from HTML instead of calculated date
 - Example: Order Date 2025-07-27 → Expected Delivery Date 2025-07-29 used for shipping dates
 - Supports multiple delivery date patterns and works across different Whole Foods HTML formats
+- Updated item mapping database with complete 31-item authentic Whole Foods mapping data (January 29, 2025)
+- Item numbers now properly extracted from HTML Item No. field and mapped to Xoro format
+- Example: 130357 → 13-035-7, 130356 → 13-035-6 using authentic WF_ItemNo to Xoro_ItemNo mapping
+- Replaced previous test mapping (1, 2) with proper Whole Foods item number conversion system
 
 ## Database Schema
 
