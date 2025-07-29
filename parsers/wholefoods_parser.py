@@ -15,30 +15,98 @@ class WholeFoodsParser(BaseParser):
         self.source_name = "Whole Foods"
     
     def parse(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
-        """Parse Whole Foods HTML order file"""
+        """Parse Whole Foods HTML order file following the reference code pattern"""
         
         if file_extension.lower() != 'html':
             raise ValueError("Whole Foods parser only supports HTML files")
         
         try:
-            # Try multiple encodings to handle different file formats
+            # Decode file content
             html_content = self._decode_file_content(file_content)
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Extract order information
+            # Extract order metadata from entire document
+            all_text = soup.get_text()
+            import re
+            
+            order_data = {'metadata': {}}
+            
+            # Extract order number (robustly like reference code)
+            order_match = re.search(r'Purchase Order #\s*(\d+)', all_text)
+            if order_match:
+                order_data['metadata']['order_number'] = order_match.group(1)
+            elif filename:
+                match = re.search(r'order_(\d+)', filename) 
+                if match:
+                    order_data['metadata']['order_number'] = match.group(1)
+            
+            # Extract order date
+            date_match = re.search(r'Order Date:\s*(\d{4}-\d{2}-\d{2})', all_text)
+            if date_match:
+                order_data['metadata']['order_date'] = date_match.group(1)
+            
+            # Extract store number (robustly like reference code)
+            store_match = re.search(r'Store No:\s*(\d+)', all_text)
+            if store_match:
+                order_data['metadata']['store_number'] = store_match.group(1)
+            
+            # Find and parse the line items table
+            line_items = []
+            for table in soup.find_all('table'):
+                header_row = table.find('tr')
+                if header_row:
+                    header_text = header_row.get_text().lower()
+                    if 'item no' in header_text and 'description' in header_text and 'cost' in header_text:
+                        # Found the line items table
+                        rows = table.find_all('tr')
+                        
+                        for row in rows[1:]:  # Skip header row
+                            cells = row.find_all('td')
+                            if len(cells) >= 6:  # Expect: Line, Item No, Qty, Description, Size, Cost, UPC
+                                
+                                # Extract data from specific columns
+                                item_number = cells[1].get_text(strip=True)
+                                qty_text = cells[2].get_text(strip=True)
+                                description = cells[3].get_text(strip=True)
+                                cost_text = cells[5].get_text(strip=True)
+                                
+                                # Skip totals row and empty rows
+                                if not item_number or item_number.lower() == 'totals:' or not item_number.isdigit():
+                                    continue
+                                
+                                # Parse cost
+                                unit_price = 0.0
+                                if cost_text:
+                                    cost_value = self.clean_numeric_value(cost_text)
+                                    if cost_value > 0:
+                                        unit_price = cost_value
+                                
+                                line_items.append({
+                                    'item_no': item_number,
+                                    'description': description,
+                                    'qty': qty_text,
+                                    'cost': str(unit_price)
+                                })
+                        
+                        break  # Found and processed the line items table, exit loop
+            
+            # Build orders using the reference code pattern
             orders = []
-            
-            # Look for order tables or containers
-            order_tables = soup.find_all('table') or soup.find_all('div', class_=['order', 'order-item'])
-            
-            if not order_tables:
-                # Try to find any structured data
-                order_tables = [soup]
-            
-            for table in order_tables:
-                order_data = self._extract_order_from_table(table, filename)
-                if order_data:
-                    orders.extend(order_data)
+            if line_items:
+                # Process each line item
+                for line_item in line_items:
+                    xoro_row = self._build_xoro_row(order_data, line_item)
+                    orders.append(xoro_row)
+            else:
+                # No line items found - create single fallback entry
+                fallback_item = {
+                    'item_no': 'UNKNOWN',
+                    'description': 'Order item details not found',
+                    'qty': '1',
+                    'cost': '0.0'
+                }
+                xoro_row = self._build_xoro_row(order_data, fallback_item)
+                orders.append(xoro_row)
             
             return orders if orders else None
             
@@ -59,6 +127,51 @@ class WholeFoodsParser(BaseParser):
         
         # If all encodings fail, use utf-8 with error handling
         return file_content.decode('utf-8', errors='replace')
+    
+    def _build_xoro_row(self, order_data: Dict[str, Any], line_item: Dict[str, str]) -> Dict[str, Any]:
+        """Build a row for Xoro Sales Order Import Template following reference code pattern"""
+        
+        # Robustly extract store number from metadata (following reference code)
+        store_number = order_data['metadata'].get('store_number')
+        if not store_number:
+            # Try to extract from any metadata value that looks like a 5-digit number
+            for v in order_data['metadata'].values():
+                if isinstance(v, str) and v.strip().isdigit() and len(v.strip()) == 5:
+                    store_number = v.strip()
+                    break
+        
+        # Map store info
+        if store_number:
+            mapped_customer = self.mapping_utils.get_store_mapping(store_number, 'wholefoods')
+        else:
+            mapped_customer = "IDI - Richmond"  # Default fallback
+        
+        # Map item number
+        mapped_item = self.mapping_utils.get_item_mapping(line_item['item_no'], 'wholefoods')
+        
+        # Parse quantity from qty field
+        import re
+        qty_raw = line_item.get('qty', '1')
+        qty_match = re.match(r"(\d+)", qty_raw)
+        quantity = int(qty_match.group(1)) if qty_match else 1
+        
+        # Parse unit price
+        unit_price = float(line_item.get('cost', '0.0'))
+        
+        # Build the order item
+        return {
+            'order_number': order_data['metadata'].get('order_number', ''),
+            'order_date': self.parse_date(order_data['metadata'].get('order_date')) if order_data['metadata'].get('order_date') else None,
+            'customer_name': mapped_customer,
+            'raw_customer_name': f"WHOLE FOODS #{store_number}" if store_number else 'UNKNOWN',
+            'item_number': mapped_item,
+            'raw_item_number': line_item['item_no'],
+            'item_description': line_item.get('description', ''),
+            'quantity': quantity,
+            'unit_price': unit_price,
+            'total_price': unit_price * quantity,
+            'source_file': order_data['metadata'].get('order_number', '') + '.html'
+        }
     
     def _extract_order_from_table(self, table_element, filename: str) -> List[Dict[str, Any]]:
         """Extract order data from HTML document"""
