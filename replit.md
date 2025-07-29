@@ -167,6 +167,10 @@ Name Mapping → Xoro Conversion → CSV Output
 - Item numbers 130357 and 130356 correctly map to Xoro items "1" and "2" respectively
 - Parser now extracts exactly 2 line items with proper quantities, descriptions, and prices
 - Implemented robust metadata extraction and single-pass line item processing
+- Added Expected Delivery Date extraction from HTML for DateToBeShipped and LastDateToBeShipped (January 29, 2025)
+- DateToBeShipped now uses actual Expected Delivery Date from HTML instead of calculated date
+- Example: Order Date 2025-07-27 → Expected Delivery Date 2025-07-29 used for shipping dates
+- Supports multiple delivery date patterns and works across different Whole Foods HTML formats
 
 ## Database Schema
 

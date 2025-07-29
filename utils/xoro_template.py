@@ -50,10 +50,14 @@ class XoroTemplate:
         order_date = order.get('order_date')
         pickup_date = order.get('pickup_date')
         eta_date = order.get('eta_date')
+        delivery_date = order.get('delivery_date')
         
         if source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
             # For UNFI East: use Pck Date (pickup date) for shipping dates
             shipping_date = pickup_date if pickup_date else self._calculate_shipping_date(order_date)
+        elif source_name.lower().replace(' ', '_') == 'whole_foods' or source_name.lower() == 'whole foods':
+            # For Whole Foods: use Expected Delivery Date from HTML
+            shipping_date = delivery_date if delivery_date else self._calculate_shipping_date(order_date)
         elif pickup_date:
             # For other sources: use pickup_date if available
             shipping_date = pickup_date

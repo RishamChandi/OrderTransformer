@@ -45,6 +45,19 @@ class WholeFoodsParser(BaseParser):
             if date_match:
                 order_data['metadata']['order_date'] = date_match.group(1)
             
+            # Extract expected delivery date
+            delivery_patterns = [
+                r'Expected Delivery Date[:\s\n]*(\d{4}-\d{2}-\d{2})',
+                r'Expected\s+Delivery\s+Date[:\s]*(\d{4}-\d{2}-\d{2})',
+                r'(?i)expected.*delivery.*date[:\s\n]*(\d{4}-\d{2}-\d{2})'
+            ]
+            
+            for pattern in delivery_patterns:
+                delivery_match = re.search(pattern, all_text, re.MULTILINE | re.IGNORECASE)
+                if delivery_match:
+                    order_data['metadata']['delivery_date'] = delivery_match.group(1)
+                    break
+            
             # Extract store number (robustly like reference code)
             store_match = re.search(r'Store No:\s*(\d+)', all_text)
             if store_match:
@@ -165,6 +178,7 @@ class WholeFoodsParser(BaseParser):
         return {
             'order_number': order_data['metadata'].get('order_number', ''),
             'order_date': self.parse_date(order_data['metadata'].get('order_date')) if order_data['metadata'].get('order_date') else None,
+            'delivery_date': self.parse_date(order_data['metadata'].get('delivery_date')) if order_data['metadata'].get('delivery_date') else None,
             'customer_name': mapped_customer,
             'raw_customer_name': f"WHOLE FOODS #{store_number}" if store_number else 'UNKNOWN',
             'item_number': mapped_item,
@@ -201,6 +215,21 @@ class WholeFoodsParser(BaseParser):
             date_match = re.search(r'Order Date:\s*(\d{4}-\d{2}-\d{2})', all_text)
             if date_match:
                 order_date = date_match.group(1)
+            
+            # Extract expected delivery date with more flexible pattern
+            delivery_date = None
+            # Try multiple patterns to ensure we catch the delivery date
+            delivery_patterns = [
+                r'Expected Delivery Date[:\s\n]*(\d{4}-\d{2}-\d{2})',
+                r'Expected\s+Delivery\s+Date[:\s]*(\d{4}-\d{2}-\d{2})',
+                r'(?i)expected.*delivery.*date[:\s\n]*(\d{4}-\d{2}-\d{2})'
+            ]
+            
+            for pattern in delivery_patterns:
+                delivery_match = re.search(pattern, all_text, re.MULTILINE | re.IGNORECASE)
+                if delivery_match:
+                    delivery_date = delivery_match.group(1)
+                    break
             
             # Extract store number and map to customer
             store_number = None
@@ -262,6 +291,7 @@ class WholeFoodsParser(BaseParser):
                                 order_item = {
                                     'order_number': order_number or filename,
                                     'order_date': self.parse_date(order_date) if order_date else None,
+                                    'delivery_date': self.parse_date(delivery_date) if delivery_date else None,
                                     'customer_name': mapped_customer,
                                     'raw_customer_name': customer_name,
                                     'item_number': mapped_item,
@@ -282,6 +312,7 @@ class WholeFoodsParser(BaseParser):
                 orders.append({
                     'order_number': order_number or filename,
                     'order_date': self.parse_date(order_date) if order_date else None,
+                    'delivery_date': self.parse_date(delivery_date) if delivery_date else None,
                     'customer_name': mapped_customer,
                     'raw_customer_name': customer_name or 'UNKNOWN',
                     'item_number': 'UNKNOWN',
@@ -298,6 +329,7 @@ class WholeFoodsParser(BaseParser):
                 orders.append({
                     'order_number': filename,
                     'order_date': None,
+                    'delivery_date': None,
                     'customer_name': 'UNKNOWN',
                     'raw_customer_name': '',
                     'item_number': 'ERROR',
