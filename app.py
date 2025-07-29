@@ -22,6 +22,15 @@ def main():
     # Sidebar for configuration and navigation
     st.sidebar.header("Navigation")
     
+    # One-time database initialization for cloud deployment
+    if st.sidebar.button("🔧 Initialize Database (First-time setup)"):
+        try:
+            from init_database import main as init_db
+            init_db()
+            st.sidebar.success("Database initialized!")
+        except Exception as e:
+            st.sidebar.error(f"Database init failed: {e}")
+    
     # Add navigation options
     page = st.sidebar.selectbox(
         "Choose a page",

@@ -8,8 +8,14 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from typing import Generator
 
-# Get database URL from environment
-DATABASE_URL = os.getenv('DATABASE_URL')
+try:
+    from cloud_config import get_database_url
+except ImportError:
+    def get_database_url():
+        return os.getenv('DATABASE_URL')
+
+# Get database URL from environment or secrets
+DATABASE_URL = get_database_url()
 
 # Create engine
 engine = create_engine(DATABASE_URL, echo=False)
