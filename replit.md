@@ -159,6 +159,12 @@ Name Mapping → Xoro Conversion → CSV Output
 - Improved line item extraction to handle 6-column table structure: Line, Item No., Qty, Description, Size, Cost, UPC
 - Always uses "IDI - Richmond" for SaleStoreName and StoreName as specified
 - ThirdPartyRefNo and CustomerPO now correctly populated with order number from HTML content
+- Complete parser rewrite following reference code pattern to eliminate duplicate entries (January 29, 2025)
+- Fixed critical issue where parser created 7 duplicate "UNKNOWN" entries instead of parsing actual line items
+- Store No. 10447 now correctly maps to "IDI - Richmond" customer using store mapping database
+- Item numbers 130357 and 130356 correctly map to Xoro items "1" and "2" respectively
+- Parser now extracts exactly 2 line items with proper quantities, descriptions, and prices
+- Implemented robust metadata extraction and single-pass line item processing
 
 ## Database Schema
 

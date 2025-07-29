@@ -140,9 +140,12 @@ class WholeFoodsParser(BaseParser):
                     store_number = v.strip()
                     break
         
-        # Map store info
+        # Map store info using the reference code pattern
         if store_number:
-            mapped_customer = self.mapping_utils.get_store_mapping(store_number, 'wholefoods')
+            # Use mapping_utils to get the mapped customer name 
+            mapped_customer = self.mapping_utils.get_store_mapping(str(store_number).strip(), 'wholefoods')
+            if not mapped_customer or mapped_customer == 'UNKNOWN':
+                mapped_customer = "IDI - Richmond"  # Default fallback for Whole Foods
         else:
             mapped_customer = "IDI - Richmond"  # Default fallback
         
