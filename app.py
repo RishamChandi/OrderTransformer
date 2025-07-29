@@ -6,7 +6,7 @@ import os
 from parsers.wholefoods_parser import WholeFoodsParser
 from parsers.unfi_west_parser import UNFIWestParser
 from parsers.unfi_east_parser import UNFIEastParser
-from parsers.unfi_parser import UNFIParser
+from parsers.kehe_parser import KEHEParser
 from parsers.tkmaxx_parser import TKMaxxParser
 from utils.xoro_template import XoroTemplate
 from utils.mapping_utils import MappingUtils
@@ -53,7 +53,7 @@ def process_orders_page(db_service: DatabaseService):
         "Whole Foods": WholeFoodsParser(),
         "UNFI West": UNFIWestParser(),
         "UNFI East": UNFIEastParser(mapping_utils),
-        "UNFI": UNFIParser(),
+        "KEHE - SPS": KEHEParser(),
         "TK Maxx": TKMaxxParser()
     }
     
