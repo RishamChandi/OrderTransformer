@@ -86,10 +86,10 @@ class XoroTemplate:
                 store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
             final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
         elif source_name.lower().replace(' ', '_') == 'whole_foods' or source_name.lower() == 'whole foods':
-            # Whole Foods: always use "IDI - Richmond" for store names
+            # Whole Foods: always use "IDI - Richmond" for store names, but customer name comes from store mapping
             sale_store_name = 'IDI - Richmond'
             store_name = 'IDI - Richmond'
-            final_customer_name = 'IDI - Richmond'
+            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
         else:
             # Other sources: use mapped customer name
             sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
