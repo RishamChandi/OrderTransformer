@@ -12,7 +12,27 @@ from utils.xoro_template import XoroTemplate
 from utils.mapping_utils import MappingUtils
 from database.service import DatabaseService
 
+# Import for database initialization
+from database.models import Base
+from database.connection import get_database_engine
+from sqlalchemy import inspect
+
+def initialize_database_if_needed():
+    """Initialize database tables if they don't exist"""
+    engine = get_database_engine()
+    inspector = inspect(engine)
+    
+    # Check if tables exist
+    tables_exist = inspector.get_table_names()
+    if not tables_exist:
+        st.info("Initializing database for first run...")
+        Base.metadata.create_all(bind=engine)
+        st.success("Database initialized successfully!")
+
 def main():
+    # Initialize database if needed
+    initialize_database_if_needed()
+    
     st.title("Order Transformer - Multiple Sources to Xoro CSV")
     st.write("Convert sales orders from different sources into standardized Xoro import CSV format")
     
