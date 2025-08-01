@@ -175,6 +175,7 @@ Name Mapping → Xoro Conversion → CSV Output
 - Item numbers now properly extracted from HTML Item No. field and mapped to Xoro format
 - Example: 130357 → 13-035-7, 130356 → 13-035-6 using authentic WF_ItemNo to Xoro_ItemNo mapping
 - Replaced previous test mapping (1, 2) with proper Whole Foods item number conversion system
+- Updated unmapped items to use "Invalid Item" as fallback instead of raw item numbers (January 29, 2025)
 
 ### KEHE - SPS Parser Implementation (January 2025)
 - Created new KEHE - SPS parser to replace UNFI in dropdown menu
