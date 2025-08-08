@@ -318,31 +318,214 @@ def processed_orders_page(db_service: DatabaseService):
         st.error(f"Error loading processed orders: {str(e)}")
 
 def manage_mappings_page(db_service: DatabaseService):
-    """Manage store and item mappings"""
+    """Manage store and item mappings with editable interface"""
     
-    st.header("Manage Mappings")
+    st.header("📋 Manage Mappings")
     
-    tab1, tab2 = st.tabs(["Store Mappings", "Item Mappings"])
+    # Create tabs for different mapping types
+    tab1, tab2, tab3 = st.tabs(["🏪 Store Mapping", "👥 Customer Mapping", "📦 Item Mapping"])
+    
+    mapping_utils = MappingUtils()
+    sources = ['wholefoods', 'unfi_west', 'unfi_east', 'unfi', 'kehe', 'tkmaxx']
     
     with tab1:
-        st.subheader("Store/Customer Name Mappings")
+        st.subheader("Store Mappings")
+        show_editable_store_mappings(mapping_utils, sources, db_service)
+    
+    with tab2:
+        st.subheader("Customer Mappings")
+        show_editable_customer_mappings(mapping_utils, sources, db_service)
+    
+    with tab3:
+        st.subheader("Item Mappings")
+        show_editable_item_mappings(mapping_utils, sources, db_service)
+
+def show_editable_store_mappings(mapping_utils, sources, db_service):
+    """Show editable store mappings interface"""
+    
+    # Source selector
+    selected_source = st.selectbox("Select Source", sources, key="store_source")
+    
+    try:
+        # Get store mappings for selected source
+        store_mappings = {}
         
-        # Add new mapping
-        with st.expander("Add New Store Mapping"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                new_source = st.selectbox("Source", ["wholefoods", "unfi_west", "unfi", "tkmaxx"], key="store_source")
-            with col2:
-                new_raw_name = st.text_input("Raw Name", key="store_raw")
-            with col3:
-                new_mapped_name = st.text_input("Mapped Name", key="store_mapped")
+        # Try to get mappings from database first
+        try:
+            with db_service.get_session() as session:
+                mappings = session.query(db_service.StoreMapping).filter_by(source=selected_source).all()
+                for mapping in mappings:
+                    store_mappings[mapping.raw_name] = mapping.mapped_name
+        except Exception:
+            pass
+        
+        # If no database mappings, try Excel files
+        if not store_mappings:
+            store_mappings = mapping_utils._load_store_mappings_from_excel(selected_source)
+        
+        if store_mappings:
+            st.write(f"**{selected_source.replace('_', ' ').title()} Store Mappings:**")
             
-            if st.button("Add Store Mapping"):
-                if new_raw_name and new_mapped_name:
-                    success = db_service.save_store_mapping(new_source, new_raw_name, new_mapped_name)
+            # Add option to add new mapping
+            with st.expander("➕ Add New Store Mapping"):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    new_raw = st.text_input("Raw Store Name", key=f"new_store_raw_{selected_source}")
+                with col2:
+                    new_mapped = st.text_input("Mapped Store Name", key=f"new_store_mapped_{selected_source}")
+                with col3:
+                    if st.button("Add", key=f"add_store_{selected_source}"):
+                        if new_raw and new_mapped:
+                            success = db_service.save_store_mapping(selected_source, new_raw, new_mapped)
+                            if success:
+                                st.success("Store mapping added successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to add mapping")
+            
+            # Display editable table with delete options
+            for idx, (raw, mapped) in enumerate(store_mappings.items()):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    st.text_input("Raw Store", value=raw, disabled=True, key=f"store_raw_{idx}_{selected_source}")
+                with col2:
+                    new_mapped_value = st.text_input("Mapped Store", value=mapped, key=f"store_mapped_{idx}_{selected_source}")
+                with col3:
+                    if st.button("🗑️", key=f"delete_store_{idx}_{selected_source}", help="Delete mapping"):
+                        try:
+                            with db_service.get_session() as session:
+                                mapping_to_delete = session.query(db_service.StoreMapping).filter_by(
+                                    source=selected_source, raw_name=raw
+                                ).first()
+                                if mapping_to_delete:
+                                    session.delete(mapping_to_delete)
+                                    session.commit()
+                                st.success("Store mapping deleted!")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to delete mapping: {e}")
+                
+                # Update mapping if changed
+                if new_mapped_value != mapped:
+                    success = db_service.save_store_mapping(selected_source, raw, new_mapped_value)
                     if success:
-                        st.success("Store mapping added successfully!")
+                        st.success(f"Updated mapping: {raw} → {new_mapped_value}")
                         st.rerun()
+                    else:
+                        st.error("Failed to update mapping")
+        else:
+            st.info(f"No store mappings found for {selected_source}")
+            
+    except Exception as e:
+        st.error(f"Error loading store mappings: {e}")
+
+def show_editable_customer_mappings(mapping_utils, sources, db_service):
+    """Show editable customer mappings interface (same as store mappings for now)"""
+    st.info("Customer mappings are currently the same as store mappings. Use the Store Mapping tab to manage customer mappings.")
+    
+def show_editable_item_mappings(mapping_utils, sources, db_service):
+    """Show editable item mappings interface"""
+    
+    # Source selector
+    selected_source = st.selectbox("Select Source", sources, key="item_source")
+    
+    try:
+        # Get item mappings for selected source
+        item_mappings = {}
+        
+        # Try to get mappings from database first
+        try:
+            with db_service.get_session() as session:
+                mappings = session.query(db_service.ItemMapping).filter_by(source=selected_source).all()
+                for mapping in mappings:
+                    item_mappings[mapping.raw_item] = mapping.mapped_item
+        except Exception:
+            pass
+        
+        # If no database mappings, try Excel files
+        if not item_mappings:
+            item_mappings = mapping_utils._load_item_mappings_from_excel(selected_source)
+        
+        if item_mappings:
+            st.write(f"**{selected_source.replace('_', ' ').title()} Item Mappings:**")
+            
+            # Add option to add new mapping
+            with st.expander("➕ Add New Item Mapping"):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    new_raw_item = st.text_input("Raw Item Number", key=f"new_item_raw_{selected_source}")
+                with col2:
+                    new_mapped_item = st.text_input("Mapped Item Number", key=f"new_item_mapped_{selected_source}")
+                with col3:
+                    if st.button("Add", key=f"add_item_{selected_source}"):
+                        if new_raw_item and new_mapped_item:
+                            success = db_service.save_item_mapping(selected_source, new_raw_item, new_mapped_item)
+                            if success:
+                                st.success("Item mapping added successfully!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to add mapping")
+            
+            # Search functionality
+            search_term = st.text_input("🔍 Search mappings", key=f"search_{selected_source}")
+            
+            # Filter mappings based on search
+            filtered_mappings = item_mappings
+            if search_term:
+                filtered_mappings = {k: v for k, v in item_mappings.items() 
+                                   if search_term.lower() in k.lower() or search_term.lower() in v.lower()}
+            
+            st.write(f"Showing {len(filtered_mappings)} of {len(item_mappings)} mappings")
+            
+            # Display editable table with pagination
+            items_per_page = 20
+            total_pages = (len(filtered_mappings) + items_per_page - 1) // items_per_page
+            
+            if total_pages > 1:
+                page = st.selectbox("Page", range(1, total_pages + 1), key=f"page_{selected_source}") - 1
+            else:
+                page = 0
+            
+            start_idx = page * items_per_page
+            end_idx = start_idx + items_per_page
+            
+            page_mappings = dict(list(filtered_mappings.items())[start_idx:end_idx])
+            
+            # Display editable mappings
+            for idx, (raw_item, mapped_item) in enumerate(page_mappings.items()):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    st.text_input("Raw Item", value=raw_item, disabled=True, key=f"item_raw_{idx}_{page}_{selected_source}")
+                with col2:
+                    new_mapped_value = st.text_input("Mapped Item", value=mapped_item, key=f"item_mapped_{idx}_{page}_{selected_source}")
+                with col3:
+                    if st.button("🗑️", key=f"delete_item_{idx}_{page}_{selected_source}", help="Delete mapping"):
+                        try:
+                            with db_service.get_session() as session:
+                                mapping_to_delete = session.query(db_service.ItemMapping).filter_by(
+                                    source=selected_source, raw_item=raw_item
+                                ).first()
+                                if mapping_to_delete:
+                                    session.delete(mapping_to_delete)
+                                    session.commit()
+                                st.success("Item mapping deleted!")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to delete mapping: {e}")
+                
+                # Update mapping if changed
+                if new_mapped_value != mapped_item:
+                    success = db_service.save_item_mapping(selected_source, raw_item, new_mapped_value)
+                    if success:
+                        st.success(f"Updated mapping: {raw_item} → {new_mapped_value}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to update mapping")
+        else:
+            st.info(f"No item mappings found for {selected_source}")
+            
+    except Exception as e:
+        st.error(f"Error loading item mappings: {e}")
                     else:
                         st.error("Failed to add store mapping")
                 else:

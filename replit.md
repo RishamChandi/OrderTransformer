@@ -192,6 +192,11 @@ Name Mapping → Xoro Conversion → CSV Output
 - Implemented environment-based database switching to resolve SSL connection issues (January 29, 2025)
 - Automatic detection: Replit (development/no SSL) vs Streamlit Cloud (production/SSL required)
 - Smart fallback handling for SSL connection errors in development environments
+- Enhanced Manage Mappings interface with editable functionality (January 29, 2025)
+- Added three-tab layout: Store Mapping, Customer Mapping, and Item Mapping
+- Full CRUD operations: Add, edit, delete mappings with real-time updates
+- Search and pagination for large item mapping datasets
+- Source-specific filtering for better organization
 
 ## Database Schema
 
