@@ -48,12 +48,6 @@ class KEHEParser(BaseParser):
                     # Fallback for older pandas versions
                     df = pd.read_csv(io.StringIO(content_str), error_bad_lines=False, warn_bad_lines=False)
             
-            # Filter for line item records only (Record Type = 'D')
-            line_items_df = df[df['Record Type'] == 'D'].copy()
-            
-            if line_items_df.empty:
-                return None
-            
             # Get header information from the first 'H' record
             header_df = df[df['Record Type'] == 'H']
             if header_df.empty:
@@ -61,10 +55,17 @@ class KEHEParser(BaseParser):
                 
             header_info = header_df.iloc[0]
             
+            # Filter for line item records (Record Type = 'D') and discount records (Record Type = 'I')
+            line_items_df = df[df['Record Type'] == 'D'].copy()
+            discount_records_df = df[df['Record Type'] == 'I'].copy()
+            
+            if line_items_df.empty:
+                return None
+            
             orders = []
             
-            # Process each line item
-            for _, row in line_items_df.iterrows():
+            # Process each line item with potential discounts
+            for idx, row in line_items_df.iterrows():
                 try:
                     # Extract line item data - handle different column name variations
                     kehe_number = str(row.get('Buyers Catalog or Stock Keeping #', '')).strip()
@@ -97,6 +98,21 @@ class KEHEParser(BaseParser):
                     # Use the most appropriate date for shipping
                     delivery_date = requested_delivery_date or ship_date or po_date
                     
+                    # Calculate total price before applying discounts
+                    line_total = unit_price * quantity
+                    
+                    # Check for discount record that follows this line item
+                    discount_amount = 0
+                    discount_info = ""
+                    
+                    # Look for the next 'I' record that applies to this line
+                    next_discount = self._find_next_discount_record(df, idx, discount_records_df)
+                    if next_discount is not None:
+                        discount_amount, discount_info = self._calculate_discount(next_discount, line_total, unit_price)
+                    
+                    # Apply discount to get final total
+                    final_total = line_total - discount_amount
+                    
                     # Build order data
                     order_data = {
                         'order_number': str(header_info.get('PO Number', '')),
@@ -109,7 +125,10 @@ class KEHEParser(BaseParser):
                         'item_description': description,
                         'quantity': int(quantity),
                         'unit_price': unit_price,
-                        'total_price': unit_price * quantity,
+                        'total_price': final_total,
+                        'original_total': line_total,
+                        'discount_amount': discount_amount,
+                        'discount_info': discount_info,
                         'source_file': filename
                     }
                     
@@ -123,6 +142,69 @@ class KEHEParser(BaseParser):
             
         except Exception as e:
             raise ValueError(f"Error parsing KEHE CSV: {str(e)}")
+    
+    def _find_next_discount_record(self, df: pd.DataFrame, current_idx: int, discount_records_df: pd.DataFrame) -> Optional[pd.Series]:
+        """
+        Find the discount record (type 'I') that applies to the current line item (type 'D')
+        Discount records typically follow immediately after the line item they apply to
+        """
+        try:
+            # Get all rows after current line item
+            remaining_rows = df.loc[current_idx + 1:]
+            
+            # Find the first 'I' record after this line item
+            for idx, row in remaining_rows.iterrows():
+                if row.get('Record Type') == 'I':
+                    return row
+                elif row.get('Record Type') == 'D':
+                    # Hit another line item, so no discount for current item
+                    break
+            
+            return None
+        except Exception:
+            return None
+    
+    def _calculate_discount(self, discount_row: pd.Series, line_total: float, unit_price: float) -> tuple[float, str]:
+        """
+        Calculate discount amount based on discount record
+        Returns: (discount_amount, discount_description)
+        """
+        try:
+            discount_amount = 0
+            discount_info = ""
+            
+            # Check for percentage discount (column BG - typically percentage value)
+            percentage_discount = self.clean_numeric_value(str(discount_row.get('BG', '0')))
+            if percentage_discount > 0:
+                discount_amount = (line_total * percentage_discount) / 100
+                discount_info = f"Percentage: {percentage_discount}%"
+            
+            # Check for flat/rate discount (column BH - typically flat amount)
+            flat_discount = self.clean_numeric_value(str(discount_row.get('BH', '0')))
+            if flat_discount > 0:
+                discount_amount = flat_discount
+                discount_info = f"Flat: ${flat_discount:.2f}"
+            
+            # If both are present, use the larger discount (benefit customer)
+            if percentage_discount > 0 and flat_discount > 0:
+                percentage_amount = (line_total * percentage_discount) / 100
+                if flat_discount > percentage_amount:
+                    discount_amount = flat_discount
+                    discount_info = f"Flat: ${flat_discount:.2f} (better than {percentage_discount}%)"
+                else:
+                    discount_amount = percentage_amount
+                    discount_info = f"Percentage: {percentage_discount}% (better than ${flat_discount:.2f})"
+            
+            # Get discount description if available
+            discount_desc = str(discount_row.get('Product/Item Description', ''))
+            if discount_desc and discount_desc.strip():
+                discount_info += f" - {discount_desc.strip()}"
+            
+            return discount_amount, discount_info
+            
+        except Exception as e:
+            print(f"Error calculating discount: {e}")
+            return 0, ""
     
     def _extract_line_items_from_csv(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
         """Extract line items from KEHE CSV DataFrame"""
