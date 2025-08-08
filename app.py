@@ -380,9 +380,9 @@ def show_editable_store_mappings(mapping_utils, sources, db_service):
         except Exception:
             pass
         
-        # If no database mappings, try Excel files
+        # If no database mappings, try Excel files using database service
         if not store_mappings:
-            store_mappings = mapping_utils._load_store_mappings_from_excel(selected_source)
+            store_mappings = db_service.get_store_mappings(selected_source)
         
         if store_mappings:
             st.write(f"**{selected_source.replace('_', ' ').title()} Store Mappings:**")
@@ -463,9 +463,9 @@ def show_editable_item_mappings(mapping_utils, sources, db_service):
         except Exception:
             pass
         
-        # If no database mappings, try Excel files
+        # If no database mappings, try Excel files using database service
         if not item_mappings:
-            item_mappings = mapping_utils._load_item_mappings_from_excel(selected_source)
+            item_mappings = db_service.get_item_mappings(selected_source)
         
         if item_mappings:
             st.write(f"**{selected_source.replace('_', ' ').title()} Item Mappings:**")
