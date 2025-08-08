@@ -11,15 +11,18 @@ def get_environment() -> str:
     Returns: 'production', 'development', or 'local'
     """
     # Check for Streamlit Cloud environment
-    if os.getenv('STREAMLIT_SHARING'):
+    if os.getenv('STREAMLIT_SHARING') or os.getenv('STREAMLIT_CLOUD'):
         return 'production'
     
     # Check for production indicators
     if os.getenv('ENVIRONMENT') == 'production':
         return 'production'
     
-    # Check if we're in Replit (development)
-    if os.getenv('REPL_ID') or os.getenv('REPLIT_DB_URL'):
+    # Check if we're in Replit (development) - more reliable detection
+    if (os.getenv('REPL_ID') or 
+        os.getenv('REPLIT_DB_URL') or 
+        os.getenv('REPL_SLUG') or
+        '/home/runner' in os.getcwd()):
         return 'development'
     
     # Default to local development
@@ -30,22 +33,28 @@ def get_database_url() -> str:
     Get the appropriate database URL based on environment
     """
     env = get_environment()
+    db_url = os.getenv('DATABASE_URL', '')
     
     if env == 'production':
         # Use production database URL with SSL
-        db_url = os.getenv('DATABASE_URL')
-        if db_url and not db_url.endswith('?sslmode=require'):
+        if db_url and 'sslmode=' not in db_url:
             # Ensure SSL is enabled for production
             db_url += '?sslmode=require' if '?' not in db_url else '&sslmode=require'
         return db_url
     
     elif env == 'development':
-        # Use Replit's local PostgreSQL without SSL requirements
-        return os.getenv('DATABASE_URL', '').replace('?sslmode=require', '').replace('&sslmode=require', '')
+        # Force disable SSL for Replit development environment
+        if db_url:
+            # Remove any SSL requirements and add disable SSL
+            db_url = db_url.replace('?sslmode=require', '').replace('&sslmode=require', '')
+            db_url = db_url.replace('?sslmode=prefer', '').replace('&sslmode=prefer', '')
+            # Explicitly disable SSL for development
+            db_url += '?sslmode=disable' if '?' not in db_url else '&sslmode=disable'
+        return db_url or 'postgresql://localhost/orderparser_dev?sslmode=disable'
     
     else:  # local
         # Use local database or fallback
-        return os.getenv('DATABASE_URL', 'postgresql://localhost/orderparser_dev')
+        return db_url or 'postgresql://localhost/orderparser_dev?sslmode=disable'
 
 def should_initialize_database() -> bool:
     """

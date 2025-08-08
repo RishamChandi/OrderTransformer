@@ -37,10 +37,31 @@ def initialize_database_if_needed():
             
     except Exception as e:
         st.error(f"Database connection failed: {e}")
-        st.info("💡 **Environment Detection Help:**")
-        st.info("- **Replit Development**: Uses local PostgreSQL without SSL")
-        st.info("- **Streamlit Cloud**: Uses production database with SSL")
-        st.info("- **Issue**: Check if you have production database credentials in development environment")
+        
+        # Enhanced error information
+        from database.connection import get_current_environment
+        from database.env_config import get_database_url
+        
+        try:
+            env = get_current_environment()
+            db_url = get_database_url()
+            
+            st.error("🔧 **Database Connection Troubleshooting:**")
+            st.info(f"**Detected Environment**: {env}")
+            st.info(f"**Database URL Pattern**: {db_url[:50] if db_url else 'Not found'}...")
+            
+            if 'SSL connection has been closed' in str(e):
+                st.warning("**SSL Issue Detected**: This appears to be a production database in development environment")
+                st.info("**Solutions**:")
+                st.info("1. Use development database credentials for Replit")
+                st.info("2. Or set ENVIRONMENT=production if this should use production DB")
+                
+            st.info("**Environment Detection**:")
+            st.info("- **Replit Development**: Automatically disables SSL")
+            st.info("- **Streamlit Cloud**: Requires SSL for production database")
+            
+        except Exception:
+            st.info("Enable debug mode for detailed connection information")
 
 def main():
     # Initialize database if needed
