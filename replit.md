@@ -194,6 +194,11 @@ Name Mapping → Xoro Conversion → CSV Output
 - Supports both percentage discounts (column BG) and flat discounts (column BH)
 - Calculates optimal discount (chooses better option when both types present)
 - Stores original total, discount amount, and final total for complete audit trail
+- Enhanced UNFI East parser to use IOW location-based customer mapping (January 29, 2025)
+- Added Excel-based IOW customer mapping system using provided mapping file
+- Extracts IOW location codes from Internal Ref Number (e.g., "II-85948-H01" -> "II")
+- Maps IOW codes to proper Xoro customer names: IOW -> "UNFI EAST IOWA CITY", RCH -> "UNFI EAST - RICHBURG", etc.
+- Maintains fallback logic for warehouse location detection and mapping
 - Implemented environment-based database switching to resolve SSL connection issues (January 29, 2025)
 - Automatic detection: Replit (development/no SSL) vs Streamlit Cloud (production/SSL required)
 - Smart fallback handling for SSL connection errors in development environments

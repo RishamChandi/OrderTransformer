@@ -15,6 +15,7 @@ class UNFIEastParser(BaseParser):
         super().__init__()
         self.source_name = "UNFI East"
         self.mapping_utils = mapping_utils
+        self.iow_customer_mapping = self._load_iow_customer_mapping()
     
     def parse(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """Parse UNFI East PDF order file"""
@@ -72,6 +73,45 @@ class UNFIEastParser(BaseParser):
             except:
                 raise ValueError(f"Could not extract text from PDF: {str(e)}")
     
+    def _load_iow_customer_mapping(self) -> Dict[str, str]:
+        """Load IOW customer mapping from Excel file"""
+        try:
+            import pandas as pd
+            import os
+            
+            # Try to load the IOW mapping file
+            mapping_file = 'attached_assets/_xo10242_20250724095219_3675CE71_1754676225053.xlsx'
+            if os.path.exists(mapping_file):
+                df = pd.read_excel(mapping_file)
+                mapping = {}
+                for _, row in df.iterrows():
+                    unfi_code = str(row['UNFI East Customer']).strip()
+                    xoro_customer = str(row['XoroCompanyName']).strip()
+                    mapping[unfi_code] = xoro_customer
+                
+                print(f"✅ Loaded {len(mapping)} IOW customer mappings")
+                return mapping
+            else:
+                print("⚠️ IOW customer mapping file not found, using fallback mapping")
+                # Fallback mapping based on known values
+                return {
+                    'IOW': 'UNFI EAST IOWA CITY',
+                    'RCH': 'UNFI EAST - RICHBURG', 
+                    'HOW': 'UNFI EAST - HOWELL',
+                    'CHE': 'UNFI EAST CHESTERFIELD',
+                    'YOR': 'UNFI EAST YORK PA'
+                }
+                
+        except Exception as e:
+            print(f"⚠️ Error loading IOW mapping: {e}, using fallback")
+            return {
+                'IOW': 'UNFI EAST IOWA CITY',
+                'RCH': 'UNFI EAST - RICHBURG', 
+                'HOW': 'UNFI EAST - HOWELL',
+                'CHE': 'UNFI EAST CHESTERFIELD',
+                'YOR': 'UNFI EAST YORK PA'
+            }
+    
     def _extract_order_header(self, text_content: str, filename: str) -> Dict[str, Any]:
         """Extract order header information from PDF text"""
         
@@ -111,32 +151,48 @@ class UNFIEastParser(BaseParser):
         if eta_date_match:
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
         
-        # Extract warehouse/location information for customer mapping
-        # First, try to extract the location code from the Int Ref# (like "mm-85950-G25" -> "MAN")
-        int_ref_match = re.search(r'Int Ref#:\s*([a-zA-Z]+)-', text_content)
-        if int_ref_match:
-            location_prefix = int_ref_match.group(1).upper()
-            print(f"DEBUG: Found Int Ref location prefix: {location_prefix}")
-            
-            # Map Int Ref prefixes to warehouse codes
-            prefix_to_warehouse = {
-                'MM': 'MAN',  # Manchester
-                'JJ': 'HOW',  # Howell  
-                'AA': 'ATL',  # Atlanta
-                'SS': 'SAR',  # Sarasota
-                'YY': 'YOR',  # York
-                'RR': 'RCH'   # Richburg
-            }
-            
-            location_code = prefix_to_warehouse.get(location_prefix, location_prefix)
-            print(f"DEBUG: Mapped prefix {location_prefix} -> warehouse code {location_code}")
-            
-            # Try to map warehouse code to customer name using the mapping
-            mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
-            if mapped_customer and mapped_customer != location_code:
-                order_info['customer_name'] = mapped_customer
-                order_info['raw_customer_name'] = location_code
-                print(f"DEBUG: Final mapping {location_code} -> {mapped_customer}")
+        # Extract IOW location information for customer mapping using Excel file data
+        # Look for IOW location code in the Internal Ref Number (like "II-85948-H01" -> "II")
+        iow_location = ""
+        iow_patterns = [
+            r'Int Ref#?\s*:\s*([A-Z]{2,3})-\d+',  # Pattern: II-85948-H01
+            r'Internal Ref Number\s*:\s*([A-Z]{2,3})-\d+',
+        ]
+        
+        for pattern in iow_patterns:
+            match = re.search(pattern, text_content)
+            if match:
+                iow_location = match.group(1).strip()
+                print(f"DEBUG: Found IOW location prefix: {iow_location}")
+                break
+        
+        # Apply IOW-based mapping using the Excel file data
+        if iow_location and iow_location in self.iow_customer_mapping:
+            mapped_customer = self.iow_customer_mapping[iow_location]
+            order_info['customer_name'] = mapped_customer
+            order_info['raw_customer_name'] = iow_location
+            print(f"DEBUG: Mapped IOW prefix {iow_location} -> {mapped_customer}")
+        else:
+            # Fallback: Look for warehouse location in Ship To section
+            warehouse_location = ""
+            ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
+            if ship_to_match:
+                warehouse_location = ship_to_match.group(1).strip()
+                print(f"DEBUG: Found Ship To location: {warehouse_location}")
+                
+                # Try to map warehouse name to IOW code
+                warehouse_to_iow = {
+                    'Iowa City': 'IOW',
+                    'Richburg': 'RCH',
+                    'Howell': 'HOW', 
+                    'Chesterfield': 'CHE',
+                    'York': 'YOR'
+                }
+                iow_code = warehouse_to_iow.get(warehouse_location, '')
+                if iow_code and iow_code in self.iow_customer_mapping:
+                    order_info['customer_name'] = self.iow_customer_mapping[iow_code]
+                    order_info['raw_customer_name'] = f"{warehouse_location} ({iow_code})"
+                    print(f"DEBUG: Mapped {warehouse_location} ({iow_code}) -> {order_info['customer_name']}")
         
         # Fallback 1: Look for warehouse info in "Ship To:" section like "Manchester", "Howell Warehouse", etc.
         if order_info['customer_name'] == 'UNKNOWN':
