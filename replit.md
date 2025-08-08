@@ -189,6 +189,9 @@ Name Mapping → Xoro Conversion → CSV Output
 - Successfully deployed to Streamlit Cloud with enhanced auto-initialization and updated dependencies (January 29, 2025)
 - Added automatic database table creation on first run for seamless cloud deployment
 - Enhanced with updated package versions for improved stability and security
+- Implemented environment-based database switching to resolve SSL connection issues (January 29, 2025)
+- Automatic detection: Replit (development/no SSL) vs Streamlit Cloud (production/SSL required)
+- Smart fallback handling for SSL connection errors in development environments
 
 ## Database Schema
 

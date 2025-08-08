@@ -20,17 +20,27 @@ from sqlalchemy import inspect
 def initialize_database_if_needed():
     """Initialize database tables if they don't exist"""
     try:
+        from database.connection import get_current_environment
+        env = get_current_environment()
+        
         engine = get_database_engine()
         inspector = inspect(engine)
         
         # Check if tables exist
         tables_exist = inspector.get_table_names()
         if not tables_exist:
-            st.info("Initializing database for first run...")
+            st.info(f"Initializing {env} database for first run...")
             Base.metadata.create_all(bind=engine)
-            st.success("Database initialized successfully!")
+            st.success(f"Database initialized successfully in {env} environment!")
+        else:
+            st.success(f"Connected to {env} database ({len(tables_exist)} tables found)")
+            
     except Exception as e:
-        st.warning(f"Database initialization check failed: {e}")
+        st.error(f"Database connection failed: {e}")
+        st.info("💡 **Environment Detection Help:**")
+        st.info("- **Replit Development**: Uses local PostgreSQL without SSL")
+        st.info("- **Streamlit Cloud**: Uses production database with SSL")
+        st.info("- **Issue**: Check if you have production database credentials in development environment")
 
 def main():
     # Initialize database if needed
