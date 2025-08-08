@@ -526,50 +526,6 @@ def show_editable_item_mappings(mapping_utils, sources, db_service):
             
     except Exception as e:
         st.error(f"Error loading item mappings: {e}")
-                    else:
-                        st.error("Failed to add store mapping")
-                else:
-                    st.error("Please fill in all fields")
-        
-        # Display existing mappings
-        for source in ["wholefoods", "unfi_west", "unfi", "tkmaxx"]:
-            mappings = db_service.get_store_mappings(source)
-            if mappings:
-                st.write(f"**{source.replace('_', ' ').title()} Mappings:**")
-                df_mappings = pd.DataFrame(list(mappings.items()), columns=['Raw Name', 'Mapped Name'])
-                st.dataframe(df_mappings)
-    
-    with tab2:
-        st.subheader("Item Number Mappings")
-        
-        # Add new mapping
-        with st.expander("Add New Item Mapping"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                new_source = st.selectbox("Source", ["wholefoods", "unfi_west", "unfi", "tkmaxx"], key="item_source")
-            with col2:
-                new_raw_item = st.text_input("Raw Item Number", key="item_raw")
-            with col3:
-                new_mapped_item = st.text_input("Mapped Item Number", key="item_mapped")
-            
-            if st.button("Add Item Mapping"):
-                if new_raw_item and new_mapped_item:
-                    success = db_service.save_item_mapping(new_source, new_raw_item, new_mapped_item)
-                    if success:
-                        st.success("Item mapping added successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to add item mapping")
-                else:
-                    st.error("Please fill in all fields")
-        
-        # Display existing mappings
-        for source in ["wholefoods", "unfi_west", "unfi", "tkmaxx"]:
-            mappings = db_service.get_item_mappings(source)
-            if mappings:
-                st.write(f"**{source.replace('_', ' ').title()} Item Mappings:**")
-                df_mappings = pd.DataFrame(list(mappings.items()), columns=['Raw Item', 'Mapped Item'])
-                st.dataframe(df_mappings)
 
 if __name__ == "__main__":
     main()
