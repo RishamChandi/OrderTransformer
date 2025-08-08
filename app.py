@@ -347,7 +347,7 @@ def manage_mappings_page(db_service: DatabaseService):
     tab1, tab2, tab3 = st.tabs(["🏪 Store Mapping", "👥 Customer Mapping", "📦 Item Mapping"])
     
     mapping_utils = MappingUtils()
-    sources = ['wholefoods', 'unfi_west', 'unfi_east', 'unfi', 'kehe', 'tkmaxx']
+    sources = ['wholefoods', 'unfi_west', 'unfi_east', 'kehe', 'tkmaxx']
     
     with tab1:
         st.subheader("Store Mappings")
@@ -364,8 +364,9 @@ def manage_mappings_page(db_service: DatabaseService):
 def show_editable_store_mappings(mapping_utils, sources, db_service):
     """Show editable store mappings interface"""
     
-    # Source selector
-    selected_source = st.selectbox("Select Source", sources, key="store_source")
+    # Source selector (excluding deprecated 'unfi')
+    filtered_sources = [s for s in sources if s != 'unfi']
+    selected_source = st.selectbox("Select Source", filtered_sources, key="store_source")
     
     try:
         # Get store mappings for selected source
@@ -447,8 +448,9 @@ def show_editable_customer_mappings(mapping_utils, sources, db_service):
 def show_editable_item_mappings(mapping_utils, sources, db_service):
     """Show editable item mappings interface"""
     
-    # Source selector
-    selected_source = st.selectbox("Select Source", sources, key="item_source")
+    # Source selector (excluding deprecated 'unfi')
+    filtered_sources = [s for s in sources if s != 'unfi']
+    selected_source = st.selectbox("Select Source", filtered_sources, key="item_source")
     
     try:
         # Get item mappings for selected source
