@@ -160,19 +160,28 @@ class UNFIEastParser(BaseParser):
             order_info['vendor_number'] = order_to_match.group(1)  # Store vendor number for mapping
         
         # Extract order date (Ord Date) - for OrderDate in Xoro
-        order_date_match = re.search(r'Ord Date.*?(\d{2}/\d{2}/\d{2})', text_content)
+        order_date_match = re.search(r'Ord Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
         if order_date_match:
             order_info['order_date'] = self.parse_date(order_date_match.group(1))
+            print(f"DEBUG: Extracted Ord Date: {order_date_match.group(1)} -> {order_info['order_date']}")
         
         # Extract pickup date (Pck Date) - for DateToBeShipped and LastDateToBeShipped in Xoro
-        pickup_date_match = re.search(r'Pck Date.*?(\d{2}/\d{2}/\d{2})', text_content)
+        pickup_date_match = re.search(r'Pck Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
         if pickup_date_match:
             order_info['pickup_date'] = self.parse_date(pickup_date_match.group(1))
+            print(f"DEBUG: Extracted Pck Date: {pickup_date_match.group(1)} -> {order_info['pickup_date']}")
             
         # Extract ETA date - for reference only (not used in Xoro template)
-        eta_date_match = re.search(r'ETA Date.*?(\d{2}/\d{2}/\d{2})', text_content)
+        eta_date_match = re.search(r'ETA Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
         if eta_date_match:
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
+            print(f"DEBUG: Extracted ETA Date: {eta_date_match.group(1)} -> {order_info['eta_date']}")
+        
+        # Debug: Show the raw text around the date fields to see what's being matched
+        lines = text_content.split('\n')
+        for i, line in enumerate(lines):
+            if 'Ord Date' in line or 'Pck Date' in line or 'ETA Date' in line:
+                print(f"DEBUG: Date line {i}: {repr(line)}")
         
         # Extract IOW location information for customer mapping using Excel file data
         # Look for the 3-letter IOW code in the blue highlighted area (like "GRW", "HOW", "MAN")
