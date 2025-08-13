@@ -231,7 +231,7 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         }
         
         # Source already selected, use it directly
-        selected_order_source = source_display_name
+        selected_order_source = selected_source_name
     
     # Initialize mapping utils
     mapping_utils = MappingUtils()
@@ -246,29 +246,31 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
     }
     
     # Determine accepted file types based on selected source
-    if selected_order_source == "Whole Foods":
+    clean_source_name = selected_order_source.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+    
+    if clean_source_name == "Whole Foods":
         accepted_types = ['html']
         help_text = "📄 Upload HTML files exported from Whole Foods orders"
         file_icon = "🌐"
-    elif selected_order_source == "UNFI West":
+    elif clean_source_name == "UNFI West":
         accepted_types = ['html']
         help_text = "📄 Upload HTML files from UNFI West purchase orders"
         file_icon = "🌐"
-    elif selected_order_source == "UNFI East":
+    elif clean_source_name == "UNFI East":
         accepted_types = ['pdf']
         help_text = "📋 Upload PDF files from UNFI East purchase orders"
         file_icon = "📄"
-    elif selected_order_source == "KEHE - SPS":
+    elif clean_source_name == "KEHE - SPS":
         accepted_types = ['csv']
         help_text = "📊 Upload CSV files from KEHE - SPS system"
         file_icon = "📊"
-    elif selected_order_source == "TK Maxx":
+    elif clean_source_name == "TK Maxx":
         accepted_types = ['csv', 'xlsx']
         help_text = "📊 Upload CSV or Excel files from TK Maxx orders"
         file_icon = "📊"
     else:
         accepted_types = ['html', 'csv', 'xlsx', 'pdf']
-        help_text = f"📁 Upload {selected_order_source} order files for conversion"
+        help_text = f"📁 Upload order files for conversion"
         file_icon = "📁"
     
     st.markdown("---")
@@ -306,7 +308,7 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("🚀 Process Orders", type="primary", use_container_width=True):
-                process_orders(uploaded_files, order_sources[selected_order_source], selected_order_source, db_service)
+                process_orders(uploaded_files, order_sources[clean_source_name], clean_source_name, db_service)
 
 def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
