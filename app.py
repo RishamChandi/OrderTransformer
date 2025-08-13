@@ -308,7 +308,12 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("🚀 Process Orders", type="primary", use_container_width=True):
-                process_orders(uploaded_files, order_sources[clean_source_name], clean_source_name, db_service)
+                if clean_source_name == "All Sources":
+                    st.error("⚠️ Please select a specific source before processing files. Auto-detection is not yet supported.")
+                elif clean_source_name in order_sources:
+                    process_orders(uploaded_files, order_sources[clean_source_name], clean_source_name, db_service)
+                else:
+                    st.error(f"⚠️ Unknown source: {clean_source_name}. Please select a valid source.")
 
 def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
