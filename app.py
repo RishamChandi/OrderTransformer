@@ -442,8 +442,74 @@ def show_editable_store_mappings(mapping_utils, sources, db_service):
         st.error(f"Error loading store mappings: {e}")
 
 def show_editable_customer_mappings(mapping_utils, sources, db_service):
-    """Show editable customer mappings interface (same as store mappings for now)"""
-    st.info("Customer mappings are currently the same as store mappings. Use the Store Mapping tab to manage customer mappings.")
+    """Show editable customer mappings interface"""
+    
+    # Source selector (excluding deprecated 'unfi')
+    filtered_sources = [s for s in sources if s != 'unfi']
+    selected_source = st.selectbox("Select Source", filtered_sources, key="customer_source")
+    
+    # Special handling for UNFI East - show IOW customer mappings
+    if selected_source == 'unfi_east':
+        show_unfi_east_customer_mappings(db_service)
+    else:
+        st.info(f"Customer mappings for {selected_source.replace('_', ' ').title()} are currently the same as store mappings. Use the Store Mapping tab to manage customer mappings.")
+
+def show_unfi_east_customer_mappings(db_service):
+    """Show UNFI East IOW customer mappings from Excel file"""
+    
+    try:
+        import pandas as pd
+        import os
+        
+        # Load IOW customer mapping from Excel file
+        mapping_file = 'attached_assets/_xo10242_20250724095219_3675CE71_1754676225053.xlsx'
+        customer_mappings = {}
+        
+        if os.path.exists(mapping_file):
+            df = pd.read_excel(mapping_file)
+            st.write("**UNFI East IOW Customer Mappings:**")
+            st.write("These mappings are loaded from the Excel file and used by the parser to determine customer names from IOW location codes found in PDF Internal Ref Numbers.")
+            
+            # Display the mappings in a structured table format
+            st.write("**Current IOW Customer Mappings:**")
+            
+            # Create a display DataFrame for better presentation
+            display_data = []
+            for _, row in df.iterrows():
+                iow_code = str(row['UNFI East Customer']).strip()
+                customer_name = str(row['XoroCompanyName']).strip()
+                account_number = str(row['XoroCustomerAccountNumber']).strip()
+                display_data.append({
+                    'IOW Code': iow_code,
+                    'Customer Name': customer_name,
+                    'Account Number': account_number
+                })
+            
+            # Display as a clean table
+            display_df = pd.DataFrame(display_data)
+            st.dataframe(display_df, use_container_width=True)
+            
+            st.info("💡 **How it works:**\n"
+                   "- Parser extracts IOW code from Internal Ref Number (e.g., 'II-85948-H01' → 'II')\n"
+                   "- IOW code is mapped to the corresponding Xoro customer name\n"
+                   "- Example: 'II' → 'UNFI EAST IOWA CITY' (Account: 5150)")
+            
+            # Add section for mapping updates
+            with st.expander("🔧 Update IOW Customer Mappings"):
+                st.warning("⚠️ These mappings are currently loaded from the Excel file. To modify them:")
+                st.write("1. Update the Excel file: `attached_assets/_xo10242_20250724095219_3675CE71_1754676225053.xlsx`")
+                st.write("2. Restart the application to reload the mappings")
+                st.write("3. Or contact the administrator to update the master mapping file")
+                
+                # Show current count
+                st.success(f"✅ {len(display_data)} IOW customer mappings currently loaded")
+        else:
+            st.error("❌ IOW customer mapping file not found!")
+            st.write("Expected file: `attached_assets/_xo10242_20250724095219_3675CE71_1754676225053.xlsx`")
+            
+    except Exception as e:
+        st.error(f"Error loading UNFI East customer mappings: {e}")
+        st.write("Using fallback mappings from parser...")
     
 def show_editable_item_mappings(mapping_utils, sources, db_service):
     """Show editable item mappings interface"""
