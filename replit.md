@@ -209,6 +209,10 @@ Name Mapping → Xoro Conversion → CSV Output
 - Updated all pages to accept source filtering parameter for focused client experience
 - Enhanced process orders page to pre-select source and show relevant file types only
 - Added source-specific page titles and navigation options for better user experience
+- Redesigned architecture with single unified dropdown navigation (January 29, 2025)
+- Eliminated redundant source selection dropdowns for cleaner user experience
+- Smart navigation combines client selection and action in one dropdown
+- Streamlined interface with direct routing to specific client/action combinations
 - Cleaned up UNFI East store mappings to show only vendor-to-store mappings (January 29, 2025)
 - Removed unnecessary IOW customer mappings from store mapping interface
 - Store mappings now only show vendor numbers (85948, 85950) and their corresponding stores

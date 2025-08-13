@@ -77,34 +77,53 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Source/Client selector with improved design
-    sources = {
-        "🌐 All Sources": "all",
-        "🛒 Whole Foods": "wholefoods", 
-        "📦 UNFI West": "unfi_west",
-        "🏭 UNFI East": "unfi_east", 
-        "📋 KEHE - SPS": "kehe",
-        "🏬 TK Maxx": "tkmaxx"
+    # Initialize database service
+    db_service = DatabaseService()
+    
+    # Single unified navigation dropdown
+    st.markdown("### 🎯 What would you like to do?")
+    
+    # Create smart navigation options that combine client and action
+    navigation_options = {
+        # General options
+        "📝 Process Orders - All Sources": ("all", "process", "All Sources"),
+        "📊 View All Conversion History": ("all", "history", "All Sources"),
+        "👁️ View All Processed Orders": ("all", "view", "All Sources"),
+        "⚙️ Manage All Mappings": ("all", "mappings", "All Sources"),
+        
+        # Client-specific options
+        "🛒 Process Whole Foods Orders": ("wholefoods", "process", "Whole Foods"),
+        "📦 Process UNFI West Orders": ("unfi_west", "process", "UNFI West"),
+        "🏭 Process UNFI East Orders": ("unfi_east", "process", "UNFI East"),
+        "📋 Process KEHE - SPS Orders": ("kehe", "process", "KEHE - SPS"),
+        "🏬 Process TK Maxx Orders": ("tkmaxx", "process", "TK Maxx"),
+        
+        "🛒 Whole Foods Order History": ("wholefoods", "history", "Whole Foods"),
+        "📦 UNFI West Order History": ("unfi_west", "history", "UNFI West"),
+        "🏭 UNFI East Order History": ("unfi_east", "history", "UNFI East"),
+        "📋 KEHE - SPS Order History": ("kehe", "history", "KEHE - SPS"),
+        "🏬 TK Maxx Order History": ("tkmaxx", "history", "TK Maxx"),
+        
+        "🛒 Manage Whole Foods Mappings": ("wholefoods", "mappings", "Whole Foods"),
+        "📦 Manage UNFI West Mappings": ("unfi_west", "mappings", "UNFI West"),
+        "🏭 Manage UNFI East Mappings": ("unfi_east", "mappings", "UNFI East"),
+        "📋 Manage KEHE - SPS Mappings": ("kehe", "mappings", "KEHE - SPS"),
+        "🏬 Manage TK Maxx Mappings": ("tkmaxx", "mappings", "TK Maxx"),
     }
     
-    # Centered source selector
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("### 🎯 Select Your Client")
-        selected_source_name = st.selectbox(
-            "Choose source to focus on:",
-            list(sources.keys()),
-            index=0,
-            help="Filter all pages and features based on selected source",
-            label_visibility="collapsed"
-        )
+    selected_option = st.selectbox(
+        "Choose what you want to do:",
+        list(navigation_options.keys()),
+        index=0,
+        label_visibility="collapsed"
+    )
     
-    selected_source = sources[selected_source_name]
+    # Parse the selected option
+    selected_source, action, source_display_name = navigation_options[selected_option]
     
-    # Show source-specific information in a nice card
-    if selected_source != "all":
+    # Show source-specific information card when a specific source is selected
+    if selected_source != "all" and action == "process":
         st.markdown("---")
-        source_key = selected_source
         source_info = {
             "wholefoods": {
                 "description": "HTML order files from Whole Foods stores",
@@ -138,25 +157,20 @@ def main():
             }
         }
         
-        if source_key in source_info:
-            info = source_info[source_key]
+        if selected_source in source_info:
+            info = source_info[selected_source]
             st.markdown(f"""
             <div style="background-color: {info['color']}20; border-left: 4px solid {info['color']}; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
-                <h4 style="color: {info['color']}; margin: 0 0 0.5rem 0;">{selected_source_name} Information</h4>
+                <h4 style="color: {info['color']}; margin: 0 0 0.5rem 0;">📋 {source_display_name} Information</h4>
                 <p style="margin: 0.2rem 0;"><strong>📄 Description:</strong> {info['description']}</p>
                 <p style="margin: 0.2rem 0;"><strong>📁 Formats:</strong> {info['formats']}</p>
                 <p style="margin: 0.2rem 0;"><strong>⚡ Features:</strong> {info['features']}</p>
             </div>
             """, unsafe_allow_html=True)
     
-    # Initialize database service
-    db_service = DatabaseService()
-    
-    # Modern sidebar with better styling
+    # Database initialization in sidebar
     with st.sidebar:
-        st.markdown("### 🧭 Navigation")
-        
-        # Database initialization with better styling
+        st.markdown("### ⚙️ System")
         if st.button("🔧 Initialize Database", help="First-time setup for cloud deployment"):
             try:
                 from init_database import main as init_db
@@ -164,38 +178,15 @@ def main():
                 st.success("✅ Database initialized!")
             except Exception as e:
                 st.error(f"❌ Database init failed: {e}")
-        
-        st.markdown("---")
-        
-        # Show filtered pages based on source with icons
-        if selected_source == "all":
-            pages = {
-                "📝 Process Orders": "Process Orders",
-                "📊 Conversion History": "Conversion History", 
-                "👁️ View Processed Orders": "View Processed Orders",
-                "⚙️ Manage Mappings": "Manage Mappings"
-            }
-        else:
-            clean_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
-            pages = {
-                f"📝 Process {clean_name} Orders": f"Process {clean_name} Orders",
-                f"📊 {clean_name} Order History": f"{clean_name} Order History", 
-                f"👁️ View {clean_name} Orders": f"View {clean_name} Orders",
-                f"⚙️ Manage {clean_name} Mappings": f"Manage {clean_name} Mappings"
-            }
-        
-        # Add navigation options with icons
-        page_display = st.selectbox("Choose a page:", list(pages.keys()), label_visibility="collapsed")
-        page = pages[page_display]
     
-    # Route to appropriate page with source context
-    if "Process" in page:
-        process_orders_page(db_service, selected_source, selected_source_name)
-    elif "Conversion History" in page or "Order History" in page:
+    # Route to appropriate page based on action
+    if action == "process":
+        process_orders_page(db_service, selected_source, source_display_name)
+    elif action == "history":
         conversion_history_page(db_service, selected_source)
-    elif "View" in page:
+    elif action == "view":
         processed_orders_page(db_service, selected_source)
-    elif "Manage Mappings" in page or "Manage" in page:
+    elif action == "mappings":
         manage_mappings_page(db_service, selected_source)
 
 def process_orders_page(db_service: DatabaseService, selected_source: str = "all", selected_source_name: str = "All Sources"):
@@ -240,12 +231,8 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "TK Maxx": TKMaxxParser()
         }
         
-        st.markdown("#### 🎯 Select Order Source")
-        selected_order_source = st.selectbox(
-            "Choose your order source:",
-            list(order_sources.keys()),
-            label_visibility="collapsed"
-        )
+        # No need for additional source selection since it's already chosen
+        selected_order_source = "All Sources"
     
     # Initialize mapping utils
     mapping_utils = MappingUtils()
