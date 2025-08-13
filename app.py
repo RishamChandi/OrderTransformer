@@ -63,109 +63,130 @@ def initialize_database_if_needed():
         except Exception:
             st.info("Enable debug mode for detailed connection information")
 
-def show_source_info(source_name: str, source_key: str):
-    """Display source-specific information"""
-    
-    source_info = {
-        "wholefoods": {
-            "description": "HTML order files from Whole Foods stores",
-            "formats": "HTML files from order pages", 
-            "features": "Store mapping (51 locations), Item mapping (31 products), Expected delivery dates"
-        },
-        "unfi_west": {
-            "description": "HTML purchase orders from UNFI West", 
-            "formats": "HTML files with product tables",
-            "features": "Cost-based pricing, Prod# mapping (71 items), Hardcoded KL-Richmond store"
-        },
-        "unfi_east": {
-            "description": "PDF purchase orders from UNFI East",
-            "formats": "PDF files with order details", 
-            "features": "IOW customer mapping (15 codes), Vendor-to-store mapping (85948→PSS-NJ, 85950→K&L Richmond)"
-        },
-        "kehe": {
-            "description": "CSV files from KEHE - SPS system",
-            "formats": "CSV with header (H) and line (D) records",
-            "features": "Item mapping (88 products), Discount support, IDI-Richmond store"
-        },
-        "tkmaxx": {
-            "description": "CSV/Excel files from TK Maxx orders", 
-            "formats": "CSV and Excel files",
-            "features": "Basic order processing and item mapping"
-        }
-    }
-    
-    if source_key in source_info:
-        info = source_info[source_key]
-        st.write(f"**Description:** {info['description']}")
-        st.write(f"**Supported Formats:** {info['formats']}")
-        st.write(f"**Key Features:** {info['features']}")
+
 
 def main():
     # Initialize database if needed
     initialize_database_if_needed()
     
-    # Global source selector at the top
-    st.title("Order Transformer - Multiple Sources to Xoro CSV")
-    st.write("Convert sales orders from different sources into standardized Xoro import CSV format")
+    # Modern header with better styling
+    st.markdown("""
+    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;">
+        <h1 style="color: white; margin: 0; text-align: center;">🔄 Order Transformer</h1>
+        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Convert sales orders into standardized Xoro CSV format</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Source/Client selector
+    # Source/Client selector with improved design
     sources = {
-        "All Sources": "all",
-        "Whole Foods": "wholefoods", 
-        "UNFI West": "unfi_west",
-        "UNFI East": "unfi_east", 
-        "KEHE - SPS": "kehe",
-        "TK Maxx": "tkmaxx"
+        "🌐 All Sources": "all",
+        "🛒 Whole Foods": "wholefoods", 
+        "📦 UNFI West": "unfi_west",
+        "🏭 UNFI East": "unfi_east", 
+        "📋 KEHE - SPS": "kehe",
+        "🏬 TK Maxx": "tkmaxx"
     }
     
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.subheader("Select Client/Source")
+    # Centered source selector
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("### 🎯 Select Your Client")
         selected_source_name = st.selectbox(
             "Choose source to focus on:",
             list(sources.keys()),
             index=0,
-            help="Filter all pages and features based on selected source"
+            help="Filter all pages and features based on selected source",
+            label_visibility="collapsed"
         )
     
     selected_source = sources[selected_source_name]
     
-    # Show source-specific information
+    # Show source-specific information in a nice card
     if selected_source != "all":
-        with col2:
-            st.subheader(f"{selected_source_name} Information")
-            show_source_info(selected_source_name, selected_source)
-    
-    st.divider()
+        st.markdown("---")
+        source_key = selected_source
+        source_info = {
+            "wholefoods": {
+                "description": "HTML order files from Whole Foods stores",
+                "formats": "HTML files from order pages", 
+                "features": "Store mapping (51 locations), Item mapping (31 products), Expected delivery dates",
+                "color": "#FF6B6B"
+            },
+            "unfi_west": {
+                "description": "HTML purchase orders from UNFI West", 
+                "formats": "HTML files with product tables",
+                "features": "Cost-based pricing, Prod# mapping (71 items), Hardcoded KL-Richmond store",
+                "color": "#4ECDC4"
+            },
+            "unfi_east": {
+                "description": "PDF purchase orders from UNFI East",
+                "formats": "PDF files with order details", 
+                "features": "IOW customer mapping (15 codes), Vendor-to-store mapping",
+                "color": "#45B7D1"
+            },
+            "kehe": {
+                "description": "CSV files from KEHE - SPS system",
+                "formats": "CSV with header (H) and line (D) records",
+                "features": "Item mapping (88 products), Discount support, IDI-Richmond store",
+                "color": "#96CEB4"
+            },
+            "tkmaxx": {
+                "description": "CSV/Excel files from TK Maxx orders", 
+                "formats": "CSV and Excel files",
+                "features": "Basic order processing and item mapping",
+                "color": "#FFEAA7"
+            }
+        }
+        
+        if source_key in source_info:
+            info = source_info[source_key]
+            st.markdown(f"""
+            <div style="background-color: {info['color']}20; border-left: 4px solid {info['color']}; padding: 1rem; border-radius: 5px; margin: 1rem 0;">
+                <h4 style="color: {info['color']}; margin: 0 0 0.5rem 0;">{selected_source_name} Information</h4>
+                <p style="margin: 0.2rem 0;"><strong>📄 Description:</strong> {info['description']}</p>
+                <p style="margin: 0.2rem 0;"><strong>📁 Formats:</strong> {info['formats']}</p>
+                <p style="margin: 0.2rem 0;"><strong>⚡ Features:</strong> {info['features']}</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Initialize database service
     db_service = DatabaseService()
     
-    # Sidebar for configuration and navigation
-    st.sidebar.header("Navigation")
-    
-    # One-time database initialization for cloud deployment
-    if st.sidebar.button("Initialize Database (First-time setup)"):
-        try:
-            from init_database import main as init_db
-            init_db()
-            st.sidebar.success("Database initialized!")
-        except Exception as e:
-            st.sidebar.error(f"Database init failed: {e}")
-    
-    # Show filtered pages based on source
-    if selected_source == "all":
-        pages = ["Process Orders", "Conversion History", "View Processed Orders", "Manage Mappings"]
-    else:
-        pages = [
-            f"Process {selected_source_name} Orders",
-            f"{selected_source_name} Order History", 
-            f"View {selected_source_name} Orders",
-            f"Manage {selected_source_name} Mappings"
-        ]
-    
-    # Add navigation options
-    page = st.sidebar.selectbox("Choose a page", pages)
+    # Modern sidebar with better styling
+    with st.sidebar:
+        st.markdown("### 🧭 Navigation")
+        
+        # Database initialization with better styling
+        if st.button("🔧 Initialize Database", help="First-time setup for cloud deployment"):
+            try:
+                from init_database import main as init_db
+                init_db()
+                st.success("✅ Database initialized!")
+            except Exception as e:
+                st.error(f"❌ Database init failed: {e}")
+        
+        st.markdown("---")
+        
+        # Show filtered pages based on source with icons
+        if selected_source == "all":
+            pages = {
+                "📝 Process Orders": "Process Orders",
+                "📊 Conversion History": "Conversion History", 
+                "👁️ View Processed Orders": "View Processed Orders",
+                "⚙️ Manage Mappings": "Manage Mappings"
+            }
+        else:
+            clean_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+            pages = {
+                f"📝 Process {clean_name} Orders": f"Process {clean_name} Orders",
+                f"📊 {clean_name} Order History": f"{clean_name} Order History", 
+                f"👁️ View {clean_name} Orders": f"View {clean_name} Orders",
+                f"⚙️ Manage {clean_name} Mappings": f"Manage {clean_name} Mappings"
+            }
+        
+        # Add navigation options with icons
+        page_display = st.selectbox("Choose a page:", list(pages.keys()), label_visibility="collapsed")
+        page = pages[page_display]
     
     # Route to appropriate page with source context
     if "Process" in page:
@@ -189,16 +210,28 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "kehe": "KEHE - SPS",
             "tkmaxx": "TK Maxx"
         }
-        st.header(f"Process {source_names[selected_source]} Orders")
+        clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+        
+        st.markdown(f"""
+        <div style="background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 5px solid #667eea;">
+            <h2 style="margin: 0; color: #667eea;">📝 Process {clean_selected_name} Orders</h2>
+            <p style="margin: 0.5rem 0 0 0; color: #666;">Ready to process {clean_selected_name} files</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         selected_order_source = source_names[selected_source]
-        st.info(f"Pre-selected source: **{selected_order_source}**")
     else:
-        st.header("Process Orders")
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 5px solid #667eea;">
+            <h2 style="margin: 0; color: #667eea;">📝 Process Orders</h2>
+            <p style="margin: 0.5rem 0 0 0; color: #666;">Choose your order source and upload files</p>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Initialize mapping utils
         mapping_utils = MappingUtils()
         
-        # Order source selection
+        # Order source selection with modern styling
         order_sources = {
             "Whole Foods": WholeFoodsParser(),
             "UNFI West": UNFIWestParser(),
@@ -207,9 +240,11 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "TK Maxx": TKMaxxParser()
         }
         
+        st.markdown("#### 🎯 Select Order Source")
         selected_order_source = st.selectbox(
-            "Select Order Source",
-            list(order_sources.keys())
+            "Choose your order source:",
+            list(order_sources.keys()),
+            label_visibility="collapsed"
         )
     
     # Initialize mapping utils
@@ -224,42 +259,68 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         "TK Maxx": TKMaxxParser()
     }
     
-    st.subheader(f"Processing {selected_order_source} Orders")
-    
     # Determine accepted file types based on selected source
     if selected_order_source == "Whole Foods":
         accepted_types = ['html']
-        help_text = "Upload HTML files exported from Whole Foods orders"
+        help_text = "📄 Upload HTML files exported from Whole Foods orders"
+        file_icon = "🌐"
     elif selected_order_source == "UNFI West":
         accepted_types = ['html']
-        help_text = "Upload HTML files from UNFI West purchase orders"
+        help_text = "📄 Upload HTML files from UNFI West purchase orders"
+        file_icon = "🌐"
     elif selected_order_source == "UNFI East":
         accepted_types = ['pdf']
-        help_text = "Upload PDF files from UNFI East purchase orders"
-    elif selected_order_source == "UNFI":
-        accepted_types = ['csv', 'xlsx']
-        help_text = "Upload CSV or Excel files from UNFI orders"
+        help_text = "📋 Upload PDF files from UNFI East purchase orders"
+        file_icon = "📄"
+    elif selected_order_source == "KEHE - SPS":
+        accepted_types = ['csv']
+        help_text = "📊 Upload CSV files from KEHE - SPS system"
+        file_icon = "📊"
     elif selected_order_source == "TK Maxx":
         accepted_types = ['csv', 'xlsx']
-        help_text = "Upload CSV or Excel files from TK Maxx orders"
+        help_text = "📊 Upload CSV or Excel files from TK Maxx orders"
+        file_icon = "📊"
     else:
         accepted_types = ['html', 'csv', 'xlsx', 'pdf']
-        help_text = f"Upload {selected_order_source} order files for conversion"
+        help_text = f"📁 Upload {selected_order_source} order files for conversion"
+        file_icon = "📁"
     
-    # File upload
+    st.markdown("---")
+    
+    # Enhanced file upload section
+    st.markdown(f"""
+    <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; border: 2px dashed #667eea; text-align: center;">
+        <h3 style="color: #667eea; margin: 0;">{file_icon} Upload Your Files</h3>
+        <p style="color: #666; margin: 0.5rem 0;">{help_text}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     uploaded_files = st.file_uploader(
-        "Upload order files",
+        "Choose files to upload",
         type=accepted_types,
         accept_multiple_files=True,
-        help=help_text
+        label_visibility="collapsed"
     )
     
     if uploaded_files:
-        st.write(f"Uploaded {len(uploaded_files)} file(s)")
+        # Show uploaded files with better styling
+        st.markdown("#### ✅ Files Ready for Processing")
         
-        # Process files button
-        if st.button("Process Orders", type="primary"):
-            process_orders(uploaded_files, order_sources[selected_order_source], selected_order_source, db_service)
+        for i, file in enumerate(uploaded_files):
+            file_size = len(file.getvalue()) / 1024  # KB
+            st.markdown(f"""
+            <div style="background-color: #e8f5e8; padding: 0.5rem 1rem; border-radius: 5px; margin: 0.2rem 0; border-left: 3px solid #28a745;">
+                📁 <strong>{file.name}</strong> ({file_size:.1f} KB)
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Process files button with better styling
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("🚀 Process Orders", type="primary", use_container_width=True):
+                process_orders(uploaded_files, order_sources[selected_order_source], selected_order_source, db_service)
 
 def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
@@ -441,7 +502,12 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
 def manage_mappings_page(db_service: DatabaseService, selected_source: str = "all"):
     """Manage store and item mappings with editable interface"""
     
-    st.header("📋 Manage Mappings")
+    st.markdown("""
+    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
+        <h1 style="color: white; margin: 0; text-align: center;">⚙️ Manage Mappings</h1>
+        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Configure store and item mappings for accurate order processing</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Create tabs for different mapping types
     tab1, tab2, tab3 = st.tabs(["🏪 Store Mapping", "👥 Customer Mapping", "📦 Item Mapping"])
