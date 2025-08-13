@@ -11,6 +11,14 @@ from .connection import get_session
 class DatabaseService:
     """Service class for database operations"""
     
+    def get_session(self):
+        """Get database session"""
+        return get_session()
+    
+    # Model references for direct access
+    StoreMapping = StoreMapping
+    ItemMapping = ItemMapping
+    
     def save_processed_orders(self, orders_data: List[Dict[str, Any]], source: str, filename: str) -> bool:
         """Save processed orders to database"""
         
