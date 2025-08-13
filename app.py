@@ -190,7 +190,7 @@ def main():
     
     # Route to appropriate page with source context
     if "Process" in page:
-        process_orders_page(db_service, selected_source)
+        process_orders_page(db_service, selected_source, selected_source_name)
     elif "Conversion History" in page or "Order History" in page:
         conversion_history_page(db_service, selected_source)
     elif "View" in page:
@@ -198,7 +198,7 @@ def main():
     elif "Manage Mappings" in page or "Manage" in page:
         manage_mappings_page(db_service, selected_source)
 
-def process_orders_page(db_service: DatabaseService, selected_source: str = "all"):
+def process_orders_page(db_service: DatabaseService, selected_source: str = "all", selected_source_name: str = "All Sources"):
     """Main order processing page"""
     
     if selected_source != "all":
@@ -210,7 +210,7 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "kehe": "KEHE - SPS",
             "tkmaxx": "TK Maxx"
         }
-        clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+        clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🌐 ", "")
         
         st.markdown(f"""
         <div style="background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 5px solid #667eea;">
