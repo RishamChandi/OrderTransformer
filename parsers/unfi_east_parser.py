@@ -89,17 +89,24 @@ class UNFIEastParser(BaseParser):
                     xoro_customer = str(row['XoroCompanyName']).strip()
                     mapping[unfi_code] = xoro_customer
                 
-                print(f"✅ Loaded {len(mapping)} IOW customer mappings")
+                # Add any missing mappings that we've discovered from PDFs
+                if 'SS' not in mapping:
+                    mapping['SS'] = 'UNFI EAST SARASOTA FL'  # SS appears to be Sarasota based on Ship To data
+                
+                print(f"✅ Loaded {len(mapping)} IOW customer mappings (including SS)")
                 return mapping
             else:
                 print("⚠️ IOW customer mapping file not found, using fallback mapping")
-                # Fallback mapping based on known values
+                # Fallback mapping based on known values plus missing codes
                 return {
                     'IOW': 'UNFI EAST IOWA CITY',
                     'RCH': 'UNFI EAST - RICHBURG', 
                     'HOW': 'UNFI EAST - HOWELL',
                     'CHE': 'UNFI EAST CHESTERFIELD',
-                    'YOR': 'UNFI EAST YORK PA'
+                    'YOR': 'UNFI EAST YORK PA',
+                    'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
+                    'SAR': 'UNFI EAST SARASOTA FL',
+                    'SRQ': 'UNFI EAST SARASOTA FL'
                 }
                 
         except Exception as e:
@@ -109,7 +116,10 @@ class UNFIEastParser(BaseParser):
                 'RCH': 'UNFI EAST - RICHBURG', 
                 'HOW': 'UNFI EAST - HOWELL',
                 'CHE': 'UNFI EAST CHESTERFIELD',
-                'YOR': 'UNFI EAST YORK PA'
+                'YOR': 'UNFI EAST YORK PA',
+                'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
+                'SAR': 'UNFI EAST SARASOTA FL',
+                'SRQ': 'UNFI EAST SARASOTA FL'
             }
     
     def _extract_order_header(self, text_content: str, filename: str) -> Dict[str, Any]:
