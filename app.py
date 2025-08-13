@@ -80,48 +80,47 @@ def main():
     # Initialize database service
     db_service = DatabaseService()
     
-    # Single unified navigation dropdown
-    st.markdown("### 🎯 What would you like to do?")
+    # Two-dropdown navigation system
+    col1, col2 = st.columns(2)
     
-    # Create smart navigation options that combine client and action
-    navigation_options = {
-        # General options
-        "📝 Process Orders - All Sources": ("all", "process", "All Sources"),
-        "📊 View All Conversion History": ("all", "history", "All Sources"),
-        "👁️ View All Processed Orders": ("all", "view", "All Sources"),
-        "⚙️ Manage All Mappings": ("all", "mappings", "All Sources"),
+    with col1:
+        st.markdown("### 🎯 Select Client/Source")
+        sources = {
+            "🌐 All Sources": "all",
+            "🛒 Whole Foods": "wholefoods", 
+            "📦 UNFI West": "unfi_west",
+            "🏭 UNFI East": "unfi_east", 
+            "📋 KEHE - SPS": "kehe",
+            "🏬 TK Maxx": "tkmaxx"
+        }
         
-        # Client-specific options
-        "🛒 Process Whole Foods Orders": ("wholefoods", "process", "Whole Foods"),
-        "📦 Process UNFI West Orders": ("unfi_west", "process", "UNFI West"),
-        "🏭 Process UNFI East Orders": ("unfi_east", "process", "UNFI East"),
-        "📋 Process KEHE - SPS Orders": ("kehe", "process", "KEHE - SPS"),
-        "🏬 Process TK Maxx Orders": ("tkmaxx", "process", "TK Maxx"),
+        selected_source_name = st.selectbox(
+            "Choose your client:",
+            list(sources.keys()),
+            index=0,
+            label_visibility="collapsed"
+        )
+        selected_source = sources[selected_source_name]
+        source_display_name = selected_source_name.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+    
+    with col2:
+        st.markdown("### ⚡ Select Action")
+        actions = {
+            "📝 Process Orders": "process",
+            "📊 Order History": "history",
+            "👁️ View Orders": "view",
+            "⚙️ Manage Mappings": "mappings"
+        }
         
-        "🛒 Whole Foods Order History": ("wholefoods", "history", "Whole Foods"),
-        "📦 UNFI West Order History": ("unfi_west", "history", "UNFI West"),
-        "🏭 UNFI East Order History": ("unfi_east", "history", "UNFI East"),
-        "📋 KEHE - SPS Order History": ("kehe", "history", "KEHE - SPS"),
-        "🏬 TK Maxx Order History": ("tkmaxx", "history", "TK Maxx"),
-        
-        "🛒 Manage Whole Foods Mappings": ("wholefoods", "mappings", "Whole Foods"),
-        "📦 Manage UNFI West Mappings": ("unfi_west", "mappings", "UNFI West"),
-        "🏭 Manage UNFI East Mappings": ("unfi_east", "mappings", "UNFI East"),
-        "📋 Manage KEHE - SPS Mappings": ("kehe", "mappings", "KEHE - SPS"),
-        "🏬 Manage TK Maxx Mappings": ("tkmaxx", "mappings", "TK Maxx"),
-    }
+        selected_action_name = st.selectbox(
+            "Choose your action:",
+            list(actions.keys()),
+            index=0,
+            label_visibility="collapsed"
+        )
+        action = actions[selected_action_name]
     
-    selected_option = st.selectbox(
-        "Choose what you want to do:",
-        list(navigation_options.keys()),
-        index=0,
-        label_visibility="collapsed"
-    )
-    
-    # Parse the selected option
-    selected_source, action, source_display_name = navigation_options[selected_option]
-    
-    # Show source-specific information card when a specific source is selected
+    # Show source-specific information card when a specific source is selected for processing
     if selected_source != "all" and action == "process":
         st.markdown("---")
         source_info = {
@@ -231,8 +230,8 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "TK Maxx": TKMaxxParser()
         }
         
-        # No need for additional source selection since it's already chosen
-        selected_order_source = "All Sources"
+        # Source already selected, use it directly
+        selected_order_source = source_display_name
     
     # Initialize mapping utils
     mapping_utils = MappingUtils()
