@@ -63,11 +63,80 @@ def initialize_database_if_needed():
         except Exception:
             st.info("Enable debug mode for detailed connection information")
 
+def show_source_info(source_name: str, source_key: str):
+    """Display source-specific information"""
+    
+    source_info = {
+        "wholefoods": {
+            "description": "HTML order files from Whole Foods stores",
+            "formats": "HTML files from order pages", 
+            "features": "Store mapping (51 locations), Item mapping (31 products), Expected delivery dates"
+        },
+        "unfi_west": {
+            "description": "HTML purchase orders from UNFI West", 
+            "formats": "HTML files with product tables",
+            "features": "Cost-based pricing, Prod# mapping (71 items), Hardcoded KL-Richmond store"
+        },
+        "unfi_east": {
+            "description": "PDF purchase orders from UNFI East",
+            "formats": "PDF files with order details", 
+            "features": "IOW customer mapping (15 codes), Vendor-to-store mapping (85948→PSS-NJ, 85950→K&L Richmond)"
+        },
+        "kehe": {
+            "description": "CSV files from KEHE - SPS system",
+            "formats": "CSV with header (H) and line (D) records",
+            "features": "Item mapping (88 products), Discount support, IDI-Richmond store"
+        },
+        "tkmaxx": {
+            "description": "CSV/Excel files from TK Maxx orders", 
+            "formats": "CSV and Excel files",
+            "features": "Basic order processing and item mapping"
+        }
+    }
+    
+    if source_key in source_info:
+        info = source_info[source_key]
+        st.write(f"**Description:** {info['description']}")
+        st.write(f"**Supported Formats:** {info['formats']}")
+        st.write(f"**Key Features:** {info['features']}")
+
 def main():
     # Initialize database if needed
     initialize_database_if_needed()
+    
+    # Global source selector at the top
     st.title("Order Transformer - Multiple Sources to Xoro CSV")
     st.write("Convert sales orders from different sources into standardized Xoro import CSV format")
+    
+    # Source/Client selector
+    sources = {
+        "All Sources": "all",
+        "Whole Foods": "wholefoods", 
+        "UNFI West": "unfi_west",
+        "UNFI East": "unfi_east", 
+        "KEHE - SPS": "kehe",
+        "TK Maxx": "tkmaxx"
+    }
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.subheader("Select Client/Source")
+        selected_source_name = st.selectbox(
+            "Choose source to focus on:",
+            list(sources.keys()),
+            index=0,
+            help="Filter all pages and features based on selected source"
+        )
+    
+    selected_source = sources[selected_source_name]
+    
+    # Show source-specific information
+    if selected_source != "all":
+        with col2:
+            st.subheader(f"{selected_source_name} Information")
+            show_source_info(selected_source_name, selected_source)
+    
+    st.divider()
     
     # Initialize database service
     db_service = DatabaseService()
@@ -76,7 +145,7 @@ def main():
     st.sidebar.header("Navigation")
     
     # One-time database initialization for cloud deployment
-    if st.sidebar.button("🔧 Initialize Database (First-time setup)"):
+    if st.sidebar.button("Initialize Database (First-time setup)"):
         try:
             from init_database import main as init_db
             init_db()
@@ -84,33 +153,69 @@ def main():
         except Exception as e:
             st.sidebar.error(f"Database init failed: {e}")
     
-    # Add navigation options
-    page = st.sidebar.selectbox(
-        "Choose a page",
-        ["Process Orders", "Conversion History", "View Processed Orders", "Manage Mappings"]
-    )
+    # Show filtered pages based on source
+    if selected_source == "all":
+        pages = ["Process Orders", "Conversion History", "View Processed Orders", "Manage Mappings"]
+    else:
+        pages = [
+            f"Process {selected_source_name} Orders",
+            f"{selected_source_name} Order History", 
+            f"View {selected_source_name} Orders",
+            f"Manage {selected_source_name} Mappings"
+        ]
     
-    if page == "Process Orders":
-        process_orders_page(db_service)
-    elif page == "Conversion History":
-        conversion_history_page(db_service)
-    elif page == "View Processed Orders":
-        processed_orders_page(db_service)
-    elif page == "Manage Mappings":
-        manage_mappings_page(db_service)
+    # Add navigation options
+    page = st.sidebar.selectbox("Choose a page", pages)
+    
+    # Route to appropriate page with source context
+    if "Process" in page:
+        process_orders_page(db_service, selected_source)
+    elif "Conversion History" in page or "Order History" in page:
+        conversion_history_page(db_service, selected_source)
+    elif "View" in page:
+        processed_orders_page(db_service, selected_source)
+    elif "Manage Mappings" in page or "Manage" in page:
+        manage_mappings_page(db_service, selected_source)
 
-def process_orders_page(db_service: DatabaseService):
+def process_orders_page(db_service: DatabaseService, selected_source: str = "all"):
     """Main order processing page"""
     
-    st.header("Process Orders")
-    
-    # Sidebar for configuration
-    st.sidebar.header("Configuration")
+    if selected_source != "all":
+        # Source-specific processing page
+        source_names = {
+            "wholefoods": "Whole Foods",
+            "unfi_west": "UNFI West", 
+            "unfi_east": "UNFI East",
+            "kehe": "KEHE - SPS",
+            "tkmaxx": "TK Maxx"
+        }
+        st.header(f"Process {source_names[selected_source]} Orders")
+        selected_order_source = source_names[selected_source]
+        st.info(f"Pre-selected source: **{selected_order_source}**")
+    else:
+        st.header("Process Orders")
+        
+        # Initialize mapping utils
+        mapping_utils = MappingUtils()
+        
+        # Order source selection
+        order_sources = {
+            "Whole Foods": WholeFoodsParser(),
+            "UNFI West": UNFIWestParser(),
+            "UNFI East": UNFIEastParser(mapping_utils),
+            "KEHE - SPS": KEHEParser(),
+            "TK Maxx": TKMaxxParser()
+        }
+        
+        selected_order_source = st.selectbox(
+            "Select Order Source",
+            list(order_sources.keys())
+        )
     
     # Initialize mapping utils
     mapping_utils = MappingUtils()
     
-    # Order source selection
+    # Order source selection for parsers
     order_sources = {
         "Whole Foods": WholeFoodsParser(),
         "UNFI West": UNFIWestParser(),
@@ -119,32 +224,27 @@ def process_orders_page(db_service: DatabaseService):
         "TK Maxx": TKMaxxParser()
     }
     
-    selected_source = st.sidebar.selectbox(
-        "Select Order Source",
-        list(order_sources.keys())
-    )
-    
-    st.subheader(f"Processing {selected_source} Orders")
+    st.subheader(f"Processing {selected_order_source} Orders")
     
     # Determine accepted file types based on selected source
-    if selected_source == "Whole Foods":
+    if selected_order_source == "Whole Foods":
         accepted_types = ['html']
         help_text = "Upload HTML files exported from Whole Foods orders"
-    elif selected_source == "UNFI West":
+    elif selected_order_source == "UNFI West":
         accepted_types = ['html']
         help_text = "Upload HTML files from UNFI West purchase orders"
-    elif selected_source == "UNFI East":
+    elif selected_order_source == "UNFI East":
         accepted_types = ['pdf']
         help_text = "Upload PDF files from UNFI East purchase orders"
-    elif selected_source == "UNFI":
+    elif selected_order_source == "UNFI":
         accepted_types = ['csv', 'xlsx']
         help_text = "Upload CSV or Excel files from UNFI orders"
-    elif selected_source == "TK Maxx":
+    elif selected_order_source == "TK Maxx":
         accepted_types = ['csv', 'xlsx']
         help_text = "Upload CSV or Excel files from TK Maxx orders"
     else:
         accepted_types = ['html', 'csv', 'xlsx', 'pdf']
-        help_text = f"Upload {selected_source} order files for conversion"
+        help_text = f"Upload {selected_order_source} order files for conversion"
     
     # File upload
     uploaded_files = st.file_uploader(
@@ -159,7 +259,7 @@ def process_orders_page(db_service: DatabaseService):
         
         # Process files button
         if st.button("Process Orders", type="primary"):
-            process_orders(uploaded_files, order_sources[selected_source], selected_source, db_service)
+            process_orders(uploaded_files, order_sources[selected_order_source], selected_order_source, db_service)
 
 def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
@@ -249,7 +349,7 @@ def process_orders(uploaded_files, parser, source_name, db_service: DatabaseServ
         for error in errors:
             st.error(error)
 
-def conversion_history_page(db_service: DatabaseService):
+def conversion_history_page(db_service: DatabaseService, selected_source: str = "all"):
     """Display conversion history from database"""
     
     st.header("Conversion History")
@@ -289,7 +389,7 @@ def conversion_history_page(db_service: DatabaseService):
     except Exception as e:
         st.error(f"Error loading conversion history: {str(e)}")
 
-def processed_orders_page(db_service: DatabaseService):
+def processed_orders_page(db_service: DatabaseService, selected_source: str = "all"):
     """Display processed orders from database"""
     
     st.header("Processed Orders")
@@ -338,7 +438,7 @@ def processed_orders_page(db_service: DatabaseService):
     except Exception as e:
         st.error(f"Error loading processed orders: {str(e)}")
 
-def manage_mappings_page(db_service: DatabaseService):
+def manage_mappings_page(db_service: DatabaseService, selected_source: str = "all"):
     """Manage store and item mappings with editable interface"""
     
     st.header("📋 Manage Mappings")
@@ -347,7 +447,13 @@ def manage_mappings_page(db_service: DatabaseService):
     tab1, tab2, tab3 = st.tabs(["🏪 Store Mapping", "👥 Customer Mapping", "📦 Item Mapping"])
     
     mapping_utils = MappingUtils()
-    sources = ['wholefoods', 'unfi_west', 'unfi_east', 'kehe', 'tkmaxx']
+    
+    if selected_source != "all":
+        # Filter to only show the selected source
+        sources = [selected_source]
+        st.info(f"Showing mappings for: **{selected_source.replace('_', ' ').title()}**")
+    else:
+        sources = ['wholefoods', 'unfi_west', 'unfi_east', 'kehe', 'tkmaxx']
     
     with tab1:
         st.subheader("Store Mappings")

@@ -204,6 +204,11 @@ Name Mapping → Xoro Conversion → CSV Output
 - Maps vendor numbers to store names: 85948 -> "PSS-NJ", 85950 -> "K&L Richmond"
 - Updated Xoro template to use vendor-based store mapping for SaleStoreName and StoreName fields
 - Enhanced mapping UI to show vendor-to-store mapping explanation for UNFI East
+- Implemented source-based navigation system with global source selector (January 29, 2025)
+- Added source-specific information display with supported formats and key features
+- Updated all pages to accept source filtering parameter for focused client experience
+- Enhanced process orders page to pre-select source and show relevant file types only
+- Added source-specific page titles and navigation options for better user experience
 - Implemented environment-based database switching to resolve SSL connection issues (January 29, 2025)
 - Automatic detection: Replit (development/no SSL) vs Streamlit Cloud (production/SSL required)
 - Smart fallback handling for SSL connection errors in development environments
