@@ -209,6 +209,10 @@ Name Mapping → Xoro Conversion → CSV Output
 - Updated all pages to accept source filtering parameter for focused client experience
 - Enhanced process orders page to pre-select source and show relevant file types only
 - Added source-specific page titles and navigation options for better user experience
+- Cleaned up UNFI East store mappings to show only vendor-to-store mappings (January 29, 2025)
+- Removed unnecessary IOW customer mappings from store mapping interface
+- Store mappings now only show vendor numbers (85948, 85950) and their corresponding stores
+- IOW customer mappings remain available in the Customer Mapping tab as intended
 - Implemented environment-based database switching to resolve SSL connection issues (January 29, 2025)
 - Automatic detection: Replit (development/no SSL) vs Streamlit Cloud (production/SSL required)
 - Smart fallback handling for SSL connection errors in development environments
