@@ -79,15 +79,15 @@ class UNFIEastParser(BaseParser):
             import pandas as pd
             import os
             
-            # Try to load the IOW mapping file
-            mapping_file = 'attached_assets/_xo10242_20250724095219_3675CE71_1754676225053.xlsx'
+            # Try to load the IOW mapping file (use the correct customer mapping file)
+            mapping_file = 'attached_assets/UNFI EAST STORE TO CUSTOMER MAPPING_1753461773530.xlsx'
             if os.path.exists(mapping_file):
                 df = pd.read_excel(mapping_file)
                 mapping = {}
                 for _, row in df.iterrows():
-                    unfi_code = str(row['UNFI East Customer']).strip()
-                    xoro_customer = str(row['XoroCompanyName']).strip()
-                    mapping[unfi_code] = xoro_customer
+                    unfi_code = str(row['UNFI East ']).strip()  # Column name has trailing space
+                    company_name = str(row['CompanyName']).strip()
+                    mapping[unfi_code] = company_name
                 
                 # Add any missing mappings that we've discovered from PDFs
                 if 'SS' not in mapping:
@@ -99,7 +99,7 @@ class UNFIEastParser(BaseParser):
                 if 'mm' not in mapping:
                     mapping['mm'] = 'UNFI EAST YORK PA'  # mm appears to be York/Manchester based on warehouse data
                 
-                print(f"✅ Loaded {len(mapping)} IOW customer mappings (including SS, GG, JJ, mm)")
+                print(f"✅ Loaded {len(mapping)} IOW customer mappings from Excel file")
                 return mapping
             else:
                 print("⚠️ IOW customer mapping file not found, using fallback mapping")
@@ -175,18 +175,26 @@ class UNFIEastParser(BaseParser):
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
         
         # Extract IOW location information for customer mapping using Excel file data
-        # Look for IOW location code in the Internal Ref Number (like "GG-85948-G25" -> "GG", "JJ-85948-G25" -> "JJ", "mm-85948-G25" -> "mm")
+        # Look for the 3-letter IOW code in the blue highlighted area (like "GRW", "HOW", "MAN")
+        # This appears near the end of product lines in the format like "GRW 6-A", "HOW 38-A", "MAN 0-"
         iow_location = ""
+        
+        # Look for 3-letter codes that appear at the end of product description lines
+        # Pattern: Find lines with product codes followed by warehouse codes like "GRW", "HOW", "MAN"
         iow_patterns = [
-            r'Int Ref#?\s*:\s*([A-Za-z]{2,3})-\d+',  # Pattern: GG-85948-G25, JJ-85948-G25, mm-85948-G25
-            r'Internal Ref Number\s*:\s*([A-Za-z]{2,3})-\d+',
+            r'\b([A-Z]{3})\s+\d+-[A-Z]',  # Pattern: GRW 6-A, HOW 38-A, MAN 0-
+            r'\b([A-Z]{3})\s+\d+-',       # Pattern: GRW 6-, HOW 38-
+            r'VCU\s+([A-Z]{3})\s+\d+',    # Pattern: VCU GRW 6, VCU HOW 38
         ]
         
         for pattern in iow_patterns:
-            match = re.search(pattern, text_content)
-            if match:
-                iow_location = match.group(1).strip()
-                print(f"DEBUG: Found IOW location prefix: {iow_location}")
+            matches = list(re.finditer(pattern, text_content))
+            if matches:
+                # Get the most common IOW code (in case there are multiple)
+                iow_codes = [match.group(1) for match in matches]
+                most_common_iow = max(set(iow_codes), key=iow_codes.count)
+                iow_location = most_common_iow
+                print(f"DEBUG: Found IOW location code: {iow_location} (from {len(matches)} matches)")
                 break
         
         # Apply IOW-based mapping using the Excel file data
@@ -194,9 +202,9 @@ class UNFIEastParser(BaseParser):
             mapped_customer = self.iow_customer_mapping[iow_location]
             order_info['customer_name'] = mapped_customer
             order_info['raw_customer_name'] = iow_location
-            print(f"DEBUG: Mapped IOW prefix {iow_location} -> {mapped_customer}")
+            print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
         else:
-            print(f"DEBUG: Mapped  ({iow_location}) -> UNKNOWN")
+            print(f"DEBUG: IOW code {iow_location} not found in mapping -> UNKNOWN")
             # Fallback: Look for warehouse location in Ship To section
             warehouse_location = ""
             ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
