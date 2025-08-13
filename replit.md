@@ -199,6 +199,11 @@ Name Mapping → Xoro Conversion → CSV Output
 - Extracts IOW location codes from Internal Ref Number (e.g., "II-85948-H01" -> "II")
 - Maps IOW codes to proper Xoro customer names: IOW -> "UNFI EAST IOWA CITY", RCH -> "UNFI EAST - RICHBURG", etc.
 - Maintains fallback logic for warehouse location detection and mapping
+- Added vendor-to-store mapping for UNFI East orders (January 29, 2025)
+- Extracts vendor number from Order To field (e.g., "Order To: 85948 KITLVE" -> "85948")
+- Maps vendor numbers to store names: 85948 -> "PSS-NJ", 85950 -> "K&L Richmond"
+- Updated Xoro template to use vendor-based store mapping for SaleStoreName and StoreName fields
+- Enhanced mapping UI to show vendor-to-store mapping explanation for UNFI East
 - Implemented environment-based database switching to resolve SSL connection issues (January 29, 2025)
 - Automatic detection: Replit (development/no SSL) vs Streamlit Cloud (production/SSL required)
 - Smart fallback handling for SSL connection errors in development environments

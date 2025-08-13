@@ -131,10 +131,11 @@ class UNFIEastParser(BaseParser):
         if po_match:
             order_info['order_number'] = po_match.group(1)
         
-        # Extract "Order To" number (like 85948, 85950) for store mapping
+        # Extract "Order To" number (vendor number like 85948, 85950) for store mapping
         order_to_match = re.search(r'Order To:\s*(\d+)', text_content)
         if order_to_match:
             order_info['order_to_number'] = order_to_match.group(1)
+            order_info['vendor_number'] = order_to_match.group(1)  # Store vendor number for mapping
         
         # Extract order date (Ord Date) - for OrderDate in Xoro
         order_date_match = re.search(r'Ord Date.*?(\d{2}/\d{2}/\d{2})', text_content)
@@ -219,12 +220,18 @@ class UNFIEastParser(BaseParser):
                     order_info['raw_customer_name'] = warehouse_location
                     print(f"DEBUG: Mapped {warehouse_location} ({location_code}) -> {mapped_customer}")
         
-        # Fallback 2: Apply store mapping based on Order To number
-        if order_info['customer_name'] == 'UNKNOWN' and order_info['order_to_number']:
-            mapped_customer = self.mapping_utils.get_store_mapping(order_info['order_to_number'], 'unfi_east')
-            if mapped_customer and mapped_customer != order_info['order_to_number']:
-                order_info['customer_name'] = mapped_customer
-                order_info['raw_customer_name'] = order_info['order_to_number']
+        # Apply vendor-based store mapping for SaleStoreName and StoreName
+        # This determines which store to use in Xoro template based on vendor number
+        if order_info.get('vendor_number'):
+            mapped_store = self.mapping_utils.get_store_mapping(order_info['vendor_number'], 'unfi_east')
+            if mapped_store and mapped_store != order_info['vendor_number']:
+                order_info['sale_store_name'] = mapped_store
+                order_info['store_name'] = mapped_store
+                print(f"DEBUG: Mapped vendor {order_info['vendor_number']} -> store {mapped_store}")
+            else:
+                # Default fallback stores
+                order_info['sale_store_name'] = 'PSS-NJ'  # Default store
+                order_info['store_name'] = 'PSS-NJ'
         
         return order_info
     

@@ -386,7 +386,14 @@ def show_editable_store_mappings(mapping_utils, sources, db_service):
             store_mappings = db_service.get_store_mappings(selected_source)
         
         if store_mappings:
-            st.write(f"**{selected_source.replace('_', ' ').title()} Store Mappings:**")
+            if selected_source == 'unfi_east':
+                st.write("**UNFI East Store Mappings:**")
+                st.info("📋 **Vendor-to-Store Mapping**: These mappings determine which store is used for SaleStoreName and StoreName in the Xoro template based on the vendor number found in the PDF Order To field.")
+                st.write("**Examples:**")
+                st.write("- Vendor 85948 → PSS-NJ")
+                st.write("- Vendor 85950 → K&L Richmond")
+            else:
+                st.write(f"**{selected_source.replace('_', ' ').title()} Store Mappings:**")
             
             # Add option to add new mapping
             with st.expander("➕ Add New Store Mapping"):

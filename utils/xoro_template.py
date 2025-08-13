@@ -76,18 +76,9 @@ class XoroTemplate:
             store_name = 'KL - Richmond'
             final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
         elif source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
-            # UNFI East: map based on Order To number
-            order_to_number = order.get('order_to_number')
-            if order_to_number == '85948':
-                sale_store_name = 'PSS - NJ'
-                store_name = 'PSS - NJ'
-            elif order_to_number == '85950':
-                sale_store_name = 'IDI - Richmond'
-                store_name = 'IDI - Richmond'
-            else:
-                # Default to mapped customer name for other order numbers
-                sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
-                store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
+            # UNFI East: use store mapping from parser (vendor-to-store mapping)
+            sale_store_name = order.get('sale_store_name', 'PSS-NJ')  # Use mapped store or default
+            store_name = order.get('store_name', 'PSS-NJ')            # Use mapped store or default
             final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
         elif source_name.lower().replace(' ', '_') == 'whole_foods' or source_name.lower() == 'whole foods':
             # Whole Foods: always use "IDI - Richmond" for store names, but customer name comes from store mapping
