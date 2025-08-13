@@ -204,6 +204,10 @@ Name Mapping → Xoro Conversion → CSV Output
 - Maps vendor numbers to store names: 85948 -> "PSS-NJ", 85950 -> "K&L Richmond"
 - Updated Xoro template to use vendor-based store mapping for SaleStoreName and StoreName fields
 - Enhanced mapping UI to show vendor-to-store mapping explanation for UNFI East
+- Fixed UNFI East IOW customer mapping to include missing codes GG, JJ, mm (January 29, 2025)
+- Added proper mapping for warehouse-specific IOW codes: GG->Greenwood IN, JJ->Howell NJ, mm->York PA
+- Updated regex patterns to handle lowercase IOW codes (mm) alongside uppercase codes (GG, JJ)
+- Complete IOW customer mapping now covers all discovered warehouse location codes from PDFs
 - Implemented source-based navigation system with global source selector (January 29, 2025)
 - Added source-specific information display with supported formats and key features
 - Updated all pages to accept source filtering parameter for focused client experience

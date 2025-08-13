@@ -94,8 +94,12 @@ class UNFIEastParser(BaseParser):
                     mapping['SS'] = 'UNFI EAST SARASOTA FL'  # SS appears to be Sarasota based on Ship To data
                 if 'GG' not in mapping:
                     mapping['GG'] = 'UNFI EAST GREENWOOD IN'  # GG appears to be Greenwood based on warehouse data
+                if 'JJ' not in mapping:
+                    mapping['JJ'] = 'UNFI EAST HOWELL NJ'  # JJ appears to be Howell based on warehouse data
+                if 'mm' not in mapping:
+                    mapping['mm'] = 'UNFI EAST YORK PA'  # mm appears to be York/Manchester based on warehouse data
                 
-                print(f"✅ Loaded {len(mapping)} IOW customer mappings (including SS, GG)")
+                print(f"✅ Loaded {len(mapping)} IOW customer mappings (including SS, GG, JJ, mm)")
                 return mapping
             else:
                 print("⚠️ IOW customer mapping file not found, using fallback mapping")
@@ -109,7 +113,9 @@ class UNFIEastParser(BaseParser):
                     'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
                     'SAR': 'UNFI EAST SARASOTA FL',
                     'SRQ': 'UNFI EAST SARASOTA FL',
-                    'GG': 'UNFI EAST GREENWOOD IN'  # Added missing GG mapping
+                    'GG': 'UNFI EAST GREENWOOD IN',  # Added missing GG mapping
+                    'JJ': 'UNFI EAST HOWELL NJ',  # Added missing JJ mapping (Howell)
+                    'mm': 'UNFI EAST YORK PA'  # Added missing mm mapping (York/Manchester)
                 }
                 
         except Exception as e:
@@ -123,7 +129,9 @@ class UNFIEastParser(BaseParser):
                 'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
                 'SAR': 'UNFI EAST SARASOTA FL',
                 'SRQ': 'UNFI EAST SARASOTA FL',
-                'GG': 'UNFI EAST GREENWOOD IN'  # Added missing GG mapping
+                'GG': 'UNFI EAST GREENWOOD IN',  # Added missing GG mapping
+                'JJ': 'UNFI EAST HOWELL NJ',  # Added missing JJ mapping (Howell)
+                'mm': 'UNFI EAST YORK PA'  # Added missing mm mapping (York/Manchester)
             }
     
     def _extract_order_header(self, text_content: str, filename: str) -> Dict[str, Any]:
@@ -167,11 +175,11 @@ class UNFIEastParser(BaseParser):
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
         
         # Extract IOW location information for customer mapping using Excel file data
-        # Look for IOW location code in the Internal Ref Number (like "II-85948-H01" -> "II")
+        # Look for IOW location code in the Internal Ref Number (like "GG-85948-G25" -> "GG", "JJ-85948-G25" -> "JJ", "mm-85948-G25" -> "mm")
         iow_location = ""
         iow_patterns = [
-            r'Int Ref#?\s*:\s*([A-Z]{2,3})-\d+',  # Pattern: II-85948-H01
-            r'Internal Ref Number\s*:\s*([A-Z]{2,3})-\d+',
+            r'Int Ref#?\s*:\s*([A-Za-z]{2,3})-\d+',  # Pattern: GG-85948-G25, JJ-85948-G25, mm-85948-G25
+            r'Internal Ref Number\s*:\s*([A-Za-z]{2,3})-\d+',
         ]
         
         for pattern in iow_patterns:
