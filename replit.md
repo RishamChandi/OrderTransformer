@@ -5,7 +5,14 @@ A robust Streamlit-based order transformation platform that converts complex mul
 
 ## Recent Changes (August 15, 2025)
 
-### Deployment Fixes Applied
+### KEHE Customer Mapping Implementation
+✅ **Fixed KEHE customer mapping system** - Successfully implemented Ship To Location to Company Name mapping
+✅ **Resolved leading zero preservation** - Updated CSV format and parser to preserve leading zeros in Ship To Location numbers
+✅ **Added dedicated KEHE mapping UI** - Created customer mapping management interface for KEHE source
+✅ **Corrected CustomerName field** - Xoro template now shows mapped company names instead of hardcoded "IDI - Richmond"
+✅ **Enhanced data type handling** - Fixed pandas CSV reading to preserve string format for Ship To Location codes
+
+### Previous Deployment Fixes
 ✅ **Updated cloud configuration** - Modified `cloud_config.py` to prioritize Replit environment variables over Streamlit secrets
 ✅ **Added Streamlit configuration** - Created `.streamlit/config.toml` with proper server settings for deployment
 ✅ **Enhanced environment detection** - Improved environment detection for Replit deployments in `database/env_config.py`
@@ -32,7 +39,8 @@ A robust Streamlit-based order transformation platform that converts complex mul
 ### Core Components
 - **Parsers**: Vendor-specific parsers (Whole Foods, UNFI East/West, KEHE, TK Maxx)
 - **Database Service**: Centralized database operations and mapping management
-- **Xoro Template**: Standardized CSV output format
+- **Xoro Template**: Standardized CSV output format with dynamic customer mapping
+- **KEHE Customer Mapping**: Ship To Location to Company Name mapping system with leading zero preservation
 - **Mapping Utils**: Customer, store, and item mapping utilities
 - **Cloud Config**: Environment-aware configuration management
 
@@ -69,6 +77,8 @@ A robust Streamlit-based order transformation platform that converts complex mul
 - **Database SSL**: Configured automatic SSL handling based on environment
 - **Deployment Health**: Health check endpoint ensures proper initialization
 - **Error Handling**: Enhanced error messages for troubleshooting deployment issues
+- **KEHE Leading Zeros**: Fixed CSV format and pandas data types to preserve Ship To Location leading zeros
+- **Customer Mapping**: Successfully implemented dynamic customer name mapping for KEHE orders
 
 ## Future Enhancements
 - Additional vendor parser support
