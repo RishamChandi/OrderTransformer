@@ -135,9 +135,17 @@ class KEHEParser(BaseParser):
                     customer_name = "IDI - Richmond"  # Default value
                     if ship_to_location and ship_to_location in self.customer_mapping:
                         customer_name = self.customer_mapping[ship_to_location]
-                        print(f"DEBUG: Mapped Ship To Location '{ship_to_location}' to customer '{customer_name}'")
+                        print(f"DEBUG: ✅ MAPPED Ship To Location '{ship_to_location}' to customer '{customer_name}'")
                     else:
-                        print(f"DEBUG: No mapping found for Ship To Location '{ship_to_location}', using default '{customer_name}'")
+                        # Try to find a partial match or similar key
+                        print(f"DEBUG: ❌ No exact mapping found for Ship To Location '{ship_to_location}'")
+                        for key in self.customer_mapping.keys():
+                            if ship_to_location in key or key in ship_to_location:
+                                customer_name = self.customer_mapping[key]
+                                print(f"DEBUG: ✅ PARTIAL MATCH: '{key}' -> '{customer_name}'")
+                                break
+                        else:
+                            print(f"DEBUG: Using default customer '{customer_name}'")
                     
                     # Calculate total price before applying discounts
                     line_total = unit_price * quantity
