@@ -126,6 +126,11 @@ class KEHEParser(BaseParser):
                     # Extract Ship To Location for customer mapping
                     ship_to_location = str(header_info.get('Ship To Location', '')).strip()
                     
+                    # Debug: Print all available header columns to see exact column names
+                    print(f"DEBUG: Available header columns: {list(header_info.index)}")
+                    print(f"DEBUG: Ship To Location value: '{ship_to_location}'")
+                    print(f"DEBUG: Available mapping keys: {list(self.customer_mapping.keys())}")
+                    
                     # Map Ship To Location to customer using the mapping file
                     customer_name = "IDI - Richmond"  # Default value
                     if ship_to_location and ship_to_location in self.customer_mapping:
