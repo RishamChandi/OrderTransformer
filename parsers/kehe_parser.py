@@ -126,26 +126,13 @@ class KEHEParser(BaseParser):
                     # Extract Ship To Location for customer mapping
                     ship_to_location = str(header_info.get('Ship To Location', '')).strip()
                     
-                    # Debug: Print all available header columns to see exact column names
-                    print(f"DEBUG: Available header columns: {list(header_info.index)}")
-                    print(f"DEBUG: Ship To Location value: '{ship_to_location}'")
-                    print(f"DEBUG: Available mapping keys: {list(self.customer_mapping.keys())}")
-                    
                     # Map Ship To Location to customer using the mapping file
                     customer_name = "IDI - Richmond"  # Default value
                     if ship_to_location and ship_to_location in self.customer_mapping:
                         customer_name = self.customer_mapping[ship_to_location]
-                        print(f"DEBUG: ✅ MAPPED Ship To Location '{ship_to_location}' to customer '{customer_name}'")
+                        print(f"DEBUG: KEHE Customer Mapping: '{ship_to_location}' → '{customer_name}'")
                     else:
-                        # Try to find a partial match or similar key
-                        print(f"DEBUG: ❌ No exact mapping found for Ship To Location '{ship_to_location}'")
-                        for key in self.customer_mapping.keys():
-                            if ship_to_location in key or key in ship_to_location:
-                                customer_name = self.customer_mapping[key]
-                                print(f"DEBUG: ✅ PARTIAL MATCH: '{key}' -> '{customer_name}'")
-                                break
-                        else:
-                            print(f"DEBUG: Using default customer '{customer_name}'")
+                        print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}', using default: '{customer_name}'")
                     
                     # Calculate total price before applying discounts
                     line_total = unit_price * quantity

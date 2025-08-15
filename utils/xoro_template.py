@@ -46,16 +46,11 @@ class XoroTemplate:
     def _convert_single_order(self, order: Dict[str, Any], source_name: str) -> Dict[str, Any]:
         """Convert a single order to Xoro format"""
         
-        # Debug: Log all input parameters
-        print(f"DEBUG: Xoro conversion - source_name: '{source_name}', order keys: {list(order.keys())}")
-        
         # For UNFI East, use ETA date for shipping dates, otherwise use pickup_date or calculate from order_date
         order_date = order.get('order_date')
         pickup_date = order.get('pickup_date')
         eta_date = order.get('eta_date')
         delivery_date = order.get('delivery_date')
-        
-        print(f"DEBUG: Dates - order_date: {order_date}, pickup_date: {pickup_date}, eta_date: {eta_date}, delivery_date: {delivery_date}")
         
         if source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
             # For UNFI East: use Pck Date (pickup date) for shipping dates
@@ -97,10 +92,6 @@ class XoroTemplate:
             store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
             final_customer_name = customer_name
         
-        # Debug final shipping date
-        final_date_to_be_shipped = shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else '')
-        print(f"DEBUG: Final DateToBeShipped: '{final_date_to_be_shipped}' (from shipping_date: {shipping_date})")
-        
         # Create Xoro order
         xoro_order = {
             # Import metadata
@@ -127,7 +118,7 @@ class XoroTemplate:
             
             # Order dates - handle both datetime objects and strings
             'OrderDate': order_date.strftime('%Y-%m-%d') if hasattr(order_date, 'strftime') else (order_date if order_date else ''),
-            'DateToBeShipped': final_date_to_be_shipped,
+            'DateToBeShipped': shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else ''),
             'LastDateToBeShipped': shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else ''),
             'DateToBeCancelled': '',
             
