@@ -124,7 +124,16 @@ class KEHEParser(BaseParser):
                     delivery_date = requested_delivery_date or ship_date or po_date
                     
                     # Extract Ship To Location for customer mapping
-                    ship_to_location = str(header_info.get('Ship To Location', '')).strip()
+                    ship_to_location_raw = str(header_info.get('Ship To Location', '')).strip()
+                    
+                    # Clean Ship To Location value - remove .0 suffix and ensure proper format
+                    ship_to_location = ship_to_location_raw
+                    if ship_to_location.endswith('.0'):
+                        ship_to_location = ship_to_location[:-2]
+                    
+                    # Ensure it starts with 0 if it's a numeric value
+                    if ship_to_location.isdigit() and len(ship_to_location) == 12:
+                        ship_to_location = '0' + ship_to_location
                     
                     # Map Ship To Location to customer using the mapping file
                     customer_name = "IDI - Richmond"  # Default value
@@ -132,7 +141,7 @@ class KEHEParser(BaseParser):
                         customer_name = self.customer_mapping[ship_to_location]
                         print(f"DEBUG: KEHE Customer Mapping: '{ship_to_location}' → '{customer_name}'")
                     else:
-                        print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}', using default: '{customer_name}'")
+                        print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}' (raw: '{ship_to_location_raw}'), using default: '{customer_name}'")
                     
                     # Calculate total price before applying discounts
                     line_total = unit_price * quantity
