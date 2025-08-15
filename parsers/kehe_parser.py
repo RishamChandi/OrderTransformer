@@ -6,6 +6,7 @@ Handles CSV format with PO data and line items
 from typing import List, Dict, Any, Optional
 import pandas as pd
 import io
+import os
 from .base_parser import BaseParser
 from utils.mapping_utils import MappingUtils
 
@@ -17,6 +18,30 @@ class KEHEParser(BaseParser):
         super().__init__()
         self.source_name = "KEHE - SPS"
         self.mapping_utils = MappingUtils()
+        
+        # Load KEHE customer mapping
+        self.customer_mapping = self._load_customer_mapping()
+        
+    def _load_customer_mapping(self) -> Dict[str, str]:
+        """Load KEHE customer mapping from CSV file"""
+        try:
+            mapping_file = os.path.join('mappings', 'kehe_customer_mapping.csv')
+            if os.path.exists(mapping_file):
+                df = pd.read_csv(mapping_file)
+                # Create mapping from SPS Customer# to Store Mapping
+                mapping = {}
+                for _, row in df.iterrows():
+                    sps_customer = str(row['SPS Customer#']).strip()
+                    store_mapping = str(row['Store Mapping']).strip()
+                    mapping[sps_customer] = store_mapping
+                print(f"✅ Loaded {len(mapping)} KEHE customer mappings")
+                return mapping
+            else:
+                print("⚠️ KEHE customer mapping file not found")
+                return {}
+        except Exception as e:
+            print(f"❌ Error loading KEHE customer mapping: {e}")
+            return {}
     
     def parse(self, file_content, file_format: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """
@@ -98,6 +123,17 @@ class KEHEParser(BaseParser):
                     # Use the most appropriate date for shipping
                     delivery_date = requested_delivery_date or ship_date or po_date
                     
+                    # Extract Ship To Location for customer mapping
+                    ship_to_location = str(header_info.get('Ship To Location', '')).strip()
+                    
+                    # Map Ship To Location to customer using the mapping file
+                    customer_name = "IDI - Richmond"  # Default value
+                    if ship_to_location and ship_to_location in self.customer_mapping:
+                        customer_name = self.customer_mapping[ship_to_location]
+                        print(f"DEBUG: Mapped Ship To Location '{ship_to_location}' to customer '{customer_name}'")
+                    else:
+                        print(f"DEBUG: No mapping found for Ship To Location '{ship_to_location}', using default '{customer_name}'")
+                    
                     # Calculate total price before applying discounts
                     line_total = unit_price * quantity
                     
@@ -118,8 +154,9 @@ class KEHEParser(BaseParser):
                         'order_number': str(header_info.get('PO Number', '')),
                         'order_date': po_date,
                         'delivery_date': delivery_date,
-                        'customer_name': 'IDI - Richmond',  # Hardcoded as per other parsers
+                        'customer_name': customer_name,  # Use mapped customer from Ship To Location
                         'raw_customer_name': str(header_info.get('Ship To Name', 'KEHE DISTRIBUTORS')),
+                        'ship_to_location': ship_to_location,  # Add ship to location for reference
                         'item_number': mapped_item,
                         'raw_item_number': kehe_number,
                         'item_description': description,
