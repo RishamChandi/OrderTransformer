@@ -683,9 +683,11 @@ def show_editable_customer_mappings(mapping_utils, sources, db_service):
     filtered_sources = [s for s in sources if s != 'unfi']
     selected_source = st.selectbox("Select Source", filtered_sources, key="customer_source")
     
-    # Special handling for UNFI East - show IOW customer mappings
+    # Special handling for different sources
     if selected_source == 'unfi_east':
         show_unfi_east_customer_mappings(db_service)
+    elif selected_source == 'kehe':
+        show_kehe_customer_mappings(db_service)
     else:
         source_display = selected_source.replace('_', ' ').title() if selected_source else "Unknown"
         st.info(f"Customer mappings for {source_display} are currently the same as store mappings. Use the Store Mapping tab to manage customer mappings.")
@@ -745,6 +747,101 @@ def show_unfi_east_customer_mappings(db_service):
             
     except Exception as e:
         st.error(f"Error loading UNFI East customer mappings: {e}")
+        st.write("Using fallback mappings from parser...")
+
+def show_kehe_customer_mappings(db_service):
+    """Show KEHE customer mappings from CSV file"""
+    
+    try:
+        import pandas as pd
+        import os
+        
+        # Load KEHE customer mapping from CSV file
+        mapping_file = 'mappings/kehe_customer_mapping.csv'
+        
+        if os.path.exists(mapping_file):
+            df = pd.read_csv(mapping_file)
+            st.write("**KEHE Customer Mappings:**")
+            st.write("These mappings are loaded from the CSV file and used by the parser to determine customer names from Ship To Location numbers found in KEHE order files.")
+            
+            # Display the mappings in a structured table format
+            st.write("**Current KEHE Customer Mappings:**")
+            
+            # Create a display DataFrame for better presentation
+            display_data = []
+            for _, row in df.iterrows():
+                sps_customer = str(row['SPS Customer#']).strip()
+                company_name = str(row['CompanyName']).strip()
+                customer_id = str(row['CustomerId']).strip()
+                account_number = str(row['AccountNumber']).strip()
+                store_mapping = str(row['Store Mapping']).strip()
+                display_data.append({
+                    'Ship To Location': sps_customer,
+                    'Customer Name': company_name,
+                    'Customer ID': customer_id,
+                    'Account Number': account_number,
+                    'Store Mapping': store_mapping
+                })
+            
+            # Display as a clean table
+            display_df = pd.DataFrame(display_data)
+            st.dataframe(display_df, use_container_width=True)
+            
+            st.info("💡 **How it works:**\n"
+                   "- Parser extracts Ship To Location from KEHE order header (e.g., '0569813430019')\n"
+                   "- Ship To Location is mapped to the corresponding Company Name\n"
+                   "- Company Name is used as CustomerName in Xoro template (Column J)\n"
+                   "- Example: '0569813430019' → 'KEHE DALLAS DC19'")
+            
+            # Add section for mapping updates
+            with st.expander("🔧 Update KEHE Customer Mappings"):
+                st.warning("⚠️ These mappings are currently loaded from the CSV file. To modify them:")
+                st.write("1. Update the CSV file: `mappings/kehe_customer_mapping.csv`")
+                st.write("2. Restart the application to reload the mappings")
+                st.write("3. Or use the mapping management interface to add/edit mappings")
+                
+                # Show current count
+                st.success(f"✅ {len(display_data)} KEHE customer mappings currently loaded")
+                
+                # Add new mapping interface
+                st.write("**Add New KEHE Customer Mapping:**")
+                col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                with col1:
+                    new_ship_to = st.text_input("Ship To Location", key="new_kehe_ship_to")
+                with col2:
+                    new_company = st.text_input("Company Name", key="new_kehe_company")
+                with col3:
+                    new_customer_id = st.text_input("Customer ID", key="new_kehe_customer_id")
+                with col4:
+                    new_account = st.text_input("Account #", key="new_kehe_account")
+                with col5:
+                    new_store = st.text_input("Store Map", key="new_kehe_store")
+                
+                if st.button("Add KEHE Mapping", key="add_kehe_mapping"):
+                    if new_ship_to and new_company:
+                        try:
+                            # Append to CSV file
+                            new_row = pd.DataFrame([{
+                                'SPS Customer#': new_ship_to,
+                                'CustomerId': new_customer_id,
+                                'AccountNumber': new_account,
+                                'CompanyName': new_company,
+                                'Store Mapping': new_store
+                            }])
+                            updated_df = pd.concat([df, new_row], ignore_index=True)
+                            updated_df.to_csv(mapping_file, index=False)
+                            st.success("KEHE customer mapping added successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to add mapping: {e}")
+                    else:
+                        st.warning("Please provide at least Ship To Location and Company Name")
+        else:
+            st.error("❌ KEHE customer mapping file not found!")
+            st.write("Expected file: `mappings/kehe_customer_mapping.csv`")
+            
+    except Exception as e:
+        st.error(f"Error loading KEHE customer mappings: {e}")
         st.write("Using fallback mappings from parser...")
     
 def show_editable_item_mappings(mapping_utils, sources, db_service):

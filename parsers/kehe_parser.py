@@ -28,12 +28,12 @@ class KEHEParser(BaseParser):
             mapping_file = os.path.join('mappings', 'kehe_customer_mapping.csv')
             if os.path.exists(mapping_file):
                 df = pd.read_csv(mapping_file)
-                # Create mapping from SPS Customer# to Store Mapping
+                # Create mapping from SPS Customer# to CompanyName (for CustomerName field)
                 mapping = {}
                 for _, row in df.iterrows():
                     sps_customer = str(row['SPS Customer#']).strip()
-                    store_mapping = str(row['Store Mapping']).strip()
-                    mapping[sps_customer] = store_mapping
+                    company_name = str(row['CompanyName']).strip()
+                    mapping[sps_customer] = company_name
                 print(f"✅ Loaded {len(mapping)} KEHE customer mappings")
                 return mapping
             else:
@@ -43,7 +43,7 @@ class KEHEParser(BaseParser):
             print(f"❌ Error loading KEHE customer mapping: {e}")
             return {}
     
-    def parse(self, file_content, file_format: str, filename: str) -> Optional[List[Dict[str, Any]]]:
+    def parse(self, file_content, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """
         Parse KEHE CSV file and return structured order data
         
@@ -70,8 +70,8 @@ class KEHEParser(BaseParser):
                 try:
                     df = pd.read_csv(io.StringIO(content_str), on_bad_lines='skip')
                 except TypeError:
-                    # Fallback for older pandas versions
-                    df = pd.read_csv(io.StringIO(content_str), error_bad_lines=False, warn_bad_lines=False)
+                    # Fallback for older pandas versions - just read normally
+                    df = pd.read_csv(io.StringIO(content_str))
             
             # Get header information from the first 'H' record
             header_df = df[df['Record Type'] == 'H']
@@ -151,7 +151,7 @@ class KEHEParser(BaseParser):
                     discount_info = ""
                     
                     # Look for the next 'I' record that applies to this line
-                    next_discount = self._find_next_discount_record(df, idx, discount_records_df)
+                    next_discount = self._find_next_discount_record(df, int(idx), discount_records_df)
                     if next_discount is not None:
                         discount_amount, discount_info = self._calculate_discount(next_discount, line_total, unit_price)
                     
