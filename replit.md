@@ -1,47 +1,77 @@
-# Order Transformer - Xoro CSV Converter
+# Order Transformation Platform
 
-## Overview
-This Streamlit application converts sales orders from various retail sources (Whole Foods, UNFI West, UNFI, TK Maxx, KEHE - SPS) into a standardized Xoro import CSV format. Its purpose is to streamline order processing by centralizing disparate order formats into a single, consistent output for Xoro, improving efficiency and data accuracy for businesses managing multiple retail channels. The project aims to provide a robust, extensible solution for automated sales order data transformation, reducing manual data entry and potential errors.
+## Project Overview
+A robust Streamlit-based order transformation platform that converts complex multi-source sales orders into standardized Xoro CSV templates. The platform supports multiple vendor ecosystems with advanced parsing capabilities and intelligent data extraction.
+
+## Recent Changes (August 15, 2025)
+
+### Deployment Fixes Applied
+✅ **Updated cloud configuration** - Modified `cloud_config.py` to prioritize Replit environment variables over Streamlit secrets
+✅ **Added Streamlit configuration** - Created `.streamlit/config.toml` with proper server settings for deployment
+✅ **Enhanced environment detection** - Improved environment detection for Replit deployments in `database/env_config.py`
+✅ **Added health check endpoint** - Implemented health check functionality for deployment readiness
+✅ **Improved error handling** - Enhanced database initialization with deployment-specific error handling
+✅ **Fixed SSL configuration** - Updated database URL handling for better Replit deployment compatibility
+✅ **Resolved LSP errors** - Fixed all code issues including import errors and null reference checks
+
+### Key Configuration Changes
+- **Server Configuration**: Set to bind on `0.0.0.0:5000` with proper CORS and security settings
+- **Environment Detection**: Enhanced detection for Replit vs Streamlit Cloud deployments
+- **Database Connection**: Improved SSL handling with fallback strategies for different environments
+- **Health Check**: Added `?health=check` endpoint for deployment readiness verification
+
+## Architecture
+
+### Key Technologies
+- **Frontend**: Streamlit web interface with custom styling
+- **Backend**: SQLAlchemy ORM with PostgreSQL database
+- **File Processing**: Advanced parsing for PDF, HTML, CSV, Excel formats
+- **Multi-vendor Support**: Dynamic mapping system for various vendor ecosystems
+- **Data Transformation**: Pandas-based data manipulation and CSV generation
+
+### Core Components
+- **Parsers**: Vendor-specific parsers (Whole Foods, UNFI East/West, KEHE, TK Maxx)
+- **Database Service**: Centralized database operations and mapping management
+- **Xoro Template**: Standardized CSV output format
+- **Mapping Utils**: Customer, store, and item mapping utilities
+- **Cloud Config**: Environment-aware configuration management
+
+### Database Schema
+- Orders tracking with source attribution
+- Customer, store, and item mappings
+- Conversion history and audit trails
+- Vendor-specific configuration storage
+
+## Deployment Configuration
+
+### Environment Variables Required
+- `DATABASE_URL` - PostgreSQL connection string
+- `REPL_ID` - Replit deployment identifier (auto-set)
+- `ENVIRONMENT` - Optional override (production/development/local)
+
+### Health Check
+- Endpoint: `/?health=check`
+- Returns JSON status with database connectivity check
+- Used for deployment readiness verification
+
+### SSL Configuration
+- **Development**: SSL disabled for local/development environments
+- **Production**: SSL allow mode for Replit deployments
+- **Fallback**: Multiple connection strategies with error recovery
 
 ## User Preferences
-Preferred communication style: Simple, everyday language.
+- Clean, technical communication style preferred
+- Focus on comprehensive solutions over iterative updates
+- Detailed error handling and troubleshooting information
+- Streamlined deployment process with minimal configuration
 
-## System Architecture
-The application is built as a Streamlit web application with a modular parser architecture.
+## Known Issues & Solutions
+- **Database SSL**: Configured automatic SSL handling based on environment
+- **Deployment Health**: Health check endpoint ensures proper initialization
+- **Error Handling**: Enhanced error messages for troubleshooting deployment issues
 
-### Frontend
-- **Technology**: Streamlit
-- **Features**: Multi-file upload, source-specific parser selection, real-time processing feedback.
-
-### Backend
-- **Pattern**: Modular parser architecture with inheritance.
-- **Core Components**:
-    - **BaseParser**: Abstract class for common parsing utilities (numeric cleaning, validation, mapping).
-    - **Source-Specific Parsers**: Implementations for Whole Foods (HTML), UNFI West (HTML), UNFI East (PDF), UNFI (CSV/Excel), TK Maxx (CSV/Excel), and KEHE - SPS (CSV).
-    - **Utility Classes**:
-        - **MappingUtils**: Handles customer/store name and item number mapping with caching and fuzzy matching.
-        - **XoroTemplate**: Converts parsed data to the standardized Xoro CSV format, defining schema and handling transformations.
-- **Data Processing Flow**: User upload → Source selection → Parser selection → Data extraction → Name/Item mapping → Xoro conversion → CSV output.
-- **Input Formats**: HTML, PDF, CSV, Excel.
-- **Output Format**: Standardized Xoro CSV.
-- **Technical Implementations**:
-    - Database integration (PostgreSQL) for persistent storage of processed orders, conversion history, and mappings.
-    - Automatic database initialization and table creation for seamless deployment.
-    - Robust date and item number extraction, including handling of various formats and special cases (e.g., discounts in KEHE, specific date fields for UNFI East/Whole Foods).
-    - Dynamic product number detection and mapping to Xoro ItemNumbers.
-    - Vendor-to-store mapping for UNFI East orders.
-    - Comprehensive store and item mapping databases with CRUD operations via a management interface.
-- **System Design Choices**:
-    - Focus on extensibility to easily add new order sources.
-    - Memory-efficient file processing.
-    - Environment-based database switching to manage SSL connections.
-    - Unified dropdown navigation for streamlined user experience.
-    - Source-specific information display and filtering.
-
-## External Dependencies
-- **streamlit**: Web application framework.
-- **pandas**: Data manipulation and CSV/Excel processing.
-- **beautifulsoup4**: HTML parsing.
-- **PyPDF2**: PDF text extraction (for UNFI East).
-- **io**: File content handling.
-- **PostgreSQL**: Database for persistent storage of order data and mappings.
+## Future Enhancements
+- Additional vendor parser support
+- Real-time processing monitoring
+- Enhanced mapping management UI
+- Automated deployment testing

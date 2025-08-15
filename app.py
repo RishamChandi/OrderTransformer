@@ -3,6 +3,7 @@ import pandas as pd
 import io
 from datetime import datetime
 import os
+import sys
 from parsers.wholefoods_parser import WholeFoodsParser
 from parsers.unfi_west_parser import UNFIWestParser
 from parsers.unfi_east_parser import UNFIEastParser
@@ -17,11 +18,41 @@ from database.models import Base
 from database.connection import get_database_engine
 from sqlalchemy import inspect
 
+# Health check for deployment
+def health_check():
+    """Health check endpoint for deployment readiness"""
+    try:
+        # Check database connectivity
+        from sqlalchemy import text
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception as e:
+        print(f"Health check failed: {e}")
+        return False
+
+# Add health check route handling
+if st.query_params.get('health') == 'check':
+    if health_check():
+        st.json({"status": "healthy", "timestamp": datetime.now().isoformat()})
+    else:
+        st.json({"status": "unhealthy", "timestamp": datetime.now().isoformat()})
+        st.stop()
+
 def initialize_database_if_needed():
-    """Initialize database tables if they don't exist"""
+    """Initialize database tables if they don't exist with improved error handling"""
     try:
         from database.connection import get_current_environment
+        from database.env_config import get_environment
+        from cloud_config import get_deployment_environment
+        
         env = get_current_environment()
+        deployment_env = get_deployment_environment()
+        
+        # Enhanced logging for deployment troubleshooting
+        print(f"🔍 Environment Detection: {env}")
+        print(f"🔍 Deployment Platform: {deployment_env}")
         
         engine = get_database_engine()
         inspector = inspect(engine)
@@ -29,45 +60,75 @@ def initialize_database_if_needed():
         # Check if tables exist
         tables_exist = inspector.get_table_names()
         if not tables_exist:
-            st.info(f"Initializing {env} database for first run...")
+            print(f"📊 Initializing {env} database for first run...")
             Base.metadata.create_all(bind=engine)
-            st.success(f"Database initialized successfully in {env} environment!")
+            print(f"✅ Database initialized successfully in {env} environment!")
+            # Only show Streamlit messages in non-deployment contexts
+            if not os.getenv('REPLIT_DEPLOYMENT'):
+                st.success(f"Database initialized successfully in {env} environment!")
         else:
-            st.success(f"Connected to {env} database ({len(tables_exist)} tables found)")
+            print(f"✅ Connected to {env} database ({len(tables_exist)} tables found)")
+            # Only show Streamlit messages in non-deployment contexts
+            if not os.getenv('REPLIT_DEPLOYMENT'):
+                st.success(f"Connected to {env} database ({len(tables_exist)} tables found)")
             
     except Exception as e:
-        st.error(f"Database connection failed: {e}")
+        error_msg = f"Database connection failed: {e}"
+        print(f"❌ {error_msg}")
         
-        # Enhanced error information
-        from database.connection import get_current_environment
-        from database.env_config import get_database_url
-        
+        # Enhanced error information for troubleshooting
         try:
+            from database.connection import get_current_environment
+            from database.env_config import get_database_url
+            from cloud_config import get_deployment_environment
+            
             env = get_current_environment()
+            deployment_env = get_deployment_environment()
             db_url = get_database_url()
             
-            st.error("🔧 **Database Connection Troubleshooting:**")
-            st.info(f"**Detected Environment**: {env}")
-            st.info(f"**Database URL Pattern**: {db_url[:50] if db_url else 'Not found'}...")
+            print(f"🔧 Database Connection Troubleshooting:")
+            print(f"   Environment: {env}")
+            print(f"   Deployment: {deployment_env}")
+            print(f"   URL Pattern: {db_url[:50] if db_url else 'Not found'}...")
             
-            if 'SSL connection has been closed' in str(e):
-                st.warning("**SSL Issue Detected**: This appears to be a production database in development environment")
-                st.info("**Solutions**:")
-                st.info("1. Use development database credentials for Replit")
-                st.info("2. Or set ENVIRONMENT=production if this should use production DB")
+            # For deployment environments, don't show Streamlit error UI
+            if os.getenv('REPLIT_DEPLOYMENT'):
+                # Log to console only for deployment
+                print(f"❌ Deployment health check failed: {error_msg}")
+                sys.exit(1)  # Exit with error code for deployment failure
+            else:
+                # Show detailed error UI for development
+                st.error(f"Database connection failed: {e}")
+                st.error("🔧 **Database Connection Troubleshooting:**")
+                st.info(f"**Environment**: {env}")
+                st.info(f"**Deployment Platform**: {deployment_env}")
+                st.info(f"**Database URL Pattern**: {db_url[:50] if db_url else 'Not found'}...")
                 
-            st.info("**Environment Detection**:")
-            st.info("- **Replit Development**: Automatically disables SSL")
-            st.info("- **Streamlit Cloud**: Requires SSL for production database")
-            
-        except Exception:
-            st.info("Enable debug mode for detailed connection information")
+                if 'SSL connection has been closed' in str(e):
+                    st.warning("**SSL Issue Detected**")
+                    st.info("**Solutions**:")
+                    st.info("1. Check DATABASE_URL environment variable")
+                    st.info("2. Verify SSL configuration for your deployment platform")
+                    
+        except Exception as debug_error:
+            print(f"❌ Error during troubleshooting: {debug_error}")
+            if not os.getenv('REPLIT_DEPLOYMENT'):
+                st.error("Database configuration error. Check environment variables.")
 
 
 
 def main():
     # Initialize database if needed
-    initialize_database_if_needed()
+    try:
+        initialize_database_if_needed()
+    except Exception as e:
+        # Critical error during initialization
+        if os.getenv('REPLIT_DEPLOYMENT'):
+            print(f"❌ Critical initialization error in deployment: {e}")
+            sys.exit(1)
+        else:
+            st.error(f"Critical initialization error: {e}")
+            st.stop()
     
     # Modern header with better styling
     st.markdown("""
@@ -172,8 +233,9 @@ def main():
         st.markdown("### ⚙️ System")
         if st.button("🔧 Initialize Database", help="First-time setup for cloud deployment"):
             try:
-                from init_database import main as init_db
-                init_db()
+                # Re-initialize database tables
+                engine = get_database_engine()
+                Base.metadata.create_all(bind=engine)
                 st.success("✅ Database initialized!")
             except Exception as e:
                 st.error(f"❌ Database init failed: {e}")
@@ -558,7 +620,8 @@ def show_editable_store_mappings(mapping_utils, sources, db_service):
                 st.write("- Vendor 85948 → PSS-NJ")
                 st.write("- Vendor 85950 → K&L Richmond")
             else:
-                st.write(f"**{selected_source.replace('_', ' ').title()} Store Mappings:**")
+                source_display = selected_source.replace('_', ' ').title() if selected_source else "Unknown"
+                st.write(f"**{source_display} Store Mappings:**")
             
             # Add option to add new mapping
             with st.expander("➕ Add New Store Mapping"):
@@ -624,7 +687,8 @@ def show_editable_customer_mappings(mapping_utils, sources, db_service):
     if selected_source == 'unfi_east':
         show_unfi_east_customer_mappings(db_service)
     else:
-        st.info(f"Customer mappings for {selected_source.replace('_', ' ').title()} are currently the same as store mappings. Use the Store Mapping tab to manage customer mappings.")
+        source_display = selected_source.replace('_', ' ').title() if selected_source else "Unknown"
+        st.info(f"Customer mappings for {source_display} are currently the same as store mappings. Use the Store Mapping tab to manage customer mappings.")
 
 def show_unfi_east_customer_mappings(db_service):
     """Show UNFI East IOW customer mappings from Excel file"""
@@ -708,7 +772,8 @@ def show_editable_item_mappings(mapping_utils, sources, db_service):
             item_mappings = db_service.get_item_mappings(selected_source)
         
         if item_mappings:
-            st.write(f"**{selected_source.replace('_', ' ').title()} Item Mappings:**")
+            source_display = selected_source.replace('_', ' ').title() if selected_source else "Unknown"
+            st.write(f"**{source_display} Item Mappings:**")
             
             # Add option to add new mapping
             with st.expander("➕ Add New Item Mapping"):
