@@ -27,7 +27,8 @@ class KEHEParser(BaseParser):
         try:
             mapping_file = os.path.join('mappings', 'kehe_customer_mapping.csv')
             if os.path.exists(mapping_file):
-                df = pd.read_csv(mapping_file)
+                # Force SPS Customer# to be read as string to preserve leading zeros
+                df = pd.read_csv(mapping_file, dtype={'SPS Customer#': 'str'})
                 # Create mapping from SPS Customer# to CompanyName (for CustomerName field)
                 mapping = {}
                 for _, row in df.iterrows():
@@ -35,6 +36,7 @@ class KEHEParser(BaseParser):
                     company_name = str(row['CompanyName']).strip()
                     mapping[sps_customer] = company_name
                 print(f"✅ Loaded {len(mapping)} KEHE customer mappings")
+                print(f"DEBUG: Sample mapping keys: {list(mapping.keys())[:3]}")  # Show first 3 keys for verification
                 return mapping
             else:
                 print("⚠️ KEHE customer mapping file not found")

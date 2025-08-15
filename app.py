@@ -760,7 +760,8 @@ def show_kehe_customer_mappings(db_service):
         mapping_file = 'mappings/kehe_customer_mapping.csv'
         
         if os.path.exists(mapping_file):
-            df = pd.read_csv(mapping_file)
+            # Force SPS Customer# to be read as string to preserve leading zeros
+            df = pd.read_csv(mapping_file, dtype={'SPS Customer#': 'str'})
             st.write("**KEHE Customer Mappings:**")
             st.write("These mappings are loaded from the CSV file and used by the parser to determine customer names from Ship To Location numbers found in KEHE order files.")
             
