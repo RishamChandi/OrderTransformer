@@ -131,9 +131,10 @@ class KEHEParser(BaseParser):
                     if ship_to_location.endswith('.0'):
                         ship_to_location = ship_to_location[:-2]
                     
-                    # Ensure it starts with 0 if it's a numeric value
+                    # Ensure it starts with 0 if it's a numeric value (KEHE Ship To Location should be 13 digits)
                     if ship_to_location.isdigit() and len(ship_to_location) == 12:
                         ship_to_location = '0' + ship_to_location
+                        print(f"DEBUG: Added leading zero to Ship To Location: '{ship_to_location_raw}' → '{ship_to_location}'")
                     
                     # Map Ship To Location to customer using the mapping file
                     customer_name = "IDI - Richmond"  # Default value
@@ -142,6 +143,9 @@ class KEHEParser(BaseParser):
                         print(f"DEBUG: KEHE Customer Mapping: '{ship_to_location}' → '{customer_name}'")
                     else:
                         print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}' (raw: '{ship_to_location_raw}'), using default: '{customer_name}'")
+                        # Debug: Show available mappings for troubleshooting
+                        if len(self.customer_mapping) > 0:
+                            print(f"DEBUG: Available mappings: {list(self.customer_mapping.keys())[:5]}...")  # Show first 5 keys
                     
                     # Calculate total price before applying discounts
                     line_total = unit_price * quantity
