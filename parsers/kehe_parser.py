@@ -117,9 +117,14 @@ class KEHEParser(BaseParser):
                     if not kehe_number:
                         kehe_number = str(row.get("Buyer's Catalog or Stock Keeping #", '')).strip()
                     
-                    # Clean KEHE number - remove .0 if present
+                    # Clean KEHE number - remove .0 if present and ensure leading zeros
                     if kehe_number.endswith('.0'):
                         kehe_number = kehe_number[:-2]
+                    
+                    # Ensure KEHE number has proper leading zeros (should be 8 digits)
+                    if kehe_number.isdigit() and len(kehe_number) < 8:
+                        kehe_number = kehe_number.zfill(8)
+                        print(f"DEBUG: Padded KEHE number with leading zeros: '{str(row.get('Buyers Catalog or Stock Keeping #', '')).strip()}' → '{kehe_number}'")
                     
                     quantity = self.clean_numeric_value(str(row.get('Qty Ordered', '0')))
                     unit_price = self.clean_numeric_value(str(row.get('Unit Price', '0')))

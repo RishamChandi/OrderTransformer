@@ -853,7 +853,12 @@ def show_editable_item_mappings(mapping_utils, sources, db_service):
     selected_source = st.selectbox("Select Source", filtered_sources, key="item_source")
     
     try:
-        # Get item mappings for selected source
+        # Special handling for KEHE - load from CSV file
+        if selected_source == 'kehe':
+            show_kehe_item_mappings()
+            return
+            
+        # Get item mappings for other sources
         item_mappings = {}
         
         # Try to get mappings from database first
@@ -950,6 +955,71 @@ def show_editable_item_mappings(mapping_utils, sources, db_service):
             
     except Exception as e:
         st.error(f"Error loading item mappings: {e}")
+
+def show_kehe_item_mappings():
+    """Show KEHE-specific item mappings from CSV file"""
+    st.subheader("KEHE Item Mappings")
+    
+    try:
+        import pandas as pd
+        import os
+        
+        mapping_file = os.path.join('mappings', 'kehe_item_mapping.csv')
+        if os.path.exists(mapping_file):
+            # Load KEHE item mappings from CSV
+            df = pd.read_csv(mapping_file, dtype={'KeHE Number': 'str'})
+            
+            st.info(f"✅ Loaded {len(df)} KEHE item mappings from CSV file")
+            
+            # Search functionality
+            search_term = st.text_input("🔍 Search KEHE item mappings")
+            
+            # Filter mappings based on search
+            if search_term:
+                mask = df['KeHE Number'].str.contains(search_term, case=False, na=False) | \
+                       df['ItemNumber'].str.contains(search_term, case=False, na=False) | \
+                       df['Description'].str.contains(search_term, case=False, na=False)
+                filtered_df = df[mask]
+            else:
+                filtered_df = df
+            
+            st.write(f"Showing {len(filtered_df)} of {len(df)} mappings")
+            
+            # Display mappings in a table format with pagination
+            items_per_page = 20
+            total_items = len(filtered_df)
+            total_pages = (total_items + items_per_page - 1) // items_per_page
+            
+            if total_pages > 1:
+                page = st.selectbox("Page", range(1, total_pages + 1)) - 1
+            else:
+                page = 0
+            
+            start_idx = page * items_per_page
+            end_idx = min(start_idx + items_per_page, total_items)
+            page_df = filtered_df.iloc[start_idx:end_idx]
+            
+            # Display mappings
+            for index, row in page_df.iterrows():
+                col1, col2, col3 = st.columns([2, 2, 3])
+                
+                with col1:
+                    st.text_input("Raw Item (KeHE Number)", value=row['KeHE Number'], disabled=True, key=f"kehe_raw_{index}")
+                
+                with col2:
+                    st.text_input("Mapped Item (Xoro Number)", value=row['ItemNumber'], disabled=True, key=f"kehe_mapped_{index}")
+                
+                with col3:
+                    st.text(row['Description'][:50] + "..." if len(row['Description']) > 50 else row['Description'])
+            
+            st.text("Showing mappings for: KEHE (from CSV file)")
+            st.info("📝 To modify KEHE item mappings, edit the CSV file: `mappings/kehe_item_mapping.csv`")
+        else:
+            st.warning("⚠️ KEHE item mapping CSV file not found")
+            st.write("Expected file: `mappings/kehe_item_mapping.csv`")
+            
+    except Exception as e:
+        st.error(f"❌ Error loading KEHE item mappings: {e}")
 
 if __name__ == "__main__":
     main()
