@@ -28,10 +28,10 @@ class KEHEParser(BaseParser):
             mapping_file = os.path.join('mappings', 'kehe_customer_mapping.csv')
             if os.path.exists(mapping_file):
                 # Force SPS Customer# to be read as string to preserve leading zeros
-                df = pd.read_csv(mapping_file, dtype={'SPS Customer#': 'str'})
+                self.mapping_df = pd.read_csv(mapping_file, dtype={'SPS Customer#': 'str'})
                 # Create mapping from SPS Customer# to CompanyName (for CustomerName field)
                 mapping = {}
-                for _, row in df.iterrows():
+                for _, row in self.mapping_df.iterrows():
                     sps_customer = str(row['SPS Customer#']).strip()
                     company_name = str(row['CompanyName']).strip()
                     mapping[sps_customer] = company_name
@@ -44,6 +44,21 @@ class KEHEParser(BaseParser):
         except Exception as e:
             print(f"❌ Error loading KEHE customer mapping: {e}")
             return {}
+    
+    def _get_store_mapping(self, ship_to_location: str) -> str:
+        """Get store mapping for the given Ship To Location"""
+        try:
+            if hasattr(self, 'mapping_df') and self.mapping_df is not None:
+                # Find the row with matching Ship To Location
+                matching_row = self.mapping_df[self.mapping_df['SPS Customer#'] == ship_to_location]
+                if not matching_row.empty:
+                    store_mapping = str(matching_row.iloc[0]['Store Mapping']).strip()
+                    print(f"DEBUG: KEHE Store Mapping: '{ship_to_location}' → '{store_mapping}'")
+                    return store_mapping
+            return "KL - Richmond"  # Default fallback
+        except Exception as e:
+            print(f"DEBUG: Error getting store mapping: {e}")
+            return "KL - Richmond"  # Default fallback
     
     def parse(self, file_content, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """
@@ -164,12 +179,20 @@ class KEHEParser(BaseParser):
                     # Apply discount to get final total
                     final_total = line_total - discount_amount
                     
+                    # Get store mapping for SaleStoreName and StoreName fields
+                    # For KEHE, use the Store Mapping from customer mapping file, not the company name
+                    store_name = "KL - Richmond"  # Default for KEHE SPS orders
+                    if ship_to_location and ship_to_location in self.customer_mapping:
+                        # Get store mapping from the CSV file - need to reload to get Store Mapping column
+                        store_name = self._get_store_mapping(ship_to_location)
+                    
                     # Build order data
                     order_data = {
                         'order_number': str(header_info.get('PO Number', '')),
                         'order_date': po_date,
                         'delivery_date': delivery_date,
-                        'customer_name': customer_name,  # Use mapped customer from Ship To Location
+                        'customer_name': customer_name,  # Use mapped company name from Ship To Location
+                        'store_name': store_name,  # Use store mapping, not customer mapping
                         'raw_customer_name': str(header_info.get('Ship To Name', 'KEHE DISTRIBUTORS')),
                         'ship_to_location': ship_to_location,  # Add ship to location for reference
                         'item_number': mapped_item,

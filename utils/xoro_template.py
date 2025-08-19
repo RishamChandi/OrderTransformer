@@ -86,6 +86,12 @@ class XoroTemplate:
             sale_store_name = 'IDI - Richmond'
             store_name = 'IDI - Richmond'
             final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
+        elif source_name.lower().replace(' ', '_') == 'kehe' or 'kehe' in source_name.lower():
+            # KEHE: use store mapping from parser for store names, customer name is separate from store
+            sale_store_name = order.get('store_name', 'KL - Richmond')  # Use mapped store from parser
+            store_name = order.get('store_name', 'KL - Richmond')      # Use mapped store from parser  
+            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'IDI - Richmond'
+            print(f"DEBUG: KEHE Template - store_name: '{order.get('store_name', 'KL - Richmond')}', customer_name: '{customer_name}'")
         else:
             # Other sources: use mapped customer name
             sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
