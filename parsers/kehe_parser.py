@@ -22,6 +22,9 @@ class KEHEParser(BaseParser):
         # Load KEHE customer mapping
         self.customer_mapping = self._load_customer_mapping()
         
+        # Load KEHE item mapping
+        self.item_mapping = self._load_item_mapping()
+        
     def _load_customer_mapping(self) -> Dict[str, str]:
         """Load KEHE customer mapping from CSV file"""
         try:
@@ -126,11 +129,16 @@ class KEHEParser(BaseParser):
                     if not kehe_number or quantity <= 0:
                         continue
                     
-                    # Map KEHE number to Xoro item number
-                    mapped_item = self.mapping_utils.get_item_mapping(kehe_number, 'kehe')
-                    if not mapped_item or mapped_item == kehe_number:
-                        # If no mapping found, use the raw number as fallback
-                        mapped_item = kehe_number
+                    # Map KEHE number to Xoro item number using KEHE-specific mapping
+                    mapped_item = kehe_number  # Default fallback
+                    if kehe_number in self.item_mapping:
+                        mapped_item = self.item_mapping[kehe_number]
+                        print(f"DEBUG: KEHE Item Mapping: '{kehe_number}' → '{mapped_item}'")
+                    else:
+                        print(f"DEBUG: No KEHE item mapping found for '{kehe_number}', using raw number")
+                        # Show available mappings for troubleshooting
+                        if len(self.item_mapping) > 0:
+                            print(f"DEBUG: Available item mappings: {list(self.item_mapping.keys())[:3]}...")
                     
                     # Extract dates
                     po_date = self.parse_date(str(header_info.get('PO Date', '')))
@@ -280,6 +288,29 @@ class KEHEParser(BaseParser):
         except Exception as e:
             print(f"Error calculating discount: {e}")
             return 0, ""
+    
+    def _load_item_mapping(self) -> Dict[str, str]:
+        """Load KEHE item mapping from CSV file"""
+        try:
+            mapping_file = os.path.join('mappings', 'kehe_item_mapping.csv')
+            if os.path.exists(mapping_file):
+                # Force KeHE Number to be read as string to preserve leading zeros
+                df = pd.read_csv(mapping_file, dtype={'KeHE Number': 'str'})
+                # Create mapping from KeHE Number to ItemNumber (Xoro item number)
+                mapping = {}
+                for _, row in df.iterrows():
+                    kehe_number = str(row['KeHE Number']).strip()
+                    item_number = str(row['ItemNumber']).strip()
+                    mapping[kehe_number] = item_number
+                print(f"✅ Loaded {len(mapping)} KEHE item mappings")
+                print(f"DEBUG: Sample item mapping keys: {list(mapping.keys())[:3]}")  # Show first 3 keys
+                return mapping
+            else:
+                print("⚠️ KEHE item mapping file not found")
+                return {}
+        except Exception as e:
+            print(f"❌ Error loading KEHE item mapping: {e}")
+            return {}
     
     def _extract_line_items_from_csv(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
         """Extract line items from KEHE CSV DataFrame"""
