@@ -956,7 +956,27 @@ def display_data_editor_mappings(df, file_path: str, columns: list, mapping_type
     
     st.write(f"**Data Editor - Edit multiple {mapping_type.lower()} mappings at once**")
     
-    # Use data editor for bulk editing
+    # Instructions for using the data editor
+    with st.expander("ℹ️ How to use Data Editor"):
+        st.markdown("""
+        **Editing:**
+        - Click any cell to edit its value
+        - Press Enter to confirm changes
+        
+        **Adding Rows:**
+        - Click the ➕ button at the bottom to add new rows
+        - Fill in the required fields for new mappings
+        
+        **Deleting Rows:**
+        - Click the row number (left side) to select entire rows
+        - Hold Ctrl/Cmd to select multiple rows
+        - Press Delete key or use the 🗑️ button to remove selected rows
+        
+        **Saving:**
+        - Click "💾 Save All Changes" to save your modifications
+        """)
+    
+    # Use data editor for bulk editing with enhanced configuration
     edited_df = st.data_editor(
         df,
         use_container_width=True,
@@ -966,13 +986,15 @@ def display_data_editor_mappings(df, file_path: str, columns: list, mapping_type
             col: st.column_config.TextColumn(
                 col,
                 width="medium",
-                required=True
+                required=True,
+                help=f"Enter the {col.lower()}"
             ) for col in columns
-        }
+        },
+        hide_index=False,  # Show row numbers for easier selection
     )
     
-    # Save changes button
-    col1, col2 = st.columns(2)
+    # Save changes button and controls
+    col1, col2, col3 = st.columns([2, 2, 1])
     
     with col1:
         if st.button(f"💾 Save All Changes", key=f"save_all_{mapping_type}_{processor}"):
@@ -984,14 +1006,38 @@ def display_data_editor_mappings(df, file_path: str, columns: list, mapping_type
         edited_count = len(edited_df)
         
         if original_count != edited_count:
-            st.write(f"📊 Rows: {original_count} → {edited_count}")
+            if edited_count > original_count:
+                st.success(f"📈 Added {edited_count - original_count} rows (Total: {edited_count})")
+            elif edited_count < original_count:
+                st.warning(f"📉 Removed {original_count - edited_count} rows (Total: {edited_count})")
         
         # Check for changes in existing rows
         if original_count > 0 and edited_count > 0:
             min_rows = min(original_count, edited_count)
-            changes_detected = not df.iloc[:min_rows].equals(edited_df.iloc[:min_rows])
-            if changes_detected:
-                st.write("⚠️ Changes detected")
+            try:
+                changes_detected = not df.iloc[:min_rows].equals(edited_df.iloc[:min_rows])
+                if changes_detected:
+                    st.info("✏️ Content changes detected")
+            except:
+                st.info("✏️ Changes detected")
+    
+    with col3:
+        # Quick delete all button with confirmation
+        if st.button("🗑️ Clear All", key=f"clear_all_{mapping_type}_{processor}"):
+            st.session_state[f"confirm_clear_{mapping_type}_{processor}"] = True
+        
+        if st.session_state.get(f"confirm_clear_{mapping_type}_{processor}", False):
+            st.warning("⚠️ Delete all mappings?")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("✅ Yes", key=f"confirm_yes_{mapping_type}_{processor}"):
+                    clear_all_mappings(file_path, mapping_type, processor)
+                    del st.session_state[f"confirm_clear_{mapping_type}_{processor}"]
+                    st.rerun()
+            with col_no:
+                if st.button("❌ No", key=f"confirm_no_{mapping_type}_{processor}"):
+                    del st.session_state[f"confirm_clear_{mapping_type}_{processor}"]
+                    st.rerun()
 
 def save_bulk_mapping_changes(edited_df, file_path: str, mapping_type: str, processor: str):
     """Save bulk changes from data editor"""
@@ -1011,6 +1057,35 @@ def save_bulk_mapping_changes(edited_df, file_path: str, mapping_type: str, proc
         
     except Exception as e:
         st.error(f"❌ Failed to save bulk changes: {e}")
+
+def clear_all_mappings(file_path: str, mapping_type: str, processor: str):
+    """Clear all mappings from the file"""
+    
+    import pandas as pd
+    import os
+    
+    try:
+        # Get column names from existing file
+        if os.path.exists(file_path):
+            existing_df = pd.read_csv(file_path, nrows=0)  # Just get headers
+            columns = existing_df.columns.tolist()
+        else:
+            # Fallback columns based on mapping type
+            if mapping_type.lower() == "customer":
+                columns = ["Raw Customer ID", "Mapped Customer Name"]
+            elif mapping_type.lower() == "store":
+                columns = ["Raw Store ID", "Xoro Store Name"]
+            else:
+                columns = ["Raw Item Number", "Mapped Item Number"]
+        
+        # Create empty DataFrame
+        empty_df = pd.DataFrame(columns=columns)
+        empty_df.to_csv(file_path, index=False)
+        
+        st.success(f"✅ Cleared all {mapping_type.lower()} mappings")
+        
+    except Exception as e:
+        st.error(f"❌ Failed to clear mappings: {e}")
 
 def show_editable_store_mappings(mapping_utils, sources, db_service):
     """Show editable store mappings interface"""
