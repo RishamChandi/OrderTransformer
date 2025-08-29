@@ -736,9 +736,20 @@ def display_csv_mapping(file_path: str, mapping_type: str, columns: list, proces
             end_idx = min(start_idx + items_per_page, total_items)
             page_df = filtered_df.iloc[start_idx:end_idx]
             
-            # Display mappings
+            # Display mappings with edit/delete functionality
             if len(page_df) > 0:
-                st.dataframe(page_df, use_container_width=True)
+                # Toggle between table view and data editor view
+                view_option = st.radio(
+                    "View Mode:",
+                    ["📋 Data Editor View", "📝 Row-by-Row Edit View"],
+                    horizontal=True,
+                    key=f"view_mode_{mapping_type}_{processor}"
+                )
+                
+                if view_option == "📋 Data Editor View":
+                    display_data_editor_mappings(filtered_df, file_path, columns, mapping_type, processor)
+                else:
+                    display_editable_mappings_table(page_df, file_path, columns, mapping_type, processor, page, items_per_page)
                 
                 # Add new mapping
                 with st.expander(f"➕ Add New {mapping_type} Mapping"):
@@ -821,6 +832,185 @@ def create_new_mapping_file(file_path: str, columns: list):
         
     except Exception as e:
         st.error(f"❌ Failed to create mapping file: {e}")
+
+def display_editable_mappings_table(page_df, file_path: str, columns: list, mapping_type: str, processor: str, page: int, items_per_page: int):
+    """Display mappings table with inline editing and delete functionality"""
+    
+    import pandas as pd
+    
+    # Load full dataframe for operations
+    full_df = pd.read_csv(file_path, dtype=str)
+    
+    # Create columns for table display
+    table_cols = st.columns([0.7, 0.15, 0.15])  # Main table, Edit, Delete
+    
+    with table_cols[0]:
+        st.write("**Mappings**")
+    with table_cols[1]:
+        st.write("**Edit**")
+    with table_cols[2]:
+        st.write("**Delete**")
+    
+    # Display each row with edit/delete options
+    for idx, (_, row) in enumerate(page_df.iterrows()):
+        actual_index = (page * items_per_page) + idx
+        
+        # Create columns for this row
+        row_cols = st.columns([0.7, 0.15, 0.15])
+        
+        with row_cols[0]:
+            # Display row data in a container
+            with st.container():
+                row_data = []
+                for col in columns:
+                    row_data.append(f"**{col}**: {row[col] if pd.notna(row[col]) else 'None'}")
+                st.write(" | ".join(row_data))
+        
+        with row_cols[1]:
+            # Edit button
+            if st.button("✏️ Edit", key=f"edit_{mapping_type}_{processor}_{actual_index}"):
+                st.session_state[f"editing_{mapping_type}_{processor}_{actual_index}"] = True
+                st.rerun()
+        
+        with row_cols[2]:
+            # Delete button
+            if st.button("🗑️ Delete", key=f"delete_{mapping_type}_{processor}_{actual_index}"):
+                delete_mapping_row(file_path, actual_index, mapping_type, processor)
+        
+        # Show edit form if in edit mode
+        if st.session_state.get(f"editing_{mapping_type}_{processor}_{actual_index}", False):
+            with st.form(f"edit_form_{mapping_type}_{processor}_{actual_index}"):
+                st.write(f"**Edit {mapping_type} Mapping**")
+                
+                edit_cols = st.columns(len(columns))
+                new_values = {}
+                
+                for i, col in enumerate(columns):
+                    with edit_cols[i]:
+                        current_value = row[col] if pd.notna(row[col]) else ""
+                        new_values[col] = st.text_input(col, value=current_value, key=f"edit_{col}_{actual_index}")
+                
+                submit_cols = st.columns(2)
+                with submit_cols[0]:
+                    if st.form_submit_button("💾 Save Changes"):
+                        save_mapping_edit(file_path, actual_index, new_values, mapping_type, processor)
+                        del st.session_state[f"editing_{mapping_type}_{processor}_{actual_index}"]
+                        st.rerun()
+                
+                with submit_cols[1]:
+                    if st.form_submit_button("❌ Cancel"):
+                        del st.session_state[f"editing_{mapping_type}_{processor}_{actual_index}"]
+                        st.rerun()
+        
+        # Add divider between rows
+        st.divider()
+
+def delete_mapping_row(file_path: str, row_index: int, mapping_type: str, processor: str):
+    """Delete a mapping row"""
+    
+    import pandas as pd
+    
+    try:
+        df = pd.read_csv(file_path, dtype=str)
+        
+        # Remove the row at the specified index
+        if 0 <= row_index < len(df):
+            deleted_row = df.iloc[row_index]
+            df = df.drop(df.index[row_index]).reset_index(drop=True)
+            df.to_csv(file_path, index=False)
+            
+            st.success(f"✅ Deleted {mapping_type.lower()} mapping: {deleted_row.iloc[0]}")
+            st.rerun()
+        else:
+            st.error("❌ Invalid row index for deletion")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to delete mapping: {e}")
+
+def save_mapping_edit(file_path: str, row_index: int, new_values: dict, mapping_type: str, processor: str):
+    """Save edited mapping values"""
+    
+    import pandas as pd
+    
+    try:
+        df = pd.read_csv(file_path, dtype=str)
+        
+        # Update the row at the specified index
+        if 0 <= row_index < len(df):
+            for col, value in new_values.items():
+                if col in df.columns:
+                    df.at[row_index, col] = value.strip() if value else ""
+            
+            df.to_csv(file_path, index=False)
+            st.success(f"✅ Updated {mapping_type.lower()} mapping successfully")
+        else:
+            st.error("❌ Invalid row index for editing")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to save mapping edit: {e}")
+
+def display_data_editor_mappings(df, file_path: str, columns: list, mapping_type: str, processor: str):
+    """Display mappings using Streamlit data editor for easy bulk editing"""
+    
+    import pandas as pd
+    
+    st.write(f"**Data Editor - Edit multiple {mapping_type.lower()} mappings at once**")
+    
+    # Use data editor for bulk editing
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="dynamic",  # Allow adding/deleting rows
+        key=f"data_editor_{mapping_type}_{processor}",
+        column_config={
+            col: st.column_config.TextColumn(
+                col,
+                width="medium",
+                required=True
+            ) for col in columns
+        }
+    )
+    
+    # Save changes button
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button(f"💾 Save All Changes", key=f"save_all_{mapping_type}_{processor}"):
+            save_bulk_mapping_changes(edited_df, file_path, mapping_type, processor)
+    
+    with col2:
+        # Show changes summary
+        original_count = len(df)
+        edited_count = len(edited_df)
+        
+        if original_count != edited_count:
+            st.write(f"📊 Rows: {original_count} → {edited_count}")
+        
+        # Check for changes in existing rows
+        if original_count > 0 and edited_count > 0:
+            min_rows = min(original_count, edited_count)
+            changes_detected = not df.iloc[:min_rows].equals(edited_df.iloc[:min_rows])
+            if changes_detected:
+                st.write("⚠️ Changes detected")
+
+def save_bulk_mapping_changes(edited_df, file_path: str, mapping_type: str, processor: str):
+    """Save bulk changes from data editor"""
+    
+    try:
+        # Clean the dataframe - remove empty rows and strip whitespace
+        cleaned_df = edited_df.dropna(how='all').copy()
+        for col in cleaned_df.columns:
+            if cleaned_df[col].dtype == 'object':
+                cleaned_df[col] = cleaned_df[col].astype(str).str.strip()
+        
+        # Save to CSV
+        cleaned_df.to_csv(file_path, index=False)
+        
+        st.success(f"✅ Successfully saved {len(cleaned_df)} {mapping_type.lower()} mappings")
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Failed to save bulk changes: {e}")
 
 def show_editable_store_mappings(mapping_utils, sources, db_service):
     """Show editable store mappings interface"""
