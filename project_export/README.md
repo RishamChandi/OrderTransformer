@@ -3,6 +3,27 @@
 ## Project Overview
 A robust Streamlit-based order transformation platform that converts complex multi-source sales orders into standardized Xoro CSV templates. The platform supports multiple vendor ecosystems with advanced parsing capabilities and intelligent data extraction.
 
+## Enhanced Features (Version 2.0)
+
+### Complete Mapping Management
+- **Per-Processor Management**: Dedicated UI for each order processor (KEHE, Whole Foods, UNFI East/West, TK Maxx)
+- **Three Mapping Types**: Customer, Store (Xoro), and Item mappings for each processor
+- **Upload/Download**: CSV file upload and download for easy migration
+- **Search & Pagination**: Handle large mapping files efficiently
+- **Real-time Editing**: Add, edit, and delete mappings through the UI
+
+### Migration Tools
+- **Export Mappings**: Create portable mapping packages for deployment migration
+- **Import Mappings**: Seamlessly import mappings to new deployments  
+- **Validation**: Built-in mapping file validation and integrity checking
+- **Backup**: Automated backup creation before major changes
+
+### Order Processing
+- **Multi-vendor Support**: KEHE, UNFI East/West, Whole Foods, TK Maxx order processing
+- **Real-time Conversion**: Live order transformation with comprehensive error handling
+- **Debug Logging**: Detailed logging for troubleshooting and monitoring
+- **Error Recovery**: Robust error handling with clear user feedback
+
 ## Setup Instructions
 
 ### 1. Environment Setup
@@ -31,28 +52,60 @@ python init_database.py
 streamlit run app.py --server.port 5000
 ```
 
-## Features
-- Multi-vendor order parsing (KEHE, UNFI East/West, Whole Foods, TK Maxx)
-- Dynamic customer, store, and item mapping
-- Real-time order processing and conversion
-- Comprehensive mapping management interface
-- PostgreSQL database integration
-- Advanced error handling and debugging
+## Mapping Management
+
+### UI-Based Management
+1. Navigate to "Manage Mappings" in the application
+2. Select an order processor (KEHE, Whole Foods, etc.)
+3. Manage three mapping types:
+   - **Customer Mapping**: Raw customer IDs → Xoro customer names
+   - **Store Mapping**: Raw store IDs → Xoro store names  
+   - **Item Mapping**: Raw item numbers → Xoro item numbers
+
+### Migration Between Deployments
+```bash
+# Export mappings from source deployment
+python migrate_mappings.py export
+
+# Import mappings to target deployment  
+python migrate_mappings.py import --import-dir mapping_export_YYYYMMDD_HHMMSS
+
+# Validate all mappings
+python migrate_mappings.py validate
+```
 
 ## Configuration
 - Main configuration: `.streamlit/config.toml`
 - Environment variables: DATABASE_URL
-- Mapping files: `mappings/` directory
+- Mapping files: `mappings/` directory (organized by processor)
 
 ## Vendor Support
-- **KEHE**: Customer mapping, store mapping, item mapping
-- **UNFI East/West**: Full parsing and mapping support
-- **Whole Foods**: HTML order parsing
-- **TK Maxx**: Order processing support
+- **KEHE**: Customer mapping, store mapping, 101 item mappings (complete)
+- **UNFI East/West**: Full parsing and mapping support with CSV management
+- **Whole Foods**: HTML order parsing with comprehensive mappings
+- **TK Maxx**: Order processing support with mapping management
 
 ## Project Structure
-- `app.py` - Main Streamlit application
+- `app.py` - Main Streamlit application with enhanced mapping UI
+- `migrate_mappings.py` - Mapping migration and validation tools
 - `database/` - Database models and services
-- `parsers/` - Vendor-specific parsers
+- `parsers/` - Vendor-specific parsers (unchanged logic)
 - `utils/` - Utility functions and templates
-- `mappings/` - CSV mapping files
+- `mappings/` - CSV mapping files organized by processor
+
+## Key Improvements
+- **User-Friendly UI**: Simplified mapping management by processor
+- **Migration Ready**: Easy deployment migration with export/import tools
+- **Complete Coverage**: All three mapping types for every order processor
+- **CSV Based**: All mappings in CSV format for easy editing and version control
+- **Search & Filter**: Find mappings quickly in large files
+- **Upload/Download**: Direct file management through the UI
+
+## Migration from Previous Version
+Existing deployments can migrate to the new version:
+1. Export current mappings using the migration tool
+2. Deploy new version 
+3. Import mappings to new deployment
+4. Validate all mappings through UI
+
+The enhanced platform maintains backward compatibility while providing significant improvements in mapping management and deployment flexibility.

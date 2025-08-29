@@ -555,38 +555,272 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
         st.error(f"Error loading processed orders: {str(e)}")
 
 def manage_mappings_page(db_service: DatabaseService, selected_source: str = "all"):
-    """Manage store and item mappings with editable interface"""
+    """Enhanced mapping management page with file upload/download"""
     
     st.markdown("""
     <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
-        <h1 style="color: white; margin: 0; text-align: center;">⚙️ Manage Mappings</h1>
-        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Configure store and item mappings for accurate order processing</p>
+        <h1 style="color: white; margin: 0; text-align: center;">⚙️ Mapping Management Center</h1>
+        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Complete mapping management by order processor</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Create tabs for different mapping types
-    tab1, tab2, tab3 = st.tabs(["🏪 Store Mapping", "👥 Customer Mapping", "📦 Item Mapping"])
+    # Order processor selector
+    processors = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
     
-    mapping_utils = MappingUtils()
-    
-    if selected_source != "all":
-        # Filter to only show the selected source
-        sources = [selected_source]
-        st.info(f"Showing mappings for: **{selected_source.replace('_', ' ').title()}**")
+    if selected_source != "all" and selected_source in processors:
+        selected_processor = selected_source
+        st.info(f"Managing mappings for: **{selected_processor.replace('_', ' ').title()}**")
     else:
-        sources = ['wholefoods', 'unfi_west', 'unfi_east', 'kehe', 'tkmaxx']
+        selected_processor = st.selectbox(
+            "Select Order Processor:",
+            processors,
+            format_func=lambda x: x.replace('_', ' ').title()
+        )
+    
+    if selected_processor:
+        show_processor_mapping_management(selected_processor, db_service)
+
+def show_processor_mapping_management(processor: str, db_service: DatabaseService):
+    """Complete mapping management for a specific processor"""
+    
+    processor_display = processor.replace('_', ' ').title()
+    
+    # Processor overview card
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem;
+                border-left: 5px solid #4f46e5;">
+        <h2 style="color: white; margin: 0;">{processor_display} Mapping Management</h2>
+        <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0;">
+            Manage Customer, Store (Xoro), and Item mappings for {processor_display} orders
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Create tabs for the three mapping types
+    tab1, tab2, tab3 = st.tabs([
+        "👥 Customer Mapping", 
+        "🏪 Store (Xoro) Mapping", 
+        "📦 Item Mapping"
+    ])
     
     with tab1:
-        st.subheader("Store Mappings")
-        show_editable_store_mappings(mapping_utils, sources, db_service)
+        show_customer_mapping_manager(processor, db_service)
     
     with tab2:
-        st.subheader("Customer Mappings")
-        show_editable_customer_mappings(mapping_utils, sources, db_service)
-    
+        show_store_mapping_manager(processor, db_service)
+        
     with tab3:
-        st.subheader("Item Mappings")
-        show_editable_item_mappings(mapping_utils, sources, db_service)
+        show_item_mapping_manager(processor, db_service)
+
+def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
+    """Customer mapping management with CSV support"""
+    
+    st.subheader("👥 Customer Mapping")
+    st.write("Maps raw customer identifiers to Xoro customer names")
+    
+    mapping_file = f"mappings/{processor}/customer_mapping.csv"
+    
+    # Upload section
+    with st.expander("📤 Upload Customer Mapping File"):
+        uploaded_file = st.file_uploader(
+            "Upload CSV file", 
+            type=['csv'], 
+            key=f"customer_upload_{processor}"
+        )
+        if uploaded_file and st.button("Save Customer Mapping", key=f"save_customer_{processor}"):
+            save_uploaded_mapping(uploaded_file, mapping_file)
+    
+    # Display and edit current mappings
+    display_csv_mapping(mapping_file, "Customer", ["Raw Customer ID", "Mapped Customer Name"], processor)
+
+def show_store_mapping_manager(processor: str, db_service: DatabaseService):
+    """Store (Xoro) mapping management with CSV support"""
+    
+    st.subheader("🏪 Store (Xoro) Mapping")
+    st.write("Maps raw store identifiers to Xoro store names")
+    
+    mapping_file = f"mappings/{processor}/xoro_store_mapping.csv"
+    
+    # Upload section
+    with st.expander("📤 Upload Store Mapping File"):
+        uploaded_file = st.file_uploader(
+            "Upload CSV file", 
+            type=['csv'], 
+            key=f"store_upload_{processor}"
+        )
+        if uploaded_file and st.button("Save Store Mapping", key=f"save_store_{processor}"):
+            save_uploaded_mapping(uploaded_file, mapping_file)
+    
+    # Display and edit current mappings
+    display_csv_mapping(mapping_file, "Store", ["Raw Store ID", "Xoro Store Name"], processor)
+
+def show_item_mapping_manager(processor: str, db_service: DatabaseService):
+    """Item mapping management with CSV support"""
+    
+    st.subheader("📦 Item Mapping")
+    st.write("Maps raw item numbers to Xoro item numbers")
+    
+    mapping_file = f"mappings/{processor}/item_mapping.csv"
+    
+    # Upload section  
+    with st.expander("📤 Upload Item Mapping File"):
+        uploaded_file = st.file_uploader(
+            "Upload CSV file", 
+            type=['csv'], 
+            key=f"item_upload_{processor}"
+        )
+        if uploaded_file and st.button("Save Item Mapping", key=f"save_item_{processor}"):
+            save_uploaded_mapping(uploaded_file, mapping_file)
+    
+    # Display and edit current mappings
+    if processor == 'kehe':
+        # Special handling for KEHE - use the existing kehe_item_mapping.csv
+        kehe_file = "mappings/kehe_item_mapping.csv"
+        display_csv_mapping(kehe_file, "Item", ["KeHE Number", "Xoro Item Number", "Description"], processor)
+    else:
+        display_csv_mapping(mapping_file, "Item", ["Raw Item Number", "Mapped Item Number"], processor)
+
+def display_csv_mapping(file_path: str, mapping_type: str, columns: list, processor: str):
+    """Display and edit CSV mapping with download option"""
+    
+    import pandas as pd
+    import os
+    
+    try:
+        if os.path.exists(file_path):
+            df = pd.read_csv(file_path, dtype=str)
+            
+            st.success(f"✅ Loaded {len(df)} {mapping_type.lower()} mappings")
+            
+            # Download button
+            csv_data = df.to_csv(index=False)
+            st.download_button(
+                label=f"📥 Download {mapping_type} Mappings",
+                data=csv_data,
+                file_name=f"{processor}_{mapping_type.lower()}_mapping.csv",
+                mime="text/csv",
+                key=f"download_{mapping_type}_{processor}"
+            )
+            
+            # Search functionality
+            search_term = st.text_input(
+                f"🔍 Search {mapping_type.lower()} mappings", 
+                key=f"search_{mapping_type}_{processor}"
+            )
+            
+            # Filter mappings based on search
+            if search_term:
+                mask = df.astype(str).apply(lambda x: x.str.contains(search_term, case=False, na=False)).any(axis=1)
+                filtered_df = df[mask]
+            else:
+                filtered_df = df
+            
+            st.write(f"Showing {len(filtered_df)} of {len(df)} mappings")
+            
+            # Pagination
+            items_per_page = 20
+            total_items = len(filtered_df)
+            total_pages = (total_items + items_per_page - 1) // items_per_page
+            
+            if total_pages > 1:
+                page = st.selectbox(
+                    "Page", 
+                    range(1, total_pages + 1), 
+                    key=f"page_{mapping_type}_{processor}"
+                ) - 1
+            else:
+                page = 0
+            
+            start_idx = page * items_per_page
+            end_idx = min(start_idx + items_per_page, total_items)
+            page_df = filtered_df.iloc[start_idx:end_idx]
+            
+            # Display mappings
+            if len(page_df) > 0:
+                st.dataframe(page_df, use_container_width=True)
+                
+                # Add new mapping
+                with st.expander(f"➕ Add New {mapping_type} Mapping"):
+                    add_new_mapping_form(file_path, columns, mapping_type, processor)
+            else:
+                st.info(f"No {mapping_type.lower()} mappings found")
+                
+        else:
+            st.warning(f"⚠️ {mapping_type} mapping file not found: {file_path}")
+            st.write("Create a new mapping file:")
+            
+            # Create new file
+            if st.button(f"Create {mapping_type} Mapping File", key=f"create_{mapping_type}_{processor}"):
+                create_new_mapping_file(file_path, columns)
+                st.rerun()
+                
+    except Exception as e:
+        st.error(f"❌ Error loading {mapping_type.lower()} mappings: {e}")
+
+def add_new_mapping_form(file_path: str, columns: list, mapping_type: str, processor: str):
+    """Form to add new mapping entries"""
+    
+    import pandas as pd
+    
+    with st.form(f"add_{mapping_type}_{processor}"):
+        new_values = {}
+        cols = st.columns(len(columns))
+        
+        for i, col_name in enumerate(columns):
+            with cols[i]:
+                new_values[col_name] = st.text_input(col_name, key=f"new_{col_name}_{processor}")
+        
+        submitted = st.form_submit_button("Add Mapping")
+        
+        if submitted and all(new_values.values()):
+            try:
+                df = pd.read_csv(file_path, dtype=str)
+                new_row = pd.DataFrame([new_values])
+                updated_df = pd.concat([df, new_row], ignore_index=True)
+                updated_df.to_csv(file_path, index=False)
+                st.success(f"{mapping_type} mapping added successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to add mapping: {e}")
+
+def save_uploaded_mapping(uploaded_file, file_path: str):
+    """Save uploaded mapping file"""
+    
+    import os
+    
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Save the uploaded file
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
+        
+        st.success(f"✅ Mapping file saved to {file_path}")
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Failed to save mapping file: {e}")
+
+def create_new_mapping_file(file_path: str, columns: list):
+    """Create a new empty mapping file"""
+    
+    import pandas as pd
+    import os
+    
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Create empty DataFrame with specified columns
+        df = pd.DataFrame(columns=list(columns))
+        df.to_csv(file_path, index=False)
+        
+        st.success(f"✅ Created new mapping file: {file_path}")
+        
+    except Exception as e:
+        st.error(f"❌ Failed to create mapping file: {e}")
 
 def show_editable_store_mappings(mapping_utils, sources, db_service):
     """Show editable store mappings interface"""
