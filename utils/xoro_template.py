@@ -122,10 +122,10 @@ class XoroTemplate:
             'CustomerId': '',
             'CustomerAccountNumber': '',
             
-            # Order dates - handle both datetime objects and strings
-            'OrderDate': order_date.strftime('%Y-%m-%d') if hasattr(order_date, 'strftime') else (order_date if order_date else ''),
-            'DateToBeShipped': shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else ''),
-            'LastDateToBeShipped': shipping_date.strftime('%Y-%m-%d') if hasattr(shipping_date, 'strftime') else (shipping_date if shipping_date else ''),
+            # Order dates - handle both datetime objects and strings with debugging
+            'OrderDate': self._format_date_with_debug(order_date, 'OrderDate', source_name),
+            'DateToBeShipped': self._format_date_with_debug(shipping_date, 'DateToBeShipped', source_name),
+            'LastDateToBeShipped': self._format_date_with_debug(shipping_date, 'LastDateToBeShipped', source_name),
             'DateToBeCancelled': '',
             
             # Order classification - Keep empty as requested
@@ -230,6 +230,26 @@ class XoroTemplate:
                 errors.append(f"Invalid date format for {field}: {date_value}")
         
         return errors
+    
+    def _format_date_with_debug(self, date_value: Any, field_name: str, source_name: str) -> str:
+        """Format date value with debug logging"""
+        
+        print(f"DEBUG: {source_name} - Formatting {field_name}: {date_value} (type: {type(date_value)})")
+        
+        if not date_value:
+            print(f"DEBUG: {source_name} - {field_name} is empty/None")
+            return ''
+        
+        if hasattr(date_value, 'strftime'):
+            result = date_value.strftime('%Y-%m-%d')
+            print(f"DEBUG: {source_name} - {field_name} datetime formatted: {result}")
+            return result
+        elif isinstance(date_value, str) and date_value.strip():
+            print(f"DEBUG: {source_name} - {field_name} string value: '{date_value}'")
+            return date_value
+        else:
+            print(f"DEBUG: {source_name} - {field_name} fallback to empty string")
+            return ''
     
     def _is_valid_date(self, date_str: str) -> bool:
         """Check if date string is in valid format"""
