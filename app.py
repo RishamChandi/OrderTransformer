@@ -141,11 +141,9 @@ def main():
     # Initialize database service
     db_service = DatabaseService()
     
-    # Two-dropdown navigation system
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 🎯 Select Client/Source")
+    # Sidebar navigation system
+    with st.sidebar:
+        st.markdown("## 🎯 Client/Source")
         sources = {
             "🌐 All Sources": "all",
             "🛒 Whole Foods": "wholefoods", 
@@ -158,14 +156,14 @@ def main():
         selected_source_name = st.selectbox(
             "Choose your client:",
             list(sources.keys()),
-            index=0,
-            label_visibility="collapsed"
+            index=0
         )
         selected_source = sources[selected_source_name]
         source_display_name = selected_source_name.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
-    
-    with col2:
-        st.markdown("### ⚡ Select Action")
+        
+        st.markdown("---")
+        
+        st.markdown("## ⚡ Action")
         actions = {
             "📝 Process Orders": "process",
             "📊 Order History": "history",
@@ -176,8 +174,7 @@ def main():
         selected_action_name = st.selectbox(
             "Choose your action:",
             list(actions.keys()),
-            index=0,
-            label_visibility="collapsed"
+            index=0
         )
         action = actions[selected_action_name]
     
@@ -825,7 +822,8 @@ def create_new_mapping_file(file_path: str, columns: list):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         # Create empty DataFrame with specified columns
-        df = pd.DataFrame(data=[], columns=list(columns))
+        column_names = list(columns) if not isinstance(columns, list) else columns
+        df = pd.DataFrame(data=None, index=[], columns=column_names)
         df.to_csv(file_path, index=False)
         
         st.success(f"✅ Created new mapping file: {file_path}")
@@ -1078,8 +1076,9 @@ def clear_all_mappings(file_path: str, mapping_type: str, processor: str):
             else:
                 columns = ["Raw Item Number", "Mapped Item Number"]
         
-        # Create empty DataFrame  
-        empty_df = pd.DataFrame(data=[], columns=list(columns))
+        # Create empty DataFrame
+        column_names = list(columns) if not isinstance(columns, list) else columns
+        empty_df = pd.DataFrame(data=None, index=[], columns=column_names)
         empty_df.to_csv(file_path, index=False)
         
         st.success(f"✅ Cleared all {mapping_type.lower()} mappings")
