@@ -825,7 +825,7 @@ def create_new_mapping_file(file_path: str, columns: list):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         # Create empty DataFrame with specified columns
-        df = pd.DataFrame([], columns=columns)
+        df = pd.DataFrame(data=[], columns=list(columns))
         df.to_csv(file_path, index=False)
         
         st.success(f"✅ Created new mapping file: {file_path}")
@@ -1078,8 +1078,8 @@ def clear_all_mappings(file_path: str, mapping_type: str, processor: str):
             else:
                 columns = ["Raw Item Number", "Mapped Item Number"]
         
-        # Create empty DataFrame
-        empty_df = pd.DataFrame([], columns=list(columns))
+        # Create empty DataFrame  
+        empty_df = pd.DataFrame(data=[], columns=list(columns))
         empty_df.to_csv(file_path, index=False)
         
         st.success(f"✅ Cleared all {mapping_type.lower()} mappings")
