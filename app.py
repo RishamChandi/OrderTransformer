@@ -825,7 +825,7 @@ def create_new_mapping_file(file_path: str, columns: list):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         # Create empty DataFrame with specified columns
-        df = pd.DataFrame(columns=list(columns))
+        df = pd.DataFrame(columns=columns)
         df.to_csv(file_path, index=False)
         
         st.success(f"✅ Created new mapping file: {file_path}")
@@ -916,7 +916,7 @@ def delete_mapping_row(file_path: str, row_index: int, mapping_type: str, proces
         # Remove the row at the specified index
         if 0 <= row_index < len(df):
             deleted_row = df.iloc[row_index]
-            df = df.drop(df.index[row_index]).reset_index(drop=True)
+            df = df.drop(index=row_index).reset_index(drop=True)
             df.to_csv(file_path, index=False)
             
             st.success(f"✅ Deleted {mapping_type.lower()} mapping: {deleted_row.iloc[0]}")
@@ -1079,7 +1079,7 @@ def clear_all_mappings(file_path: str, mapping_type: str, processor: str):
                 columns = ["Raw Item Number", "Mapped Item Number"]
         
         # Create empty DataFrame
-        empty_df = pd.DataFrame(columns=columns)
+        empty_df = pd.DataFrame(columns=list(columns))
         empty_df.to_csv(file_path, index=False)
         
         st.success(f"✅ Cleared all {mapping_type.lower()} mappings")
