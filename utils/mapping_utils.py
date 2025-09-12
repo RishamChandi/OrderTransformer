@@ -4,7 +4,7 @@ Utilities for handling customer and store name mappings
 
 import pandas as pd
 import os
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 class MappingUtils:
     """Utilities for mapping customer/store names"""
@@ -313,3 +313,100 @@ class MappingUtils:
         except Exception as e:
             # Use empty mapping on error
             self.mapping_cache[item_mapping_key] = {}
+    
+    def resolve_item_number(self, item_attributes: Dict[str, Any], source: str) -> Optional[str]:
+        """
+        Resolve item number using priority-based lookup across multiple key types.
+        
+        This is the NEW enhanced method that uses the database-backed priority system
+        to resolve items using multiple attribute types in priority order.
+        
+        Args:
+            item_attributes: Dictionary with potential keys like:
+                           {'vendor_item': 'ABC123', 'upc': '123456789', 'ean': '0123456789012'}
+            source: Source system (e.g., 'kehe', 'wholefoods', 'unfi_east', 'unfi_west')
+            
+        Returns:
+            Mapped item number if found using priority resolution, None if not found
+        """
+        
+        if not item_attributes or not source:
+            return None
+        
+        # Clean and prepare lookup attributes
+        lookup_attributes = {}
+        for key, value in item_attributes.items():
+            if value and str(value).strip():
+                # Normalize key names to standard types
+                normalized_key = self._normalize_key_type(key)
+                if normalized_key:
+                    lookup_attributes[normalized_key] = str(value).strip()
+        
+        if not lookup_attributes:
+            return None
+        
+        # Use database service for priority-based resolution
+        if self.use_database and self.db_service:
+            try:
+                resolved_item = self.db_service.resolve_item_number(lookup_attributes, source)
+                if resolved_item:
+                    return resolved_item
+            except Exception:
+                pass  # Fall back to legacy method
+        
+        # Fallback to legacy single-key resolution for backward compatibility
+        # Try vendor_item first, then other common keys
+        fallback_order = ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias']
+        
+        for key_type in fallback_order:
+            if key_type in lookup_attributes:
+                legacy_result = self.get_item_mapping(lookup_attributes[key_type], source)
+                # Only return if we actually found a mapping (not just the original value)
+                if legacy_result != lookup_attributes[key_type]:
+                    return legacy_result
+        
+        return None
+    
+    def _normalize_key_type(self, key: str) -> Optional[str]:
+        """
+        Normalize various key type names to standard format.
+        
+        Args:
+            key: Raw key name from parser (e.g., 'Vendor Item#', 'UPC Code', 'Item Number')
+            
+        Returns:
+            Standardized key type or None if not recognized
+        """
+        
+        if not key:
+            return None
+        
+        key_lower = key.lower().strip()
+        
+        # Vendor item variations
+        if any(term in key_lower for term in ['vendor', 'item', 'product', 'part', 'model']):
+            if 'upc' not in key_lower and 'ean' not in key_lower:
+                return 'vendor_item'
+        
+        # UPC variations  
+        if 'upc' in key_lower:
+            return 'upc'
+        
+        # EAN variations
+        if 'ean' in key_lower:
+            return 'ean'
+        
+        # GTIN variations
+        if 'gtin' in key_lower:
+            return 'gtin'
+        
+        # SKU variations
+        if 'sku' in key_lower:
+            return 'sku_alias'
+        
+        # Direct key type matches
+        standard_keys = ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias']
+        if key_lower in standard_keys:
+            return key_lower
+        
+        return 'vendor_item'  # Default fallback
