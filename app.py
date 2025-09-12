@@ -653,30 +653,652 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
     display_csv_mapping(mapping_file, "Store", ["Raw Store ID", "Xoro Store Name"], processor)
 
 def show_item_mapping_manager(processor: str, db_service: DatabaseService):
-    """Item mapping management with CSV support"""
+    """Enhanced Item Mapping Management with Standard Template System"""
     
-    st.subheader("📦 Item Mapping")
-    st.write("Maps raw item numbers to Xoro item numbers")
+    st.subheader("📦 Item Mapping Template System")
+    st.write("Database-backed priority mapping with multiple key types (vendor_item, UPC, EAN, GTIN, SKU)")
     
-    mapping_file = f"mappings/{processor}/item_mapping.csv"
+    # Enhanced UI with filters and controls
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
     
-    # Upload section  
-    with st.expander("📤 Upload Item Mapping File"):
-        uploaded_file = st.file_uploader(
-            "Upload CSV file", 
-            type=['csv'], 
-            key=f"item_upload_{processor}"
+    with col1:
+        # Source filter (processor is pre-selected but can be changed)
+        source_options = ['all', 'kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
+        source_index = source_options.index(processor) if processor in source_options else 1
+        selected_source = st.selectbox(
+            "📍 Source Filter", 
+            source_options, 
+            index=source_index,
+            key=f"source_filter_{processor}"
         )
-        if uploaded_file and st.button("Save Item Mapping", key=f"save_item_{processor}"):
-            save_uploaded_mapping(uploaded_file, mapping_file)
     
-    # Display and edit current mappings
-    if processor == 'kehe':
-        # Special handling for KEHE - use the existing kehe_item_mapping.csv
-        kehe_file = "mappings/kehe_item_mapping.csv"
-        display_csv_mapping(kehe_file, "Item", ["KeHE Number", "Xoro Item Number", "Description"], processor)
-    else:
-        display_csv_mapping(mapping_file, "Item", ["Raw Item Number", "Mapped Item Number"], processor)
+    with col2:
+        # Key type filter
+        key_type_options = ['all', 'vendor_item', 'upc', 'ean', 'gtin', 'sku_alias']
+        selected_key_type = st.selectbox(
+            "🔑 Key Type", 
+            key_type_options,
+            key=f"key_type_filter_{processor}"
+        )
+    
+    with col3:
+        # Active status filter
+        active_options = {'All': None, 'Active Only': True, 'Inactive Only': False}
+        selected_active_name = st.selectbox(
+            "✅ Status", 
+            list(active_options.keys()),
+            key=f"active_filter_{processor}"
+        )
+        active_filter = active_options[selected_active_name]
+    
+    with col4:
+        # Search filter
+        search_term = st.text_input(
+            "🔍 Search", 
+            placeholder="Search items, vendors...",
+            key=f"search_filter_{processor}"
+        )
+    
+    st.markdown("---")
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"download_template_{processor}"):
+            show_template_download()
+    
+    with col2:
+        if st.button("📊 Export Current", key=f"export_current_{processor}"):
+            export_current_mappings(db_service, selected_source if selected_source != 'all' else None)
+    
+    with col3:
+        if st.button("📤 Upload Mappings", key=f"upload_mappings_{processor}"):
+            st.session_state[f'show_upload_{processor}'] = True
+    
+    with col4:
+        if st.button("➕ Add New Mapping", key=f"add_new_{processor}"):
+            st.session_state[f'show_add_form_{processor}'] = True
+    
+    with col5:
+        if st.button("🔄 Refresh Data", key=f"refresh_data_{processor}"):
+            st.rerun()
+    
+    # Show upload form if requested
+    if st.session_state.get(f'show_upload_{processor}', False):
+        show_mapping_upload_form(db_service, processor)
+    
+    # Show add form if requested  
+    if st.session_state.get(f'show_add_form_{processor}', False):
+        show_add_mapping_form(db_service, processor)
+    
+    st.markdown("---")
+    
+    # Get and display mappings
+    try:
+        # Apply filters
+        source_param = selected_source if selected_source != 'all' else None
+        key_type_param = selected_key_type if selected_key_type != 'all' else None
+        search_param = search_term if search_term.strip() else None
+        
+        # Get filtered mappings from database
+        mappings = db_service.get_item_mappings_advanced(
+            source=source_param,
+            active_only=False,  # We'll filter by active status below
+            key_type=key_type_param,
+            search_term=search_param
+        )
+        
+        # Apply active filter if specified
+        if active_filter is not None:
+            mappings = [m for m in mappings if m['active'] == active_filter]
+        
+        if mappings:
+            st.success(f"✅ Found {len(mappings)} item mappings")
+            
+            # Display mode selection
+            display_mode = st.radio(
+                "Display Mode:",
+                ["📋 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
+                horizontal=True,
+                key=f"display_mode_{processor}"
+            )
+            
+            if display_mode == "📋 Data Editor (Bulk Edit)":
+                show_data_editor_mappings(mappings, db_service, processor)
+            else:
+                show_row_by_row_mappings(mappings, db_service, processor)
+                
+        else:
+            st.info("🔍 No item mappings found with current filters")
+            
+            # Suggest creating new mappings
+            st.markdown("### 🚀 Get Started")
+            st.write("Start by downloading the template or adding your first mapping:")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📥 Download Empty Template", key=f"download_empty_{processor}"):
+                    show_template_download()
+            with col2:
+                if st.button("➕ Add First Mapping", key=f"add_first_{processor}"):
+                    st.session_state[f'show_add_form_{processor}'] = True
+                    st.rerun()
+    
+    except Exception as e:
+        st.error(f"❌ Error loading item mappings: {e}")
+        st.write("**Troubleshooting:**")
+        st.write("1. Check database connection")
+        st.write("2. Verify migration has been run")
+        st.write("3. Check server logs for details")
+
+def show_template_download():
+    """Show template download with standard columns"""
+    
+    # Create empty DataFrame with standard template columns
+    template_data = {
+        'Source': ['kehe', 'wholefoods', 'unfi_east'],
+        'RawKeyType': ['vendor_item', 'upc', 'vendor_item'], 
+        'RawKeyValue': ['00110368', '123456789012', 'ABC123'],
+        'MappedItemNumber': ['XO-123', 'XO-456', 'XO-789'],
+        'Vendor': ['KEHE', 'Whole Foods', 'UNFI'],
+        'MappedDescription': ['Sample Product 1', 'Sample Product 2', 'Sample Product 3'],
+        'Priority': [100, 200, 150],
+        'Active': [True, True, False],
+        'Notes': ['Primary mapping', 'UPC backup', 'Discontinued item']
+    }
+    
+    template_df = pd.DataFrame(template_data)
+    template_csv = template_df.to_csv(index=False)
+    
+    st.download_button(
+        label="📥 Download Standard Template",
+        data=template_csv,
+        file_name="item_mapping_template.csv",
+        mime="text/csv",
+        help="Download the standard item mapping template with sample data"
+    )
+    
+    st.info("📋 **Template Columns Explained:**")
+    st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, etc.)")
+    st.write("• **RawKeyType**: Type of key (vendor_item, upc, ean, gtin, sku_alias)")
+    st.write("• **RawKeyValue**: Original item identifier from order files")
+    st.write("• **MappedItemNumber**: Target Xoro item number")
+    st.write("• **Vendor**: Vendor name (optional)")
+    st.write("• **MappedDescription**: Product description (optional)")
+    st.write("• **Priority**: Resolution priority (100=highest, 999=lowest)")
+    st.write("• **Active**: Whether mapping is active (true/false)")
+    st.write("• **Notes**: Additional notes (optional)")
+
+def export_current_mappings(db_service: DatabaseService, source_filter: str = None):
+    """Export current mappings to CSV"""
+    
+    try:
+        # Get current mappings from database
+        df = db_service.export_item_mappings_to_dataframe(source=source_filter)
+        
+        if len(df) == 0:
+            st.warning("⚠️ No mappings found to export")
+            return
+        
+        # Generate filename
+        source_part = f"_{source_filter}" if source_filter else "_all_sources"
+        filename = f"item_mappings{source_part}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        csv_data = df.to_csv(index=False)
+        
+        st.download_button(
+            label=f"📊 Download {len(df)} Mappings",
+            data=csv_data,
+            file_name=filename,
+            mime="text/csv",
+            help=f"Export {len(df)} current mappings to CSV"
+        )
+        
+        st.success(f"✅ Ready to download {len(df)} mappings")
+        
+    except Exception as e:
+        st.error(f"❌ Export failed: {e}")
+
+def show_mapping_upload_form(db_service: DatabaseService, processor: str):
+    """Show form for uploading mapping files"""
+    
+    with st.expander("📤 Upload Item Mappings", expanded=True):
+        st.write("Upload a CSV file with the standard template format")
+        
+        uploaded_file = st.file_uploader(
+            "Choose CSV file",
+            type=['csv'],
+            key=f"upload_file_{processor}",
+            help="Use the standard template format"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Read and validate uploaded file
+                df = pd.read_csv(uploaded_file)
+                
+                st.write(f"📋 **File Preview** ({len(df)} rows):")
+                st.dataframe(df.head(10), use_container_width=True)
+                
+                # Validate required columns
+                required_columns = ['Source', 'RawKeyType', 'RawKeyValue', 'MappedItemNumber']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"❌ Missing required columns: {missing_columns}")
+                    st.info("Required columns: Source, RawKeyType, RawKeyValue, MappedItemNumber")
+                else:
+                    # Show upload options
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if st.button("✅ Upload Mappings", key=f"confirm_upload_{processor}"):
+                            upload_mappings_to_database(df, db_service, processor)
+                    
+                    with col2:
+                        if st.button("❌ Cancel Upload", key=f"cancel_upload_{processor}"):
+                            st.session_state[f'show_upload_{processor}'] = False
+                            st.rerun()
+                        
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+
+def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
+    """Upload mappings from DataFrame to database"""
+    
+    try:
+        # Convert DataFrame to list of dictionaries
+        mappings_data = []
+        for _, row in df.iterrows():
+            mapping = {
+                'source': str(row.get('Source', '')).strip(),
+                'raw_item': str(row.get('RawKeyValue', '')).strip(),
+                'mapped_item': str(row.get('MappedItemNumber', '')).strip(),
+                'key_type': str(row.get('RawKeyType', 'vendor_item')).strip(),
+                'priority': int(row.get('Priority', 100)),
+                'active': bool(row.get('Active', True)),
+                'vendor': str(row.get('Vendor', '')).strip() if pd.notna(row.get('Vendor')) else None,
+                'mapped_description': str(row.get('MappedDescription', '')).strip() if pd.notna(row.get('MappedDescription')) else None,
+                'notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) else None
+            }
+            mappings_data.append(mapping)
+        
+        # Bulk upload to database
+        results = db_service.bulk_upsert_item_mappings(mappings_data)
+        
+        # Show results
+        if results['errors'] == 0:
+            st.success(f"✅ Successfully uploaded {results['added']} new mappings and updated {results['updated']} existing mappings")
+        else:
+            st.warning(f"⚠️ Upload completed with {results['errors']} errors. Added: {results['added']}, Updated: {results['updated']}")
+            with st.expander("❌ Error Details"):
+                for error in results['error_details']:
+                    st.write(f"• {error}")
+        
+        # Close upload form and refresh
+        st.session_state[f'show_upload_{processor}'] = False
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Upload failed: {e}")
+
+def show_add_mapping_form(db_service: DatabaseService, processor: str):
+    """Show form for adding new mapping"""
+    
+    with st.expander("➕ Add New Item Mapping", expanded=True):
+        with st.form(f"add_mapping_form_{processor}"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                source = st.selectbox("Source", ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'], 
+                                    index=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'].index(processor) if processor in ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'] else 0)
+                key_type = st.selectbox("Key Type", ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias'])
+                raw_item = st.text_input("Raw Key Value *", placeholder="e.g., 00110368")
+                mapped_item = st.text_input("Mapped Item Number *", placeholder="e.g., XO-123")
+                
+            with col2:
+                vendor = st.text_input("Vendor", placeholder="Optional")
+                mapped_description = st.text_input("Description", placeholder="Optional")
+                priority = st.number_input("Priority", min_value=1, max_value=999, value=100, help="Lower = higher priority")
+                active = st.checkbox("Active", value=True)
+                notes = st.text_area("Notes", placeholder="Optional notes")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                submitted = st.form_submit_button("✅ Add Mapping")
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    st.session_state[f'show_add_form_{processor}'] = False
+                    st.rerun()
+            
+            if submitted:
+                if raw_item and mapped_item:
+                    try:
+                        mapping_data = [{
+                            'source': source,
+                            'raw_item': raw_item,
+                            'mapped_item': mapped_item,
+                            'key_type': key_type,
+                            'priority': priority,
+                            'active': active,
+                            'vendor': vendor if vendor.strip() else None,
+                            'mapped_description': mapped_description if mapped_description.strip() else None,
+                            'notes': notes if notes.strip() else None
+                        }]
+                        
+                        results = db_service.bulk_upsert_item_mappings(mapping_data)
+                        
+                        if results['errors'] == 0:
+                            st.success("✅ Mapping added successfully!")
+                            st.session_state[f'show_add_form_{processor}'] = False
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Failed to add mapping: {results['error_details']}")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error adding mapping: {e}")
+                else:
+                    st.error("❌ Raw Key Value and Mapped Item Number are required")
+
+def show_data_editor_mappings(mappings: list, db_service: DatabaseService, processor: str):
+    """Show mappings in Streamlit data editor for bulk editing"""
+    
+    try:
+        # Convert to DataFrame for data editor
+        df_data = []
+        for mapping in mappings:
+            df_data.append({
+                'ID': mapping['id'],
+                'Source': mapping['source'],
+                'Key Type': mapping['key_type'],
+                'Raw Value': mapping['raw_item'],
+                'Mapped Item': mapping['mapped_item'],
+                'Vendor': mapping['vendor'],
+                'Description': mapping['mapped_description'],
+                'Priority': mapping['priority'],
+                'Active': mapping['active'],
+                'Notes': mapping['notes']
+            })
+        
+        if not df_data:
+            st.info("No mappings to display")
+            return
+        
+        df = pd.DataFrame(df_data)
+        
+        # Configure column types for data editor
+        column_config = {
+            'ID': st.column_config.NumberColumn('ID', disabled=True, width='small'),
+            'Source': st.column_config.SelectboxColumn('Source', 
+                options=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'], width='medium'),
+            'Key Type': st.column_config.SelectboxColumn('Key Type',
+                options=['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias'], width='medium'),
+            'Raw Value': st.column_config.TextColumn('Raw Value', width='medium'),
+            'Mapped Item': st.column_config.TextColumn('Mapped Item', width='medium'),
+            'Vendor': st.column_config.TextColumn('Vendor', width='medium'),
+            'Description': st.column_config.TextColumn('Description', width='large'),
+            'Priority': st.column_config.NumberColumn('Priority', min_value=1, max_value=999, width='small'),
+            'Active': st.column_config.CheckboxColumn('Active', width='small'),
+            'Notes': st.column_config.TextColumn('Notes', width='large')
+        }
+        
+        # Show data editor
+        edited_df = st.data_editor(
+            df,
+            column_config=column_config,
+            use_container_width=True,
+            num_rows="fixed",
+            hide_index=True,
+            key=f"data_editor_{processor}"
+        )
+        
+        # Show action buttons
+        col1, col2, col3 = st.columns([2, 2, 6])
+        
+        with col1:
+            if st.button("💾 Save Changes", key=f"save_bulk_{processor}"):
+                save_bulk_changes(edited_df, df, db_service, processor)
+        
+        with col2:
+            if st.button("🗑️ Delete Selected", key=f"delete_bulk_{processor}"):
+                st.session_state[f'show_delete_confirm_{processor}'] = True
+        
+        # Show delete confirmation if requested
+        if st.session_state.get(f'show_delete_confirm_{processor}', False):
+            show_bulk_delete_confirmation(edited_df, db_service, processor)
+            
+    except Exception as e:
+        st.error(f"❌ Error displaying data editor: {e}")
+
+def show_row_by_row_mappings(mappings: list, db_service: DatabaseService, processor: str):
+    """Show mappings in row-by-row format with individual edit/delete buttons"""
+    
+    try:
+        # Pagination for large datasets
+        items_per_page = 10
+        total_items = len(mappings)
+        total_pages = (total_items + items_per_page - 1) // items_per_page
+        
+        if total_pages > 1:
+            page = st.selectbox(
+                "Page", 
+                range(1, total_pages + 1), 
+                key=f"page_selector_{processor}"
+            ) - 1
+        else:
+            page = 0
+        
+        start_idx = page * items_per_page
+        end_idx = min(start_idx + items_per_page, total_items)
+        page_mappings = mappings[start_idx:end_idx]
+        
+        st.write(f"Showing {len(page_mappings)} of {total_items} mappings (Page {page + 1} of {total_pages})")
+        
+        # Display each mapping as a card with edit/delete options
+        for i, mapping in enumerate(page_mappings):
+            with st.container():
+                # Create a border using markdown
+                st.markdown(f"""
+                <div style="border: 1px solid #ddd; border-radius: 5px; padding: 1rem; margin: 0.5rem 0; 
+                           background-color: {'#f0f8f0' if mapping['active'] else '#f8f0f0'}">
+                """, unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns([6, 2, 2])
+                
+                with col1:
+                    # Main mapping info
+                    st.write(f"**{mapping['source'].upper()}** • {mapping['key_type']}")
+                    st.write(f"**Raw:** `{mapping['raw_item']}` → **Mapped:** `{mapping['mapped_item']}`")
+                    
+                    if mapping['vendor']:
+                        st.write(f"🏭 **Vendor:** {mapping['vendor']}")
+                    if mapping['mapped_description']:
+                        st.write(f"📝 **Description:** {mapping['mapped_description']}")
+                    if mapping['notes']:
+                        st.write(f"💬 **Notes:** {mapping['notes']}")
+                    
+                    # Status and priority info
+                    status_color = "🟢" if mapping['active'] else "🔴"
+                    st.write(f"{status_color} **Status:** {'Active' if mapping['active'] else 'Inactive'} • **Priority:** {mapping['priority']}")
+                
+                with col2:
+                    if st.button("✏️ Edit", key=f"edit_{mapping['id']}_{processor}"):
+                        st.session_state[f'edit_mapping_{processor}'] = mapping
+                        st.rerun()
+                
+                with col3:
+                    if st.button("🗑️ Delete", key=f"delete_{mapping['id']}_{processor}"):
+                        st.session_state[f'delete_mapping_{processor}'] = mapping
+                        st.rerun()
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Show edit form if a mapping is being edited
+        if st.session_state.get(f'edit_mapping_{processor}'):
+            show_edit_mapping_form(st.session_state[f'edit_mapping_{processor}'], db_service, processor)
+        
+        # Show delete confirmation if a mapping is being deleted
+        if st.session_state.get(f'delete_mapping_{processor}'):
+            show_delete_confirmation(st.session_state[f'delete_mapping_{processor}'], db_service, processor)
+            
+    except Exception as e:
+        st.error(f"❌ Error displaying mappings: {e}")
+
+def save_bulk_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame, db_service: DatabaseService, processor: str):
+    """Save bulk changes from data editor"""
+    
+    try:
+        changes_made = False
+        mappings_data = []
+        
+        for idx, row in edited_df.iterrows():
+            original_row = original_df.iloc[idx]
+            
+            # Check if any changes were made to this row
+            if not row.equals(original_row):
+                changes_made = True
+                
+                mapping = {
+                    'source': str(row['Source']).strip(),
+                    'raw_item': str(row['Raw Value']).strip(),
+                    'mapped_item': str(row['Mapped Item']).strip(),
+                    'key_type': str(row['Key Type']).strip(),
+                    'priority': int(row['Priority']),
+                    'active': bool(row['Active']),
+                    'vendor': str(row['Vendor']).strip() if pd.notna(row['Vendor']) and str(row['Vendor']).strip() else None,
+                    'mapped_description': str(row['Description']).strip() if pd.notna(row['Description']) and str(row['Description']).strip() else None,
+                    'notes': str(row['Notes']).strip() if pd.notna(row['Notes']) and str(row['Notes']).strip() else None
+                }
+                mappings_data.append(mapping)
+        
+        if changes_made:
+            results = db_service.bulk_upsert_item_mappings(mappings_data)
+            
+            if results['errors'] == 0:
+                st.success(f"✅ Successfully saved {len(mappings_data)} changes!")
+                st.rerun()
+            else:
+                st.error(f"❌ {results['errors']} errors occurred while saving changes")
+                with st.expander("Error Details"):
+                    for error in results['error_details']:
+                        st.write(f"• {error}")
+        else:
+            st.info("ℹ️ No changes detected")
+            
+    except Exception as e:
+        st.error(f"❌ Error saving changes: {e}")
+
+def show_edit_mapping_form(mapping: dict, db_service: DatabaseService, processor: str):
+    """Show form to edit individual mapping"""
+    
+    with st.expander("✏️ Edit Item Mapping", expanded=True):
+        with st.form(f"edit_mapping_form_{processor}"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                source = st.selectbox("Source", ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'], 
+                                    value=mapping['source'])
+                key_type = st.selectbox("Key Type", ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias'],
+                                      value=mapping['key_type'])
+                raw_item = st.text_input("Raw Key Value *", value=mapping['raw_item'])
+                mapped_item = st.text_input("Mapped Item Number *", value=mapping['mapped_item'])
+                
+            with col2:
+                vendor = st.text_input("Vendor", value=mapping['vendor'] or "")
+                mapped_description = st.text_input("Description", value=mapping['mapped_description'] or "")
+                priority = st.number_input("Priority", min_value=1, max_value=999, value=mapping['priority'])
+                active = st.checkbox("Active", value=mapping['active'])
+                notes = st.text_area("Notes", value=mapping['notes'] or "")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                submitted = st.form_submit_button("💾 Save Changes")
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    del st.session_state[f'edit_mapping_{processor}']
+                    st.rerun()
+            
+            if submitted:
+                try:
+                    mapping_data = [{
+                        'source': source,
+                        'raw_item': raw_item,
+                        'mapped_item': mapped_item,
+                        'key_type': key_type,
+                        'priority': priority,
+                        'active': active,
+                        'vendor': vendor if vendor.strip() else None,
+                        'mapped_description': mapped_description if mapped_description.strip() else None,
+                        'notes': notes if notes.strip() else None
+                    }]
+                    
+                    results = db_service.bulk_upsert_item_mappings(mapping_data)
+                    
+                    if results['errors'] == 0:
+                        st.success("✅ Mapping updated successfully!")
+                        del st.session_state[f'edit_mapping_{processor}']
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to update mapping: {results['error_details']}")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error updating mapping: {e}")
+
+def show_delete_confirmation(mapping: dict, db_service: DatabaseService, processor: str):
+    """Show delete confirmation dialog"""
+    
+    with st.expander("🗑️ Confirm Delete", expanded=True):
+        st.warning(f"Are you sure you want to delete this mapping?")
+        st.write(f"**Source:** {mapping['source']}")
+        st.write(f"**Raw Value:** {mapping['raw_item']}")
+        st.write(f"**Mapped Item:** {mapping['mapped_item']}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Confirm Delete", key=f"confirm_delete_{processor}"):
+                try:
+                    count = db_service.delete_item_mappings([mapping['id']])
+                    if count > 0:
+                        st.success("✅ Mapping deleted successfully!")
+                        del st.session_state[f'delete_mapping_{processor}']
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to delete mapping")
+                except Exception as e:
+                    st.error(f"❌ Error deleting mapping: {e}")
+        
+        with col2:
+            if st.button("❌ Cancel Delete", key=f"cancel_delete_{processor}"):
+                del st.session_state[f'delete_mapping_{processor}']
+                st.rerun()
+
+def show_bulk_delete_confirmation(df: pd.DataFrame, db_service: DatabaseService, processor: str):
+    """Show bulk delete confirmation"""
+    
+    with st.expander("🗑️ Bulk Delete Confirmation", expanded=True):
+        st.warning("This will delete ALL currently displayed mappings. This action cannot be undone!")
+        st.write(f"**Total mappings to delete:** {len(df)}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Confirm Bulk Delete", key=f"confirm_bulk_delete_{processor}"):
+                try:
+                    mapping_ids = df['ID'].tolist()
+                    count = db_service.delete_item_mappings(mapping_ids)
+                    if count > 0:
+                        st.success(f"✅ Successfully deleted {count} mappings!")
+                        del st.session_state[f'show_delete_confirm_{processor}']
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to delete mappings")
+                except Exception as e:
+                    st.error(f"❌ Error deleting mappings: {e}")
+        
+        with col2:
+            if st.button("❌ Cancel", key=f"cancel_bulk_delete_{processor}"):
+                del st.session_state[f'show_delete_confirm_{processor}']
+                st.rerun()
 
 def display_csv_mapping(file_path: str, mapping_type: str, columns: list, processor: str):
     """Display and edit CSV mapping with download option"""
