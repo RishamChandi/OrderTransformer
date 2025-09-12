@@ -19,10 +19,9 @@ class KEHEParser(BaseParser):
         self.source_name = "KEHE - SPS"
         self.mapping_utils = MappingUtils()
         
-        # Load KEHE customer mapping
+        # Load legacy KEHE mappings for backward compatibility
+        # NEW: These now serve as fallbacks to the database-first system
         self.customer_mapping = self._load_customer_mapping()
-        
-        # Load KEHE item mapping
         self.item_mapping = self._load_item_mapping()
         
     def _load_customer_mapping(self) -> Dict[str, str]:
@@ -134,16 +133,34 @@ class KEHEParser(BaseParser):
                     if not kehe_number or quantity <= 0:
                         continue
                     
-                    # Map KEHE number to Xoro item number using KEHE-specific mapping
-                    mapped_item = kehe_number  # Default fallback
-                    if kehe_number in self.item_mapping:
-                        mapped_item = self.item_mapping[kehe_number]
-                        print(f"DEBUG: KEHE Item Mapping: '{kehe_number}' → '{mapped_item}'")
+                    # NEW: Use priority-based multi-key resolution system
+                    # Extract multiple key types from KEHE data
+                    item_attributes = {
+                        'vendor_item': kehe_number  # Primary KEHE number
+                    }
+                    
+                    # Add vendor style if available (could be UPC or other identifier)
+                    vendor_style = str(row.get('Vendor Style', '')).strip()
+                    if vendor_style and vendor_style != 'nan' and vendor_style != '':
+                        # Try to determine if vendor style is UPC (typically 12 digits)
+                        if vendor_style.isdigit() and len(vendor_style) == 12:
+                            item_attributes['upc'] = vendor_style
+                        else:
+                            item_attributes['sku_alias'] = vendor_style
+                    
+                    # Use enhanced mapping resolution with priority system
+                    mapped_item = self.mapping_utils.resolve_item_number(item_attributes, 'kehe')
+                    
+                    if mapped_item:
+                        print(f"DEBUG: KEHE Priority Mapping: {item_attributes} → '{mapped_item}'")
                     else:
-                        print(f"DEBUG: No KEHE item mapping found for '{kehe_number}', using raw number")
-                        # Show available mappings for troubleshooting
-                        if len(self.item_mapping) > 0:
-                            print(f"DEBUG: Available item mappings: {list(self.item_mapping.keys())[:3]}...")
+                        # Fallback to legacy CSV mapping for backward compatibility
+                        if kehe_number in self.item_mapping:
+                            mapped_item = self.item_mapping[kehe_number]
+                            print(f"DEBUG: KEHE Legacy Mapping: '{kehe_number}' → '{mapped_item}'")
+                        else:
+                            mapped_item = kehe_number  # Final fallback to original number
+                            print(f"DEBUG: No KEHE mapping found for '{kehe_number}', using raw number")
                     
                     # Extract dates
                     po_date = self.parse_date(str(header_info.get('PO Date', '')))
@@ -166,16 +183,20 @@ class KEHEParser(BaseParser):
                         ship_to_location = '0' + ship_to_location
                         print(f"DEBUG: Added leading zero to Ship To Location: '{ship_to_location_raw}' → '{ship_to_location}'")
                     
-                    # Map Ship To Location to customer using the mapping file
+                    # NEW: Use database-first store mapping resolution
                     customer_name = "IDI - Richmond"  # Default value
-                    if ship_to_location and ship_to_location in self.customer_mapping:
-                        customer_name = self.customer_mapping[ship_to_location]
-                        print(f"DEBUG: KEHE Customer Mapping: '{ship_to_location}' → '{customer_name}'")
-                    else:
-                        print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}' (raw: '{ship_to_location_raw}'), using default: '{customer_name}'")
-                        # Debug: Show available mappings for troubleshooting
-                        if len(self.customer_mapping) > 0:
-                            print(f"DEBUG: Available mappings: {list(self.customer_mapping.keys())[:5]}...")  # Show first 5 keys
+                    if ship_to_location:
+                        # Try database-first store mapping
+                        db_mapped_customer = self.mapping_utils.get_store_mapping(ship_to_location, 'kehe')
+                        if db_mapped_customer and db_mapped_customer != ship_to_location:
+                            customer_name = db_mapped_customer
+                            print(f"DEBUG: KEHE DB Store Mapping: '{ship_to_location}' → '{customer_name}'")
+                        # Fallback to legacy CSV mapping
+                        elif ship_to_location in self.customer_mapping:
+                            customer_name = self.customer_mapping[ship_to_location]
+                            print(f"DEBUG: KEHE Legacy Customer Mapping: '{ship_to_location}' → '{customer_name}'")
+                        else:
+                            print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}' (raw: '{ship_to_location_raw}'), using default: '{customer_name}'")
                     
                     # Calculate total price before applying discounts
                     line_total = unit_price * quantity
