@@ -2,9 +2,19 @@
 Database service for order transformer operations
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
 from datetime import datetime
+import pandas as pd
+
+def parse_boolean(value: Any) -> bool:
+    """Safely parse boolean values, handling string 'False' correctly"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ('true', '1', 'yes', 'on')
+    return bool(value)
 from .models import ProcessedOrder, OrderLineItem, ConversionHistory, StoreMapping, ItemMapping
 from .connection import get_session
 
@@ -163,8 +173,8 @@ class DatabaseService:
                                 .first()
                 
                 if existing:
-                    existing.mapped_name = mapped_name
-                    existing.updated_at = datetime.utcnow()
+                    existing.mapped_name = mapped_name  # type: ignore
+                    existing.updated_at = datetime.utcnow()  # type: ignore
                 else:
                     mapping = StoreMapping(
                         source=source,
@@ -189,8 +199,8 @@ class DatabaseService:
                                 .first()
                 
                 if existing:
-                    existing.mapped_item = mapped_item
-                    existing.updated_at = datetime.utcnow()
+                    existing.mapped_item = mapped_item  # type: ignore
+                    existing.updated_at = datetime.utcnow()  # type: ignore
                 else:
                     mapping = ItemMapping(
                         source=source,
@@ -212,7 +222,7 @@ class DatabaseService:
                              .filter_by(source=source)\
                              .all()
             
-            return {mapping.raw_name: mapping.mapped_name for mapping in mappings}
+            return {str(mapping.raw_name): str(mapping.mapped_name) for mapping in mappings}
     
     def get_item_mappings(self, source: str) -> Dict[str, str]:
         """Get all item mappings for a source"""
@@ -222,7 +232,322 @@ class DatabaseService:
                              .filter_by(source=source)\
                              .all()
             
-            return {mapping.raw_item: mapping.mapped_item for mapping in mappings}
+            return {str(mapping.raw_item): str(mapping.mapped_item) for mapping in mappings}
+    
+    # Enhanced Item Mapping Methods for Template System
+    
+    def get_item_mappings_advanced(self, source: str = None, active_only: bool = True, 
+                                 key_type: str = None, search_term: str = None) -> List[Dict[str, Any]]:
+        """Get item mappings with advanced filtering options"""
+        
+        with get_session() as session:
+            query = session.query(ItemMapping)
+            
+            # Apply filters
+            if source:
+                query = query.filter(ItemMapping.source == source)
+            if active_only:
+                query = query.filter(ItemMapping.active == True)  # type: ignore
+            if key_type:
+                query = query.filter(ItemMapping.key_type == key_type)
+            if search_term:
+                search_pattern = f"%{search_term}%"
+                # Build search filters carefully with null checks
+                search_filters = [
+                    ItemMapping.raw_item.ilike(search_pattern),
+                    ItemMapping.mapped_item.ilike(search_pattern)
+                ]
+                # Only add vendor/description filters if they're not null
+                if search_term:  # Additional safety check
+                    search_filters.extend([
+                        ItemMapping.vendor.ilike(search_pattern),
+                        ItemMapping.mapped_description.ilike(search_pattern)
+                    ])
+                query = query.filter(or_(*search_filters))
+            
+            # Order by priority, then by created date
+            query = query.order_by(ItemMapping.priority.asc(), ItemMapping.created_at.desc())
+            
+            mappings = query.all()
+            
+            # Convert to dictionaries
+            result = []
+            for mapping in mappings:
+                result.append({
+                    'id': mapping.id,
+                    'source': str(mapping.source),
+                    'raw_item': str(mapping.raw_item),
+                    'mapped_item': str(mapping.mapped_item),
+                    'key_type': str(mapping.key_type),
+                    'priority': mapping.priority,
+                    'active': mapping.active,
+                    'vendor': str(mapping.vendor) if mapping.vendor is not None else '',
+                    'mapped_description': str(mapping.mapped_description) if mapping.mapped_description is not None else '',
+                    'notes': str(mapping.notes) if mapping.notes is not None else '',
+                    'created_at': mapping.created_at,
+                    'updated_at': mapping.updated_at
+                })
+            
+            return result
+    
+    def bulk_upsert_item_mappings(self, mappings_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Bulk insert or update item mappings with transaction safety and constraint validation"""
+        
+        session = get_session().__enter__()
+        transaction = None
+        
+        try:
+            # Start explicit transaction
+            transaction = session.begin()
+            stats = {'added': 0, 'updated': 0, 'errors': 0, 'error_details': []}
+            
+            # Phase 1: Validate all rows upfront
+            validated_data = []
+            for idx, mapping_data in enumerate(mappings_data):
+                try:
+                    source = mapping_data.get('source', '').strip()
+                    raw_item = mapping_data.get('raw_item', '').strip()
+                    key_type = mapping_data.get('key_type', 'vendor_item').strip()
+                    mapped_item = mapping_data.get('mapped_item', '').strip()
+                    
+                    # Validate required fields
+                    if not source or not raw_item:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing source or raw_item")
+                        continue
+                    
+                    if not mapped_item:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing mapped_item")
+                        continue
+                    
+                    # Parse boolean safely
+                    active = parse_boolean(mapping_data.get('active', True))
+                    
+                    # Validate priority is integer
+                    try:
+                        priority = int(mapping_data.get('priority', 100))
+                    except (ValueError, TypeError):
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Invalid priority value")
+                        continue
+                    
+                    validated_data.append({
+                        'row_index': idx + 1,
+                        'source': source,
+                        'raw_item': raw_item,
+                        'key_type': key_type,
+                        'mapped_item': mapped_item,
+                        'priority': priority,
+                        'active': active,
+                        'vendor': mapping_data.get('vendor'),
+                        'mapped_description': mapping_data.get('mapped_description'),
+                        'notes': mapping_data.get('notes')
+                    })
+                    
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {idx + 1}: Validation error - {str(e)}")
+            
+            # Phase 2: Check constraints for active mappings
+            if validated_data:
+                active_mappings = [v for v in validated_data if v['active']]
+                
+                # Group by (source, key_type, raw_item) to detect duplicates
+                constraint_groups = {}
+                for data in active_mappings:
+                    key = (data['source'], data['key_type'], data['raw_item'])
+                    if key not in constraint_groups:
+                        constraint_groups[key] = []
+                    constraint_groups[key].append(data)
+                
+                # Check for multiple active mappings with same constraint key
+                for constraint_key, mappings in constraint_groups.items():
+                    if len(mappings) > 1:
+                        # Mark all but the first as errors
+                        for mapping in mappings[1:]:
+                            stats['errors'] += 1
+                            stats['error_details'].append(
+                                f"Row {mapping['row_index']}: Duplicate active mapping for "
+                                f"({constraint_key[0]}, {constraint_key[1]}, {constraint_key[2]})"
+                            )
+                            validated_data.remove(mapping)
+                
+                # Check existing database for constraint violations
+                for data in [v for v in validated_data if v['active']]:
+                    existing_active = session.query(ItemMapping).filter(
+                        and_(
+                            ItemMapping.source == data['source'],
+                            ItemMapping.key_type == data['key_type'],
+                            ItemMapping.raw_item == data['raw_item'],
+                            ItemMapping.active == True  # type: ignore
+                        )
+                    ).first()
+                    
+                    if existing_active:
+                        # Check if this would create a constraint violation
+                        # (i.e., updating a different mapping to be active)
+                        existing_for_this_row = session.query(ItemMapping).filter(
+                            and_(
+                                ItemMapping.source == data['source'],
+                                ItemMapping.raw_item == data['raw_item'],
+                                ItemMapping.key_type == data['key_type']
+                            )
+                        ).first()
+                        
+                        if not existing_for_this_row:  # New mapping would conflict
+                            stats['errors'] += 1
+                            stats['error_details'].append(
+                                f"Row {data['row_index']}: Active mapping already exists for "
+                                f"({data['source']}, {data['key_type']}, {data['raw_item']})"
+                            )
+                            validated_data.remove(data)
+            
+            # If validation errors, rollback and return early
+            if stats['errors'] > 0:
+                transaction.rollback()
+                return stats
+            
+            # Phase 3: Apply all validated changes atomically
+            for data in validated_data:
+                try:
+                    # Check if mapping exists
+                    existing = session.query(ItemMapping).filter(
+                        and_(
+                            ItemMapping.source == data['source'],
+                            ItemMapping.raw_item == data['raw_item'],
+                            ItemMapping.key_type == data['key_type']
+                        )
+                    ).first()
+                    
+                    if existing:
+                        # Update existing mapping
+                        existing.mapped_item = data['mapped_item']  # type: ignore
+                        existing.priority = data['priority']  # type: ignore
+                        existing.active = data['active']  # type: ignore
+                        existing.vendor = data['vendor']  # type: ignore
+                        existing.mapped_description = data['mapped_description']  # type: ignore
+                        existing.notes = data['notes']  # type: ignore
+                        existing.updated_at = datetime.utcnow()  # type: ignore
+                        stats['updated'] += 1
+                    else:
+                        # Create new mapping
+                        new_mapping = ItemMapping(
+                            source=data['source'],
+                            raw_item=data['raw_item'],
+                            mapped_item=data['mapped_item'],
+                            key_type=data['key_type'],
+                            priority=data['priority'],
+                            active=data['active'],
+                            vendor=data['vendor'],
+                            mapped_description=data['mapped_description'],
+                            notes=data['notes']
+                        )
+                        session.add(new_mapping)
+                        stats['added'] += 1
+                        
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {data['row_index']}: Database error - {str(e)}")
+                    transaction.rollback()
+                    return stats
+            
+            # Commit transaction
+            transaction.commit()
+            return stats
+                
+        except Exception as e:
+            if transaction:
+                transaction.rollback()
+            return {'added': 0, 'updated': 0, 'errors': 1, 'error_details': [f"Database transaction error: {str(e)}"]}
+        
+        finally:
+            session.close()
+    
+    def export_item_mappings_to_dataframe(self, source: str = None) -> pd.DataFrame:
+        """Export item mappings to pandas DataFrame for CSV/Excel export"""
+        
+        mappings = self.get_item_mappings_advanced(source=source, active_only=False)
+        
+        # Convert to DataFrame with standard template columns
+        df_data = []
+        for mapping in mappings:
+            df_data.append({
+                'Source': mapping['source'],
+                'RawKeyType': mapping['key_type'],
+                'RawKeyValue': mapping['raw_item'],
+                'MappedItemNumber': mapping['mapped_item'],
+                'Vendor': mapping['vendor'],
+                'MappedDescription': mapping['mapped_description'],
+                'Priority': mapping['priority'],
+                'Active': mapping['active'],
+                'Notes': mapping['notes']
+            })
+        
+        return pd.DataFrame(df_data)
+    
+    def deactivate_item_mappings(self, mapping_ids: List[int]) -> int:
+        """Deactivate item mappings by IDs"""
+        
+        try:
+            with get_session() as session:
+                count = session.query(ItemMapping).filter(
+                    ItemMapping.id.in_(mapping_ids)
+                ).update(
+                    {ItemMapping.active: False, ItemMapping.updated_at: datetime.utcnow()},
+                    synchronize_session=False
+                )
+                session.commit()
+                return count
+        except Exception:
+            return 0
+    
+    def delete_item_mappings(self, mapping_ids: List[int]) -> int:
+        """Permanently delete item mappings by IDs"""
+        
+        try:
+            with get_session() as session:
+                count = session.query(ItemMapping).filter(
+                    ItemMapping.id.in_(mapping_ids)
+                ).delete(synchronize_session=False)
+                session.commit()
+                return count
+        except Exception:
+            return 0
+    
+    def resolve_item_number(self, lookup_attributes: Dict[str, str], source: str) -> Optional[str]:
+        """
+        Resolve item number using priority-based lookup across multiple key types.
+        
+        Args:
+            lookup_attributes: Dict with potential keys like {'vendor_item': 'ABC123', 'upc': '123456789'}
+            source: Source system (e.g., 'kehe', 'wholefoods')
+            
+        Returns:
+            Mapped item number if found, None otherwise
+        """
+        
+        with get_session() as session:
+            # Define key type priority order
+            key_priority = ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias']
+            
+            for key_type in key_priority:
+                if key_type in lookup_attributes and lookup_attributes[key_type]:
+                    raw_value = str(lookup_attributes[key_type]).strip()
+                    
+                    mapping = session.query(ItemMapping).filter(
+                        and_(
+                            ItemMapping.source == source,
+                            ItemMapping.key_type == key_type,
+                            ItemMapping.raw_item == raw_value,
+                            ItemMapping.active == True  # type: ignore
+                        )
+                    ).order_by(ItemMapping.priority.asc()).first()
+                    
+                    if mapping:
+                        return str(mapping.mapped_item)
+            
+            return None
     
     def _parse_date(self, date_str: str) -> Optional[datetime]:
         """Parse date string to datetime object"""

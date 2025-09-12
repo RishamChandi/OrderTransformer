@@ -67,12 +67,21 @@ class StoreMapping(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
 class ItemMapping(Base):
-    """Model for storing item number mappings"""
+    """Model for storing item number mappings with enhanced template support"""
     __tablename__ = 'item_mappings'
     
     id = Column(Integer, primary_key=True)
     source = Column(String(50), nullable=False)
     raw_item = Column(String(100), nullable=False)
     mapped_item = Column(String(100), nullable=False)
+    
+    # Enhanced template fields
+    key_type = Column(String(50), nullable=False, default='vendor_item')  # vendor_item, upc, ean, gtin, sku_alias
+    priority = Column(Integer, default=100)  # Lower values = higher priority
+    active = Column(Boolean, default=True)
+    vendor = Column(String(100), nullable=True)
+    mapped_description = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

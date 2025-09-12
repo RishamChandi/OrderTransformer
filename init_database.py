@@ -6,6 +6,7 @@ Initialize the database schema
 from database.models import Base
 from database.connection import get_database_engine
 from database.service import DatabaseService
+from database.migration import run_full_migration
 
 def init_database():
     """Initialize database tables"""
@@ -16,6 +17,14 @@ def init_database():
     Base.metadata.create_all(bind=engine)
     
     print("Database tables created successfully!")
+    
+    # Run item mapping template migration
+    success, message = run_full_migration()
+    if success:
+        print(f"✅ Migration completed: {message}")
+    else:
+        print(f"❌ Migration failed: {message}")
+        return False
     
     # Load existing Excel mappings into database
     db_service = DatabaseService()

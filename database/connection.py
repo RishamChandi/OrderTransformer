@@ -3,11 +3,31 @@ Database connection and session management with environment switching
 """
 
 import os
+import re
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from typing import Generator
 from .env_config import get_database_url, get_environment, get_ssl_config
+
+def _mask_database_url(url: str) -> str:
+    """Safely mask credentials in database URL for logging"""
+    if not url:
+        return 'EMPTY_URL'
+    
+    # Pattern to match postgresql://username:password@host:port/database
+    pattern = r'(postgresql://)[^:]+:[^@]+@(.+)'
+    match = re.match(pattern, url)
+    
+    if match:
+        return f"{match.group(1)}***:***@{match.group(2)}"
+    else:
+        # Fallback: just show protocol and last part after @
+        if '@' in url:
+            parts = url.split('@')
+            return f"{parts[0].split('://')[0]}://***:***@{parts[-1]}"
+        else:
+            return f"{url.split('://')[0]}://***" if '://' in url else "***"
 
 def create_database_engine():
     """Create database engine with environment-specific configuration"""
@@ -49,7 +69,7 @@ def create_database_engine():
                 fallback_url += '?sslmode=disable' if '?' not in fallback_url else '&sslmode=disable'
             
             try:
-                print(f"📝 Trying with SSL disabled: {fallback_url[:50]}...")
+                print(f"📝 Trying with SSL disabled: {_mask_database_url(fallback_url)}")
                 engine = create_engine(fallback_url, echo=False)
                 connection = engine.connect()
                 connection.close()
