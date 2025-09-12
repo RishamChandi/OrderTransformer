@@ -37,24 +37,49 @@ def create_database_engine():
     if not database_url:
         raise ValueError(f"DATABASE_URL not found for environment: {env}")
     
-    # Configure engine based on environment
+    # Configure engine with connection pooling and stability settings
     engine_config = {
-        'echo': False  # Set to True for SQL debugging
+        'echo': False,  # Set to True for SQL debugging
+        'pool_size': 5,  # Maintain 5 connections in pool
+        'max_overflow': 10,  # Allow up to 10 overflow connections
+        'pool_pre_ping': True,  # Validate connections before use
+        'pool_recycle': 300,  # Recycle connections every 5 minutes
+        'connect_args': {
+            'connect_timeout': 30,  # 30 second connection timeout
+            'application_name': 'order_transformer_dev'  # Identify our connections
+        }
     }
     
-    # Add SSL configuration for production
+    # Add SSL configuration for production and cloud databases
     if env == 'production':
-        engine_config['connect_args'] = get_ssl_config()
+        engine_config['connect_args'].update(get_ssl_config())
+    elif 'neon' in database_url.lower() or 'aws' in database_url.lower():
+        # For cloud databases like Neon, add stability settings
+        engine_config['connect_args'].update({
+            'keepalives_idle': 600,  # Start keepalives after 10 min
+            'keepalives_interval': 30,  # Send keepalive every 30 sec
+            'keepalives_count': 3   # Give up after 3 failed keepalives
+        })
     
     print(f"🔌 Connecting to {env} database...")
     
     try:
         engine = create_engine(database_url, **engine_config)
-        # Test the connection
-        connection = engine.connect()
-        connection.close()
-        print(f"✅ Connected to {env} database successfully")
-        return engine
+        # Test the connection with retries
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                connection = engine.connect()
+                connection.close()
+                print(f"✅ Connected to {env} database successfully (attempt {attempt + 1})")
+                return engine
+            except Exception as retry_error:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ Connection attempt {attempt + 1} failed, retrying...")
+                    import time
+                    time.sleep(1)  # Wait 1 second before retry
+                else:
+                    raise retry_error
     except Exception as e:
         print(f"❌ Failed to connect to {env} database: {e}")
         
@@ -62,21 +87,22 @@ def create_database_engine():
         if env != 'production':
             print(f"🔄 Attempting fallback connection strategies...")
             
-            # Strategy 1: Force disable SSL
+            # Strategy 1: Try with SSL allow (works with cloud databases like Neon)
             fallback_url = database_url.replace('?sslmode=require', '').replace('&sslmode=require', '')
             fallback_url = fallback_url.replace('?sslmode=prefer', '').replace('&sslmode=prefer', '')
+            fallback_url = fallback_url.replace('?sslmode=disable', '').replace('&sslmode=disable', '')
             if 'sslmode=' not in fallback_url:
-                fallback_url += '?sslmode=disable' if '?' not in fallback_url else '&sslmode=disable'
+                fallback_url += '?sslmode=allow' if '?' not in fallback_url else '&sslmode=allow'
             
             try:
-                print(f"📝 Trying with SSL disabled: {_mask_database_url(fallback_url)}")
+                print(f"📝 Trying with SSL allow: {_mask_database_url(fallback_url)}")
                 engine = create_engine(fallback_url, echo=False)
                 connection = engine.connect()
                 connection.close()
-                print(f"✅ Connected to {env} database (SSL disabled)")
+                print(f"✅ Connected to {env} database (SSL allow)")
                 return engine
             except Exception as e2:
-                print(f"❌ SSL disabled connection failed: {e2}")
+                print(f"❌ SSL allow connection failed: {e2}")
                 
                 # Strategy 2: Try with SSL allow
                 try:

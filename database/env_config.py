@@ -53,14 +53,15 @@ def get_database_url() -> str:
         return db_url
     
     elif env == 'development':
-        # Force disable SSL for development environment
+        # Use SSL allow for development with cloud databases (like Neon)
         if db_url:
-            # Remove any SSL requirements and add disable SSL
+            # Remove any SSL settings and add allow SSL for compatibility
             db_url = db_url.replace('?sslmode=require', '').replace('&sslmode=require', '')
             db_url = db_url.replace('?sslmode=prefer', '').replace('&sslmode=prefer', '')
+            db_url = db_url.replace('?sslmode=disable', '').replace('&sslmode=disable', '')
             db_url = db_url.replace('?sslmode=allow', '').replace('&sslmode=allow', '')
-            # Explicitly disable SSL for development
-            db_url += '?sslmode=disable' if '?' not in db_url else '&sslmode=disable'
+            # Use SSL allow for development with cloud databases
+            db_url += '?sslmode=allow' if '?' not in db_url else '&sslmode=allow'
         return db_url
     
     else:  # local
