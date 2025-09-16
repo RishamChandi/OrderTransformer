@@ -261,6 +261,60 @@ def main():
         padding: 0.5rem 1rem !important;
         min-width: 200px !important;
     }
+    /* Fix dropdown menu positioning and visibility */
+    [data-baseweb="popover"] {
+        z-index: 9999 !important;
+        min-width: 200px !important;
+        max-width: none !important;
+    }
+    [data-baseweb="menu"] {
+        min-width: 200px !important;
+        max-width: none !important;
+        overflow: visible !important;
+    }
+    /* Ensure dropdown options are fully visible */
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__menu"] {
+        min-width: 200px !important;
+        max-width: none !important;
+    }
+    /* Fix for deployed environment */
+    div[data-testid="stSelectbox"] > div > div {
+        min-width: 200px !important;
+    }
+    div[data-testid="stSelectbox"] [data-baseweb="select"] {
+        min-width: 200px !important;
+    }
+    div[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+        min-width: 200px !important;
+        white-space: nowrap !important;
+    }
+    /* Additional fixes for dropdown visibility */
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__dropdown"] {
+        min-width: 200px !important;
+        max-width: none !important;
+    }
+    /* Fix dropdown menu container */
+    [data-baseweb="popover"] [data-baseweb="menu"] {
+        min-width: 200px !important;
+        max-width: none !important;
+        overflow: visible !important;
+    }
+    /* Ensure all dropdown options are visible */
+    [data-baseweb="menu"] li {
+        min-width: 200px !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    /* Fix for Streamlit's internal dropdown styling */
+    .stSelectbox > div > div > div {
+        min-width: 200px !important;
+    }
+    /* Override any width restrictions */
+    .stSelectbox [data-baseweb="select"] {
+        width: auto !important;
+        min-width: 200px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
