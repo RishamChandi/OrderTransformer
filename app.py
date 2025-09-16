@@ -130,11 +130,83 @@ def main():
             st.error(f"Critical initialization error: {e}")
             st.stop()
     
-    # Modern header with better styling
+    # Add custom CSS for sleek UI
     st.markdown("""
-    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;">
-        <h1 style="color: white; margin: 0; text-align: center;">🔄 Order Transformer</h1>
-        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Convert sales orders into standardized Xoro CSV format</p>
+    <style>
+    .main-header {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .main-header h1 {
+        color: white;
+        margin: 0;
+        text-align: center;
+        font-size: 1.6rem;
+        font-weight: 600;
+    }
+    .main-header p {
+        color: white;
+        margin: 0.3rem 0 0 0;
+        text-align: center;
+        opacity: 0.9;
+        font-size: 0.9rem;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+    .stSelectbox > div > div {
+        padding: 0.3rem 0.5rem;
+    }
+    .stButton > button {
+        padding: 0.3rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    .stFileUploader > div {
+        border: 2px dashed #667eea !important;
+        border-radius: 8px !important;
+        background-color: #f8f9fa !important;
+        padding: 1rem !important;
+        transition: all 0.3s ease !important;
+    }
+    .stFileUploader > div:hover {
+        border-color: #4f46e5 !important;
+        background-color: #f0f2f6 !important;
+    }
+    .stFileUploader > div > div {
+        text-align: center !important;
+    }
+    .stFileUploader > div > div > div {
+        color: #667eea !important;
+        font-weight: 500 !important;
+    }
+    .drag-over {
+        border-color: #4f46e5 !important;
+        background-color: #e0e7ff !important;
+        transform: scale(1.02) !important;
+    }
+    .upload-zone {
+        transition: all 0.3s ease !important;
+        cursor: pointer !important;
+    }
+    .upload-zone:hover {
+        border-color: #4f46e5 !important;
+        background-color: #f0f2f6 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Sleek, compact header
+    st.markdown("""
+    <div class="main-header">
+        <h1>🔄 Order Transformer</h1>
+        <p>Convert sales orders into standardized Xoro CSV format</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -143,7 +215,7 @@ def main():
     
     # Sidebar navigation system
     with st.sidebar:
-        st.markdown("## 🎯 Client/Source")
+        st.markdown("### 🎯 Client/Source")
         sources = {
             "🌐 All Sources": "all",
             "🛒 Whole Foods": "wholefoods", 
@@ -163,7 +235,7 @@ def main():
         
         st.markdown("---")
         
-        st.markdown("## ⚡ Action")
+        st.markdown("### ⚡ Action")
         actions = {
             "📝 Process Orders": "process",
             "📊 Order History": "history",
@@ -225,17 +297,10 @@ def main():
             </div>
             """, unsafe_allow_html=True)
     
-    # Database initialization in sidebar
+    # Compact system status in sidebar
     with st.sidebar:
         st.markdown("### ⚙️ System")
-        if st.button("🔧 Initialize Database", help="First-time setup for cloud deployment"):
-            try:
-                # Re-initialize database tables
-                engine = get_database_engine()
-                Base.metadata.create_all(bind=engine)
-                st.success("✅ Database initialized!")
-            except Exception as e:
-                st.error(f"❌ Database init failed: {e}")
+        st.success("✅ Database ready")
     
     # Route to appropriate page based on action
     if action == "process":
@@ -277,22 +342,10 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         </div>
         """, unsafe_allow_html=True)
         
-        # Initialize mapping utils
-        mapping_utils = MappingUtils()
-        
-        # Order source selection with modern styling
-        order_sources = {
-            "Whole Foods": WholeFoodsParser(),
-            "UNFI West": UNFIWestParser(),
-            "UNFI East": UNFIEastParser(mapping_utils),
-            "KEHE - SPS": KEHEParser(),
-            "TK Maxx": TKMaxxParser()
-        }
-        
         # Source already selected, use it directly
         selected_order_source = selected_source_name
     
-    # Initialize mapping utils
+    # Initialize mapping utils and order sources
     mapping_utils = MappingUtils()
     
     # Order source selection for parsers
@@ -334,45 +387,77 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
     
     st.markdown("---")
     
-    # Enhanced file upload section
+    # Enhanced drag and drop file upload section
     st.markdown(f"""
-    <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; border: 2px dashed #667eea; text-align: center;">
+    <div class="upload-zone" style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; border: 2px dashed #667eea; text-align: center; margin-bottom: 1rem;">
         <h3 style="color: #667eea; margin: 0;">{file_icon} Upload Your Files</h3>
         <p style="color: #666; margin: 0.5rem 0;">{help_text}</p>
+        <div class="upload-zone" style="background-color: white; padding: 2rem; border-radius: 8px; border: 1px dashed #ccc; margin: 1rem 0;">
+            <div style="font-size: 2rem; color: #667eea; margin-bottom: 0.5rem;">☁️</div>
+            <p style="color: #666; margin: 0; font-size: 0.9rem;">Drag and drop files here or click to browse</p>
+            <p style="color: #999; margin: 0.3rem 0 0 0; font-size: 0.8rem;">Limit 200MB per file • {', '.join(accepted_types).upper()}</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
+    # File uploader with proper drag and drop
     uploaded_files = st.file_uploader(
         "Choose files to upload",
         type=accepted_types,
         accept_multiple_files=True,
-        label_visibility="collapsed"
+        help=f"Upload {', '.join(accepted_types).upper()} files for {clean_source_name}",
+        key=f"file_uploader_{clean_source_name}"
     )
     
     if uploaded_files:
-        # Show uploaded files with better styling
-        st.markdown("#### ✅ Files Ready for Processing")
+        # Validate uploaded files
+        valid_files = []
+        invalid_files = []
         
-        for i, file in enumerate(uploaded_files):
-            file_size = len(file.getvalue()) / 1024  # KB
-            st.markdown(f"""
-            <div style="background-color: #e8f5e8; padding: 0.5rem 1rem; border-radius: 5px; margin: 0.2rem 0; border-left: 3px solid #28a745;">
-                📁 <strong>{file.name}</strong> ({file_size:.1f} KB)
-            </div>
-            """, unsafe_allow_html=True)
+        for file in uploaded_files:
+            file_extension = file.name.lower().split('.')[-1]
+            file_size_mb = len(file.getvalue()) / (1024 * 1024)  # MB
+            
+            # Check file type
+            if file_extension not in accepted_types:
+                invalid_files.append(f"{file.name} (unsupported format: .{file_extension})")
+            # Check file size (200MB limit)
+            elif file_size_mb > 200:
+                invalid_files.append(f"{file.name} (too large: {file_size_mb:.1f}MB)")
+            else:
+                valid_files.append(file)
         
-        st.markdown("---")
+        # Show validation results
+        if invalid_files:
+            st.warning("⚠️ Some files have issues:")
+            for invalid_file in invalid_files:
+                st.error(f"❌ {invalid_file}")
         
-        # Process files button with better styling
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🚀 Process Orders", type="primary", use_container_width=True):
-                if clean_source_name == "All Sources":
-                    st.error("⚠️ Please select a specific source before processing files. Auto-detection is not yet supported.")
-                elif clean_source_name in order_sources:
-                    process_orders(uploaded_files, order_sources[clean_source_name], clean_source_name, db_service)
-                else:
-                    st.error(f"⚠️ Unknown source: {clean_source_name}. Please select a valid source.")
+        if valid_files:
+            st.markdown("#### ✅ Files Ready for Processing")
+            
+            for file in valid_files:
+                file_size = len(file.getvalue()) / 1024  # KB
+                st.markdown(f"""
+                <div style="background-color: #e8f5e8; padding: 0.5rem 1rem; border-radius: 5px; margin: 0.2rem 0; border-left: 3px solid #28a745;">
+                    📁 <strong>{file.name}</strong> ({file_size:.1f} KB)
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Process files button with better styling
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("🚀 Process Orders", type="primary", use_container_width=True):
+                    if clean_source_name == "All Sources":
+                        st.error("⚠️ Please select a specific source before processing files. Auto-detection is not yet supported.")
+                    elif clean_source_name in order_sources:
+                        process_orders(valid_files, order_sources[clean_source_name], clean_source_name, db_service)
+                    else:
+                        st.error(f"⚠️ Unknown source: {clean_source_name}. Please select a valid source.")
+        else:
+            st.error("❌ No valid files to process. Please check file formats and sizes.")
 
 def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
@@ -554,10 +639,11 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
 def manage_mappings_page(db_service: DatabaseService, selected_source: str = "all"):
     """Enhanced mapping management page with file upload/download"""
     
+    # Compact mapping management header
     st.markdown("""
-    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
-        <h1 style="color: white; margin: 0; text-align: center;">⚙️ Mapping Management Center</h1>
-        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Complete mapping management by order processor</p>
+    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <h1 style="color: white; margin: 0; text-align: center; font-size: 1.4rem; font-weight: 600;">⚙️ Mapping Management Center</h1>
+        <p style="color: white; margin: 0.3rem 0 0 0; text-align: center; opacity: 0.9; font-size: 0.85rem;">Complete mapping management by order processor</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -582,13 +668,13 @@ def show_processor_mapping_management(processor: str, db_service: DatabaseServic
     
     processor_display = processor.replace('_', ' ').title()
     
-    # Processor overview card
+    # Compact processor overview card
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem;
-                border-left: 5px solid #4f46e5;">
-        <h2 style="color: white; margin: 0;">{processor_display} Mapping Management</h2>
-        <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0;">
+                padding: 0.8rem 1.2rem; border-radius: 8px; margin-bottom: 1rem;
+                border-left: 4px solid #4f46e5; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+        <h2 style="color: white; margin: 0; font-size: 1.2rem; font-weight: 600;">{processor_display} Mapping Management</h2>
+        <p style="color: rgba(255,255,255,0.9); margin: 0.3rem 0 0 0; font-size: 0.8rem;">
             Manage Customer, Store (Xoro), and Item mappings for {processor_display} orders
         </p>
     </div>
@@ -611,52 +697,290 @@ def show_processor_mapping_management(processor: str, db_service: DatabaseServic
         show_item_mapping_manager(processor, db_service)
 
 def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
-    """Customer mapping management with CSV support"""
+    """Enhanced Customer Mapping Management with Database Support"""
     
-    st.subheader("👥 Customer Mapping")
-    st.write("Maps raw customer identifiers to Xoro customer names")
+    st.markdown("### 👥 Customer Mapping")
+    st.caption("Database-backed customer mapping with unified template for all processors")
     
-    mapping_file = f"mappings/{processor}/customer_mapping.csv"
+    # Enhanced UI with filters and controls
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
     
-    # Upload section
-    with st.expander("📤 Upload Customer Mapping File"):
-        uploaded_file = st.file_uploader(
-            "Upload CSV file", 
-            type=['csv'], 
-            key=f"customer_upload_{processor}"
+    with col1:
+        # Source filter
+        source_options = ['all', 'kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
+        source_index = source_options.index(processor) if processor in source_options else 1
+        selected_source = st.selectbox(
+            "📍 Source Filter", 
+            source_options, 
+            index=source_index,
+            key=f"customer_source_filter_{processor}"
         )
-        if uploaded_file and st.button("Save Customer Mapping", key=f"save_customer_{processor}"):
-            save_uploaded_mapping(uploaded_file, mapping_file)
     
-    # Display and edit current mappings
-    display_csv_mapping(mapping_file, "Customer", ["Raw Customer ID", "Mapped Customer Name"], processor)
+    with col2:
+        # Customer type filter
+        customer_type_options = ['all', 'store', 'distributor', 'warehouse']
+        selected_customer_type = st.selectbox(
+            "🏪 Customer Type", 
+            customer_type_options,
+            key=f"customer_type_filter_{processor}"
+        )
+    
+    with col3:
+        # Active status filter
+        active_options = {'All': None, 'Active Only': True, 'Inactive Only': False}
+        selected_active_name = st.selectbox(
+            "✅ Status", 
+            list(active_options.keys()),
+            key=f"customer_active_filter_{processor}"
+        )
+        active_filter = active_options[selected_active_name]
+    
+    with col4:
+        # Search filter
+        search_term = st.text_input(
+            "🔍 Search", 
+            placeholder="Search customers...",
+            key=f"customer_search_filter_{processor}"
+        )
+    
+    st.markdown("---")
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"customer_download_template_{processor}"):
+            show_customer_template_download()
+    
+    with col2:
+        if st.button("📊 Export Current", key=f"customer_export_current_{processor}"):
+            export_current_customer_mappings(db_service, selected_source if selected_source != 'all' else None)
+    
+    with col3:
+        if st.button("📤 Upload Mappings", key=f"customer_upload_mappings_{processor}"):
+            st.session_state[f'show_customer_upload_{processor}'] = True
+    
+    with col4:
+        if st.button("➕ Add New Mapping", key=f"customer_add_new_{processor}"):
+            st.session_state[f'show_customer_add_form_{processor}'] = True
+    
+    with col5:
+        if st.button("🔄 Refresh Data", key=f"customer_refresh_data_{processor}"):
+            st.rerun()
+    
+    # Show upload form if requested
+    if st.session_state.get(f'show_customer_upload_{processor}', False):
+        show_customer_mapping_upload_form(db_service, processor)
+    
+    # Show add form if requested  
+    if st.session_state.get(f'show_customer_add_form_{processor}', False):
+        show_add_customer_mapping_form(db_service, processor)
+    
+    st.markdown("---")
+    
+    # Get and display mappings
+    try:
+        # Apply filters
+        source_param = selected_source if selected_source != 'all' else None
+        customer_type_param = selected_customer_type if selected_customer_type != 'all' else None
+        search_param = search_term if search_term.strip() else None
+        
+        # Get filtered mappings from database
+        mappings = db_service.get_customer_mappings_advanced(
+            source=source_param,
+            active_only=False,  # We'll filter by active status below
+            customer_type=customer_type_param,
+            search_term=search_param
+        )
+        
+        # Apply active filter if specified
+        if active_filter is not None:
+            mappings = [m for m in mappings if m['active'] == active_filter]
+        
+        if mappings:
+            st.success(f"✅ Found {len(mappings)} customer mappings")
+            
+            # Display mode selection
+            display_mode = st.radio(
+                "Display Mode:",
+                ["📋 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
+                horizontal=True,
+                key=f"customer_display_mode_{processor}"
+            )
+            
+            if display_mode == "📋 Data Editor (Bulk Edit)":
+                show_customer_data_editor_mappings(mappings, db_service, processor)
+            else:
+                show_customer_row_by_row_mappings(mappings, db_service, processor)
+                
+        else:
+            st.info("🔍 No customer mappings found with current filters")
+            
+            # Suggest creating new mappings
+            st.markdown("### 🚀 Get Started")
+            st.write("Start by downloading the template or adding your first mapping:")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📥 Download Empty Template", key=f"customer_download_empty_{processor}"):
+                    show_customer_template_download()
+            with col2:
+                if st.button("➕ Add First Mapping", key=f"customer_add_first_{processor}"):
+                    st.session_state[f'show_customer_add_form_{processor}'] = True
+                    st.rerun()
+    
+    except Exception as e:
+        st.error(f"❌ Error loading customer mappings: {e}")
+        st.write("**Troubleshooting:**")
+        st.write("1. Check database connection")
+        st.write("2. Verify migration has been run")
+        st.write("3. Check server logs for details")
 
 def show_store_mapping_manager(processor: str, db_service: DatabaseService):
-    """Store (Xoro) mapping management with CSV support"""
+    """Enhanced Store Mapping Management with Database Support"""
     
-    st.subheader("🏪 Store (Xoro) Mapping")
-    st.write("Maps raw store identifiers to Xoro store names")
+    st.markdown("### 🏪 Store (Xoro) Mapping")
+    st.caption("Database-backed store mapping with unified template for all processors")
     
-    mapping_file = f"mappings/{processor}/xoro_store_mapping.csv"
+    # Enhanced UI with filters and controls
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
     
-    # Upload section
-    with st.expander("📤 Upload Store Mapping File"):
-        uploaded_file = st.file_uploader(
-            "Upload CSV file", 
-            type=['csv'], 
-            key=f"store_upload_{processor}"
+    with col1:
+        # Source filter
+        source_options = ['all', 'kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
+        source_index = source_options.index(processor) if processor in source_options else 1
+        selected_source = st.selectbox(
+            "📍 Source Filter", 
+            source_options, 
+            index=source_index,
+            key=f"store_source_filter_{processor}"
         )
-        if uploaded_file and st.button("Save Store Mapping", key=f"save_store_{processor}"):
-            save_uploaded_mapping(uploaded_file, mapping_file)
     
-    # Display and edit current mappings
-    display_csv_mapping(mapping_file, "Store", ["Raw Store ID", "Xoro Store Name"], processor)
+    with col2:
+        # Store type filter
+        store_type_options = ['all', 'retail', 'warehouse', 'distribution']
+        selected_store_type = st.selectbox(
+            "🏪 Store Type", 
+            store_type_options,
+            key=f"store_type_filter_{processor}"
+        )
+    
+    with col3:
+        # Active status filter
+        active_options = {'All': None, 'Active Only': True, 'Inactive Only': False}
+        selected_active_name = st.selectbox(
+            "✅ Status", 
+            list(active_options.keys()),
+            key=f"store_active_filter_{processor}"
+        )
+        active_filter = active_options[selected_active_name]
+    
+    with col4:
+        # Search filter
+        search_term = st.text_input(
+            "🔍 Search", 
+            placeholder="Search stores...",
+            key=f"store_search_filter_{processor}"
+        )
+    
+    st.markdown("---")
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"store_download_template_{processor}"):
+            show_store_template_download()
+    
+    with col2:
+        if st.button("📊 Export Current", key=f"store_export_current_{processor}"):
+            export_current_store_mappings(db_service, selected_source if selected_source != 'all' else None)
+    
+    with col3:
+        if st.button("📤 Upload Mappings", key=f"store_upload_mappings_{processor}"):
+            st.session_state[f'show_store_upload_{processor}'] = True
+    
+    with col4:
+        if st.button("➕ Add New Mapping", key=f"store_add_new_{processor}"):
+            st.session_state[f'show_store_add_form_{processor}'] = True
+    
+    with col5:
+        if st.button("🔄 Refresh Data", key=f"store_refresh_data_{processor}"):
+            st.rerun()
+    
+    # Show upload form if requested
+    if st.session_state.get(f'show_store_upload_{processor}', False):
+        show_store_mapping_upload_form(db_service, processor)
+    
+    # Show add form if requested  
+    if st.session_state.get(f'show_store_add_form_{processor}', False):
+        show_add_store_mapping_form(db_service, processor)
+    
+    st.markdown("---")
+    
+    # Get and display mappings
+    try:
+        # Apply filters
+        source_param = selected_source if selected_source != 'all' else None
+        store_type_param = selected_store_type if selected_store_type != 'all' else None
+        search_param = search_term if search_term.strip() else None
+        
+        # Get filtered mappings from database
+        mappings = db_service.get_store_mappings_advanced(
+            source=source_param,
+            active_only=False,  # We'll filter by active status below
+            store_type=store_type_param,
+            search_term=search_param
+        )
+        
+        # Apply active filter if specified
+        if active_filter is not None:
+            mappings = [m for m in mappings if m['active'] == active_filter]
+        
+        if mappings:
+            st.success(f"✅ Found {len(mappings)} store mappings")
+            
+            # Display mode selection
+            display_mode = st.radio(
+                "Display Mode:",
+                ["📋 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
+                horizontal=True,
+                key=f"store_display_mode_{processor}"
+            )
+            
+            if display_mode == "📋 Data Editor (Bulk Edit)":
+                show_store_data_editor_mappings(mappings, db_service, processor)
+            else:
+                show_store_row_by_row_mappings(mappings, db_service, processor)
+                
+        else:
+            st.info("🔍 No store mappings found with current filters")
+            
+            # Suggest creating new mappings
+            st.markdown("### 🚀 Get Started")
+            st.write("Start by downloading the template or adding your first mapping:")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📥 Download Empty Template", key=f"store_download_empty_{processor}"):
+                    show_store_template_download()
+            with col2:
+                if st.button("➕ Add First Mapping", key=f"store_add_first_{processor}"):
+                    st.session_state[f'show_store_add_form_{processor}'] = True
+                    st.rerun()
+    
+    except Exception as e:
+        st.error(f"❌ Error loading store mappings: {e}")
+        st.write("**Troubleshooting:**")
+        st.write("1. Check database connection")
+        st.write("2. Verify migration has been run")
+        st.write("3. Check server logs for details")
 
 def show_item_mapping_manager(processor: str, db_service: DatabaseService):
     """Enhanced Item Mapping Management with Standard Template System"""
     
-    st.subheader("📦 Item Mapping Template System")
-    st.write("Database-backed priority mapping with multiple key types (vendor_item, UPC, EAN, GTIN, SKU)")
+    st.markdown("### 📦 Item Mapping Template System")
+    st.caption("Database-backed priority mapping with multiple key types (vendor_item, UPC, EAN, GTIN, SKU)")
     
     # Enhanced UI with filters and controls
     col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
@@ -793,42 +1117,67 @@ def show_item_mapping_manager(processor: str, db_service: DatabaseService):
         st.write("3. Check server logs for details")
 
 def show_template_download():
-    """Show template download with standard columns"""
+    """Show unified template download for all processors"""
     
-    # Create empty DataFrame with standard template columns
-    template_data = {
-        'Source': ['kehe', 'wholefoods', 'unfi_east'],
-        'RawKeyType': ['vendor_item', 'upc', 'vendor_item'], 
-        'RawKeyValue': ['00110368', '123456789012', 'ABC123'],
-        'MappedItemNumber': ['XO-123', 'XO-456', 'XO-789'],
-        'Vendor': ['KEHE', 'Whole Foods', 'UNFI'],
-        'MappedDescription': ['Sample Product 1', 'Sample Product 2', 'Sample Product 3'],
-        'Priority': [100, 200, 150],
-        'Active': [True, True, False],
-        'Notes': ['Primary mapping', 'UPC backup', 'Discontinued item']
+    # Create unified template with examples for all processors
+    unified_template_data = {
+        'Source': ['kehe', 'kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+        'RawKeyType': ['vendor_item', 'upc', 'upc', 'vendor_item', 'vendor_item', 'vendor_item'], 
+        'RawKeyValue': ['00110368', '728119098687', '123456789012', 'ABC123', 'XYZ789', 'TK001'],
+        'MappedItemNumber': ['17-041-1', '17-041-1', 'XO-456', 'XO-789', 'XO-101', 'XO-202'],
+        'Vendor': ['KEHE', 'KEHE', 'Whole Foods', 'UNFI', 'UNFI', 'TK Maxx'],
+        'MappedDescription': ['BRUSCHETTA ARTICHOKE', 'BRUSCHETTA ARTICHOKE', 'Sample Product 2', 'Sample Product 3', 'Sample Product 4', 'Sample Product 5'],
+        'Priority': [100, 200, 100, 100, 100, 100],
+        'Active': [True, True, True, True, True, True],
+        'Notes': ['Primary KEHE mapping', 'KEHE UPC backup', 'Whole Foods UPC', 'UNFI East vendor item', 'UNFI West vendor item', 'TK Maxx vendor item']
     }
     
-    template_df = pd.DataFrame(template_data)
-    template_csv = template_df.to_csv(index=False)
+    unified_template_df = pd.DataFrame(unified_template_data)
+    unified_template_csv = unified_template_df.to_csv(index=False)
     
     st.download_button(
-        label="📥 Download Standard Template",
-        data=template_csv,
-        file_name="item_mapping_template.csv",
+        label="📥 Download Unified Template",
+        data=unified_template_csv,
+        file_name="unified_item_mapping_template.csv",
         mime="text/csv",
-        help="Download the standard item mapping template with sample data"
+        help="Download unified item mapping template for all processors"
     )
     
-    st.info("📋 **Template Columns Explained:**")
-    st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, etc.)")
+    st.info("📋 **Unified Template Columns (All Processors):**")
+    st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, unfi_west, tkmaxx)")
     st.write("• **RawKeyType**: Type of key (vendor_item, upc, ean, gtin, sku_alias)")
-    st.write("• **RawKeyValue**: Original item identifier from order files")
+    st.write("• **RawKeyValue**: Original item identifier (KEHE number, UPC, vendor item, etc.)")
     st.write("• **MappedItemNumber**: Target Xoro item number")
     st.write("• **Vendor**: Vendor name (optional)")
     st.write("• **MappedDescription**: Product description (optional)")
     st.write("• **Priority**: Resolution priority (100=highest, 999=lowest)")
     st.write("• **Active**: Whether mapping is active (true/false)")
     st.write("• **Notes**: Additional notes (optional)")
+    
+    st.markdown("---")
+    
+    # Show examples for each processor
+    st.markdown("### 📝 **Examples by Processor:**")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**KEHE Examples:**")
+        st.write("• `kehe, vendor_item, 00110368, 17-041-1` (KEHE number)")
+        st.write("• `kehe, upc, 728119098687, 17-041-1` (UPC code)")
+        
+        st.markdown("**Whole Foods Examples:**")
+        st.write("• `wholefoods, upc, 123456789012, XO-456` (UPC)")
+        st.write("• `wholefoods, vendor_item, WF123, XO-456` (vendor item)")
+    
+    with col2:
+        st.markdown("**UNFI Examples:**")
+        st.write("• `unfi_east, vendor_item, ABC123, XO-789` (vendor item)")
+        st.write("• `unfi_west, upc, 987654321098, XO-101` (UPC)")
+        
+        st.markdown("**TK Maxx Examples:**")
+        st.write("• `tkmaxx, vendor_item, TK001, XO-202` (vendor item)")
+        st.write("• `tkmaxx, sku_alias, SKU123, XO-202` (SKU alias)")
 
 def export_current_mappings(db_service: DatabaseService, source_filter: str = None):
     """Export current mappings to CSV"""
@@ -864,13 +1213,14 @@ def show_mapping_upload_form(db_service: DatabaseService, processor: str):
     """Show form for uploading mapping files"""
     
     with st.expander("📤 Upload Item Mappings", expanded=True):
-        st.write("Upload a CSV file with the standard template format")
+        st.write("Upload a CSV file with the unified template format")
+        st.info("💡 **Tip**: Use the 'Download Template' button to get the correct format with examples for all processors")
         
         uploaded_file = st.file_uploader(
             "Choose CSV file",
             type=['csv'],
             key=f"upload_file_{processor}",
-            help="Use the standard template format"
+            help="Use the unified template format with Source, RawKeyType, RawKeyValue, MappedItemNumber columns"
         )
         
         if uploaded_file is not None:
@@ -881,28 +1231,275 @@ def show_mapping_upload_form(db_service: DatabaseService, processor: str):
                 st.write(f"📋 **File Preview** ({len(df)} rows):")
                 st.dataframe(df.head(10), use_container_width=True)
                 
-                # Validate required columns
-                required_columns = ['Source', 'RawKeyType', 'RawKeyValue', 'MappedItemNumber']
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                
-                if missing_columns:
-                    st.error(f"❌ Missing required columns: {missing_columns}")
-                    st.info("Required columns: Source, RawKeyType, RawKeyValue, MappedItemNumber")
-                else:
+                # Check if it's legacy KEHE format or unified format
+                if 'KeHE Number' in df.columns and 'ItemNumber' in df.columns:
+                    # Legacy KEHE format - convert to unified format
+                    st.warning("⚠️ **Legacy KEHE Format Detected** - Converting to unified format")
+                    converted_df = convert_kehe_to_standard_format(df)
+                    st.write("📋 **Converted to Unified Format:**")
+                    st.dataframe(converted_df.head(10), use_container_width=True)
+                    
                     # Show upload options
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        if st.button("✅ Upload Mappings", key=f"confirm_upload_{processor}"):
-                            upload_mappings_to_database(df, db_service, processor)
+                        if st.button("✅ Upload Converted Mappings", key=f"confirm_upload_{processor}"):
+                            upload_mappings_to_database(converted_df, db_service, processor)
                     
                     with col2:
                         if st.button("❌ Cancel Upload", key=f"cancel_upload_{processor}"):
                             st.session_state[f'show_upload_{processor}'] = False
                             st.rerun()
+                
+                else:
+                    # Unified format validation
+                    required_columns = ['Source', 'RawKeyType', 'RawKeyValue', 'MappedItemNumber']
+                    missing_columns = [col for col in required_columns if col not in df.columns]
+                    
+                    if missing_columns:
+                        st.error(f"❌ Missing required columns: {missing_columns}")
+                        st.info("Required columns: Source, RawKeyType, RawKeyValue, MappedItemNumber")
+                        st.info("Optional columns: Vendor, MappedDescription, Priority, Active, Notes")
+                    else:
+                        # Validate source values
+                        valid_sources = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
+                        invalid_sources = df[~df['Source'].isin(valid_sources)]['Source'].unique()
+                        
+                        if len(invalid_sources) > 0:
+                            st.error(f"❌ Invalid source values: {list(invalid_sources)}")
+                            st.info(f"Valid sources: {valid_sources}")
+                        else:
+                            # Validate key types
+                            valid_key_types = ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias']
+                            invalid_key_types = df[~df['RawKeyType'].isin(valid_key_types)]['RawKeyType'].unique()
+                            
+                            if len(invalid_key_types) > 0:
+                                st.error(f"❌ Invalid key types: {list(invalid_key_types)}")
+                                st.info(f"Valid key types: {valid_key_types}")
+                            else:
+                                # Show upload options
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    if st.button("✅ Upload Mappings", key=f"confirm_upload_{processor}"):
+                                        upload_mappings_to_database(df, db_service, processor)
+                                
+                                with col2:
+                                    if st.button("❌ Cancel Upload", key=f"cancel_upload_{processor}"):
+                                        st.session_state[f'show_upload_{processor}'] = False
+                                        st.rerun()
                         
             except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
+
+def convert_kehe_to_standard_format(kehe_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert KEHE format to standard database format"""
+    
+    converted_data = []
+    
+    for _, row in kehe_df.iterrows():
+        # Create multiple mappings for KEHE items
+        kehe_number = str(row.get('KeHE Number', '')).strip()
+        item_number = str(row.get('ItemNumber', '')).strip()
+        description = str(row.get('Description', '')).strip()
+        upc = str(row.get('UPC', '')).strip()
+        
+        if kehe_number and item_number:
+            # Primary mapping using KEHE number as vendor_item
+            converted_data.append({
+                'Source': 'kehe',
+                'RawKeyType': 'vendor_item',
+                'RawKeyValue': kehe_number,
+                'MappedItemNumber': item_number,
+                'Vendor': 'KEHE',
+                'MappedDescription': description if description else None,
+                'Priority': 100,
+                'Active': True,
+                'Notes': 'KEHE vendor item mapping'
+            })
+            
+            # Secondary mapping using UPC if available
+            if upc and upc != 'nan' and upc.strip():
+                converted_data.append({
+                    'Source': 'kehe',
+                    'RawKeyType': 'upc',
+                    'RawKeyValue': upc,
+                    'MappedItemNumber': item_number,
+                    'Vendor': 'KEHE',
+                    'MappedDescription': description if description else None,
+                    'Priority': 200,
+                    'Active': True,
+                    'Notes': 'KEHE UPC mapping'
+                })
+    
+    return pd.DataFrame(converted_data)
+
+# Customer Mapping Template and Export Functions
+
+def show_customer_template_download():
+    """Show customer template download with unified format"""
+    
+    # Create unified customer template with examples for all processors
+    customer_template_data = {
+        'Source': ['kehe', 'kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+        'RawCustomerID': ['10005', '10006', 'WF001', 'UNFI001', 'UNFI002', 'TK001'],
+        'MappedCustomerName': ['KL - Richmond', 'KL - Richmond', 'IDI - Richmond', 'UNFI East Store', 'UNFI West Store', 'TK Maxx Store'],
+        'CustomerType': ['store', 'store', 'store', 'distributor', 'distributor', 'retail'],
+        'Priority': [100, 100, 100, 100, 100, 100],
+        'Active': [True, True, True, True, True, True],
+        'Notes': ['KEHE SPS customer', 'KEHE SPS customer', 'Whole Foods store', 'UNFI East distributor', 'UNFI West distributor', 'TK Maxx retail store']
+    }
+    
+    customer_template_df = pd.DataFrame(customer_template_data)
+    customer_template_csv = customer_template_df.to_csv(index=False)
+    
+    st.download_button(
+        label="📥 Download Customer Template",
+        data=customer_template_csv,
+        file_name="customer_mapping_template.csv",
+        mime="text/csv",
+        help="Download unified customer mapping template for all processors"
+    )
+    
+    st.info("📋 **Customer Template Columns (All Processors):**")
+    st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, unfi_west, tkmaxx)")
+    st.write("• **RawCustomerID**: Original customer identifier from order files")
+    st.write("• **MappedCustomerName**: Standardized customer name for Xoro")
+    st.write("• **CustomerType**: Type of customer (store, distributor, warehouse)")
+    st.write("• **Priority**: Resolution priority (100=highest, 999=lowest)")
+    st.write("• **Active**: Whether mapping is active (true/false)")
+    st.write("• **Notes**: Additional notes (optional)")
+
+def export_current_customer_mappings(db_service: DatabaseService, source_filter: str = None):
+    """Export current customer mappings to CSV"""
+    
+    try:
+        # Get current mappings from database
+        df = db_service.export_customer_mappings_to_dataframe(source=source_filter)
+        
+        if len(df) == 0:
+            st.warning("⚠️ No customer mappings found to export")
+            return
+        
+        # Generate filename
+        source_part = f"_{source_filter}" if source_filter else "_all_sources"
+        filename = f"customer_mappings{source_part}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        csv_data = df.to_csv(index=False)
+        
+        st.download_button(
+            label=f"📊 Download {len(df)} Customer Mappings",
+            data=csv_data,
+            file_name=filename,
+            mime="text/csv",
+            help=f"Export {len(df)} current customer mappings to CSV"
+        )
+        
+        st.success(f"✅ Ready to download {len(df)} customer mappings")
+        
+    except Exception as e:
+        st.error(f"❌ Export failed: {e}")
+
+# Store Mapping Template and Export Functions
+
+def show_store_template_download():
+    """Show store template download with unified format"""
+    
+    # Create unified store template with examples for all processors
+    store_template_data = {
+        'Source': ['kehe', 'kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+        'RawStoreID': ['10005', '10006', 'WF001', 'UNFI001', 'UNFI002', 'TK001'],
+        'MappedStoreName': ['KL - Richmond', 'KL - Richmond', 'IDI - Richmond', 'UNFI East Store', 'UNFI West Store', 'TK Maxx Store'],
+        'StoreType': ['retail', 'retail', 'retail', 'warehouse', 'warehouse', 'retail'],
+        'Priority': [100, 100, 100, 100, 100, 100],
+        'Active': [True, True, True, True, True, True],
+        'Notes': ['KEHE SPS store', 'KEHE SPS store', 'Whole Foods store', 'UNFI East warehouse', 'UNFI West warehouse', 'TK Maxx retail store']
+    }
+    
+    store_template_df = pd.DataFrame(store_template_data)
+    store_template_csv = store_template_df.to_csv(index=False)
+    
+    st.download_button(
+        label="📥 Download Store Template",
+        data=store_template_csv,
+        file_name="store_mapping_template.csv",
+        mime="text/csv",
+        help="Download unified store mapping template for all processors"
+    )
+    
+    st.info("📋 **Store Template Columns (All Processors):**")
+    st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, unfi_west, tkmaxx)")
+    st.write("• **RawStoreID**: Original store identifier from order files")
+    st.write("• **MappedStoreName**: Standardized store name for Xoro")
+    st.write("• **StoreType**: Type of store (retail, warehouse, distribution)")
+    st.write("• **Priority**: Resolution priority (100=highest, 999=lowest)")
+    st.write("• **Active**: Whether mapping is active (true/false)")
+    st.write("• **Notes**: Additional notes (optional)")
+
+def export_current_store_mappings(db_service: DatabaseService, source_filter: str = None):
+    """Export current store mappings to CSV"""
+    
+    try:
+        # Get current mappings from database
+        df = db_service.export_store_mappings_to_dataframe(source=source_filter)
+        
+        if len(df) == 0:
+            st.warning("⚠️ No store mappings found to export")
+            return
+        
+        # Generate filename
+        source_part = f"_{source_filter}" if source_filter else "_all_sources"
+        filename = f"store_mappings{source_part}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        csv_data = df.to_csv(index=False)
+        
+        st.download_button(
+            label=f"📊 Download {len(df)} Store Mappings",
+            data=csv_data,
+            file_name=filename,
+            mime="text/csv",
+            help=f"Export {len(df)} current store mappings to CSV"
+        )
+        
+        st.success(f"✅ Ready to download {len(df)} store mappings")
+        
+    except Exception as e:
+        st.error(f"❌ Export failed: {e}")
+
+# Placeholder functions for customer and store mapping UI components
+# These would need to be implemented similar to the item mapping functions
+
+def show_customer_mapping_upload_form(db_service: DatabaseService, processor: str):
+    """Show form for uploading customer mapping files"""
+    st.info("🚧 Customer mapping upload form - Implementation in progress")
+
+def show_add_customer_mapping_form(db_service: DatabaseService, processor: str):
+    """Show form for adding new customer mapping"""
+    st.info("🚧 Add customer mapping form - Implementation in progress")
+
+def show_customer_data_editor_mappings(mappings: list, db_service: DatabaseService, processor: str):
+    """Show customer mappings in data editor for bulk editing"""
+    st.info("🚧 Customer data editor - Implementation in progress")
+
+def show_customer_row_by_row_mappings(mappings: list, db_service: DatabaseService, processor: str):
+    """Show customer mappings in row-by-row format"""
+    st.info("🚧 Customer row-by-row editor - Implementation in progress")
+
+def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
+    """Show form for uploading store mapping files"""
+    st.info("🚧 Store mapping upload form - Implementation in progress")
+
+def show_add_store_mapping_form(db_service: DatabaseService, processor: str):
+    """Show form for adding new store mapping"""
+    st.info("🚧 Add store mapping form - Implementation in progress")
+
+def show_store_data_editor_mappings(mappings: list, db_service: DatabaseService, processor: str):
+    """Show store mappings in data editor for bulk editing"""
+    st.info("🚧 Store data editor - Implementation in progress")
+
+def show_store_row_by_row_mappings(mappings: list, db_service: DatabaseService, processor: str):
+    """Show store mappings in row-by-row format"""
+    st.info("🚧 Store row-by-row editor - Implementation in progress")
 
 def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
     """Upload mappings from DataFrame to database"""

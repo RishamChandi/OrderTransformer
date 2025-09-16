@@ -55,14 +55,33 @@ class ConversionHistory(Base):
     success = Column(Boolean, default=True)
     error_message = Column(Text)
     
+class CustomerMapping(Base):
+    """Model for storing customer name mappings"""
+    __tablename__ = 'customer_mappings'
+    
+    id = Column(Integer, primary_key=True)
+    source = Column(String(50), nullable=False)
+    raw_customer_id = Column(String(100), nullable=False)  # Original customer identifier
+    mapped_customer_name = Column(String(200), nullable=False)  # Standardized customer name
+    customer_type = Column(String(50), default='store')  # store, distributor, etc.
+    active = Column(Boolean, default=True)
+    priority = Column(Integer, default=100)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class StoreMapping(Base):
     """Model for storing store/customer name mappings"""
     __tablename__ = 'store_mappings'
     
     id = Column(Integer, primary_key=True)
     source = Column(String(50), nullable=False)
-    raw_name = Column(String(200), nullable=False)
-    mapped_name = Column(String(200), nullable=False)
+    raw_store_id = Column(String(100), nullable=False)  # Original store identifier
+    mapped_store_name = Column(String(200), nullable=False)  # Standardized store name
+    store_type = Column(String(50), default='retail')  # retail, warehouse, etc.
+    active = Column(Boolean, default=True)
+    priority = Column(Integer, default=100)
+    notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

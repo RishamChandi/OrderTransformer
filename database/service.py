@@ -15,7 +15,7 @@ def parse_boolean(value: Any) -> bool:
     if isinstance(value, str):
         return value.lower() in ('true', '1', 'yes', 'on')
     return bool(value)
-from .models import ProcessedOrder, OrderLineItem, ConversionHistory, StoreMapping, ItemMapping
+from .models import ProcessedOrder, OrderLineItem, ConversionHistory, CustomerMapping, StoreMapping, ItemMapping
 from .connection import get_session
 
 class DatabaseService:
@@ -564,3 +564,273 @@ class DatabaseService:
                 continue
         
         return None
+    
+    # Customer Mapping Methods
+    
+    def get_customer_mappings_advanced(self, source: str = None, active_only: bool = True, 
+                                     customer_type: str = None, search_term: str = None) -> List[Dict[str, Any]]:
+        """Get customer mappings with advanced filtering options"""
+        
+        with get_session() as session:
+            query = session.query(CustomerMapping)
+            
+            # Apply filters
+            if source:
+                query = query.filter(CustomerMapping.source == source)
+            if active_only:
+                query = query.filter(CustomerMapping.active == True)  # type: ignore
+            if customer_type:
+                query = query.filter(CustomerMapping.customer_type == customer_type)
+            if search_term:
+                search_pattern = f"%{search_term}%"
+                search_filters = [
+                    CustomerMapping.raw_customer_id.ilike(search_pattern),
+                    CustomerMapping.mapped_customer_name.ilike(search_pattern)
+                ]
+                if search_term:
+                    search_filters.append(CustomerMapping.notes.ilike(search_pattern))
+                query = query.filter(or_(*search_filters))
+            
+            # Order by priority, then by created date
+            query = query.order_by(CustomerMapping.priority.asc(), CustomerMapping.created_at.desc())
+            
+            mappings = query.all()
+            
+            # Convert to dictionaries
+            result = []
+            for mapping in mappings:
+                result.append({
+                    'id': mapping.id,
+                    'source': str(mapping.source),
+                    'raw_customer_id': str(mapping.raw_customer_id),
+                    'mapped_customer_name': str(mapping.mapped_customer_name),
+                    'customer_type': str(mapping.customer_type),
+                    'priority': mapping.priority,
+                    'active': mapping.active,
+                    'notes': str(mapping.notes) if mapping.notes is not None else '',
+                    'created_at': mapping.created_at,
+                    'updated_at': mapping.updated_at
+                })
+            
+            return result
+    
+    def bulk_upsert_customer_mappings(self, mappings_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Bulk insert or update customer mappings"""
+        
+        session = get_session().__enter__()
+        transaction = None
+        
+        try:
+            transaction = session.begin()
+            stats = {'added': 0, 'updated': 0, 'errors': 0, 'error_details': []}
+            
+            for idx, mapping_data in enumerate(mappings_data):
+                try:
+                    source = mapping_data.get('source', '').strip()
+                    raw_customer_id = mapping_data.get('raw_customer_id', '').strip()
+                    mapped_customer_name = mapping_data.get('mapped_customer_name', '').strip()
+                    
+                    if not source or not raw_customer_id or not mapped_customer_name:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing required fields")
+                        continue
+                    
+                    # Check if mapping exists
+                    existing = session.query(CustomerMapping).filter(
+                        and_(
+                            CustomerMapping.source == source,
+                            CustomerMapping.raw_customer_id == raw_customer_id
+                        )
+                    ).first()
+                    
+                    if existing:
+                        # Update existing mapping
+                        existing.mapped_customer_name = mapped_customer_name
+                        existing.customer_type = mapping_data.get('customer_type', 'store')
+                        existing.active = parse_boolean(mapping_data.get('active', True))
+                        existing.priority = int(mapping_data.get('priority', 100))
+                        existing.notes = mapping_data.get('notes')
+                        existing.updated_at = datetime.utcnow()
+                        stats['updated'] += 1
+                    else:
+                        # Create new mapping
+                        new_mapping = CustomerMapping(
+                            source=source,
+                            raw_customer_id=raw_customer_id,
+                            mapped_customer_name=mapped_customer_name,
+                            customer_type=mapping_data.get('customer_type', 'store'),
+                            active=parse_boolean(mapping_data.get('active', True)),
+                            priority=int(mapping_data.get('priority', 100)),
+                            notes=mapping_data.get('notes')
+                        )
+                        session.add(new_mapping)
+                        stats['added'] += 1
+                        
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {idx + 1}: {str(e)}")
+            
+            transaction.commit()
+            return stats
+                
+        except Exception as e:
+            if transaction:
+                transaction.rollback()
+            return {'added': 0, 'updated': 0, 'errors': 1, 'error_details': [f"Database error: {str(e)}"]}
+        
+        finally:
+            session.close()
+    
+    def export_customer_mappings_to_dataframe(self, source: str = None) -> pd.DataFrame:
+        """Export customer mappings to pandas DataFrame"""
+        
+        mappings = self.get_customer_mappings_advanced(source=source, active_only=False)
+        
+        df_data = []
+        for mapping in mappings:
+            df_data.append({
+                'Source': mapping['source'],
+                'RawCustomerID': mapping['raw_customer_id'],
+                'MappedCustomerName': mapping['mapped_customer_name'],
+                'CustomerType': mapping['customer_type'],
+                'Priority': mapping['priority'],
+                'Active': mapping['active'],
+                'Notes': mapping['notes']
+            })
+        
+        return pd.DataFrame(df_data)
+    
+    # Store Mapping Methods
+    
+    def get_store_mappings_advanced(self, source: str = None, active_only: bool = True, 
+                                  store_type: str = None, search_term: str = None) -> List[Dict[str, Any]]:
+        """Get store mappings with advanced filtering options"""
+        
+        with get_session() as session:
+            query = session.query(StoreMapping)
+            
+            # Apply filters
+            if source:
+                query = query.filter(StoreMapping.source == source)
+            if active_only:
+                query = query.filter(StoreMapping.active == True)  # type: ignore
+            if store_type:
+                query = query.filter(StoreMapping.store_type == store_type)
+            if search_term:
+                search_pattern = f"%{search_term}%"
+                search_filters = [
+                    StoreMapping.raw_store_id.ilike(search_pattern),
+                    StoreMapping.mapped_store_name.ilike(search_pattern)
+                ]
+                if search_term:
+                    search_filters.append(StoreMapping.notes.ilike(search_pattern))
+                query = query.filter(or_(*search_filters))
+            
+            # Order by priority, then by created date
+            query = query.order_by(StoreMapping.priority.asc(), StoreMapping.created_at.desc())
+            
+            mappings = query.all()
+            
+            # Convert to dictionaries
+            result = []
+            for mapping in mappings:
+                result.append({
+                    'id': mapping.id,
+                    'source': str(mapping.source),
+                    'raw_store_id': str(mapping.raw_store_id),
+                    'mapped_store_name': str(mapping.mapped_store_name),
+                    'store_type': str(mapping.store_type),
+                    'priority': mapping.priority,
+                    'active': mapping.active,
+                    'notes': str(mapping.notes) if mapping.notes is not None else '',
+                    'created_at': mapping.created_at,
+                    'updated_at': mapping.updated_at
+                })
+            
+            return result
+    
+    def bulk_upsert_store_mappings(self, mappings_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Bulk insert or update store mappings"""
+        
+        session = get_session().__enter__()
+        transaction = None
+        
+        try:
+            transaction = session.begin()
+            stats = {'added': 0, 'updated': 0, 'errors': 0, 'error_details': []}
+            
+            for idx, mapping_data in enumerate(mappings_data):
+                try:
+                    source = mapping_data.get('source', '').strip()
+                    raw_store_id = mapping_data.get('raw_store_id', '').strip()
+                    mapped_store_name = mapping_data.get('mapped_store_name', '').strip()
+                    
+                    if not source or not raw_store_id or not mapped_store_name:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing required fields")
+                        continue
+                    
+                    # Check if mapping exists
+                    existing = session.query(StoreMapping).filter(
+                        and_(
+                            StoreMapping.source == source,
+                            StoreMapping.raw_store_id == raw_store_id
+                        )
+                    ).first()
+                    
+                    if existing:
+                        # Update existing mapping
+                        existing.mapped_store_name = mapped_store_name
+                        existing.store_type = mapping_data.get('store_type', 'retail')
+                        existing.active = parse_boolean(mapping_data.get('active', True))
+                        existing.priority = int(mapping_data.get('priority', 100))
+                        existing.notes = mapping_data.get('notes')
+                        existing.updated_at = datetime.utcnow()
+                        stats['updated'] += 1
+                    else:
+                        # Create new mapping
+                        new_mapping = StoreMapping(
+                            source=source,
+                            raw_store_id=raw_store_id,
+                            mapped_store_name=mapped_store_name,
+                            store_type=mapping_data.get('store_type', 'retail'),
+                            active=parse_boolean(mapping_data.get('active', True)),
+                            priority=int(mapping_data.get('priority', 100)),
+                            notes=mapping_data.get('notes')
+                        )
+                        session.add(new_mapping)
+                        stats['added'] += 1
+                        
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {idx + 1}: {str(e)}")
+            
+            transaction.commit()
+            return stats
+                
+        except Exception as e:
+            if transaction:
+                transaction.rollback()
+            return {'added': 0, 'updated': 0, 'errors': 1, 'error_details': [f"Database error: {str(e)}"]}
+        
+        finally:
+            session.close()
+    
+    def export_store_mappings_to_dataframe(self, source: str = None) -> pd.DataFrame:
+        """Export store mappings to pandas DataFrame"""
+        
+        mappings = self.get_store_mappings_advanced(source=source, active_only=False)
+        
+        df_data = []
+        for mapping in mappings:
+            df_data.append({
+                'Source': mapping['source'],
+                'RawStoreID': mapping['raw_store_id'],
+                'MappedStoreName': mapping['mapped_store_name'],
+                'StoreType': mapping['store_type'],
+                'Priority': mapping['priority'],
+                'Active': mapping['active'],
+                'Notes': mapping['notes']
+            })
+        
+        return pd.DataFrame(df_data)

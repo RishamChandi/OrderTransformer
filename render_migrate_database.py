@@ -271,16 +271,38 @@ def create_other_tables():
     
     try:
         with engine.connect() as conn:
-            # Create store_mappings table
+            # Create customer_mappings table
+            create_customer_mappings_sql = """
+            CREATE TABLE IF NOT EXISTS customer_mappings (
+                id SERIAL PRIMARY KEY,
+                source VARCHAR(50) NOT NULL,
+                raw_customer_id VARCHAR(100) NOT NULL,
+                mapped_customer_name VARCHAR(200) NOT NULL,
+                customer_type VARCHAR(50) DEFAULT 'store',
+                active BOOLEAN DEFAULT TRUE,
+                priority INTEGER DEFAULT 100,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(source, raw_customer_id)
+            );
+            """
+            conn.execute(text(create_customer_mappings_sql))
+            
+            # Create store_mappings table (enhanced)
             create_store_mappings_sql = """
             CREATE TABLE IF NOT EXISTS store_mappings (
                 id SERIAL PRIMARY KEY,
                 source VARCHAR(50) NOT NULL,
-                raw_name VARCHAR(200) NOT NULL,
-                mapped_name VARCHAR(200) NOT NULL,
+                raw_store_id VARCHAR(100) NOT NULL,
+                mapped_store_name VARCHAR(200) NOT NULL,
+                store_type VARCHAR(50) DEFAULT 'retail',
+                active BOOLEAN DEFAULT TRUE,
+                priority INTEGER DEFAULT 100,
+                notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(source, raw_name)
+                UNIQUE(source, raw_store_id)
             );
             """
             conn.execute(text(create_store_mappings_sql))
