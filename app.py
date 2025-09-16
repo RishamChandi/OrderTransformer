@@ -163,6 +163,19 @@ def main():
     }
     .stSelectbox > div > div {
         padding: 0.3rem 0.5rem;
+        min-width: 200px !important;
+    }
+    .stSelectbox > div > div > div {
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    .stSelectbox [data-baseweb="select"] {
+        min-width: 200px !important;
+    }
+    .stSelectbox [data-baseweb="select"] > div {
+        min-width: 200px !important;
+        white-space: nowrap !important;
     }
     .stButton > button {
         padding: 0.3rem 0.8rem;
@@ -198,6 +211,55 @@ def main():
     .upload-zone:hover {
         border-color: #4f46e5 !important;
         background-color: #f0f2f6 !important;
+    }
+    /* Sidebar dropdown styling */
+    .css-1d391kg .stSelectbox > div > div {
+        min-width: 180px !important;
+    }
+    .css-1d391kg .stSelectbox [data-baseweb="select"] {
+        min-width: 180px !important;
+    }
+    .css-1d391kg .stSelectbox [data-baseweb="select"] > div {
+        min-width: 180px !important;
+        white-space: nowrap !important;
+    }
+    /* Ensure dropdown options are visible */
+    [data-baseweb="popover"] {
+        min-width: 200px !important;
+    }
+    [data-baseweb="menu"] {
+        min-width: 200px !important;
+    }
+    [data-baseweb="menu"] li {
+        white-space: nowrap !important;
+        overflow: visible !important;
+    }
+    /* Sidebar width adjustment */
+    .css-1d391kg {
+        min-width: 250px !important;
+    }
+    .css-1d391kg .stSelectbox {
+        width: 100% !important;
+    }
+    /* Main content area adjustment */
+    .main .block-container {
+        padding-left: 1rem !important;
+    }
+    /* Additional dropdown fixes */
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__value-container"] {
+        min-width: 180px !important;
+        white-space: nowrap !important;
+    }
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__single-value"] {
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    /* Ensure dropdown menu items are fully visible */
+    [data-baseweb="menu"] [role="option"] {
+        white-space: nowrap !important;
+        padding: 0.5rem 1rem !important;
+        min-width: 200px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -387,16 +449,11 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
     
     st.markdown("---")
     
-    # Enhanced drag and drop file upload section
+    # Single, functional file uploader with enhanced styling
     st.markdown(f"""
-    <div class="upload-zone" style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; border: 2px dashed #667eea; text-align: center; margin-bottom: 1rem;">
+    <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 8px; border: 2px dashed #667eea; text-align: center; margin-bottom: 1rem;">
         <h3 style="color: #667eea; margin: 0;">{file_icon} Upload Your Files</h3>
-        <p style="color: #666; margin: 0.5rem 0;">{help_text}</p>
-        <div class="upload-zone" style="background-color: white; padding: 2rem; border-radius: 8px; border: 1px dashed #ccc; margin: 1rem 0;">
-            <div style="font-size: 2rem; color: #667eea; margin-bottom: 0.5rem;">☁️</div>
-            <p style="color: #666; margin: 0; font-size: 0.9rem;">Drag and drop files here or click to browse</p>
-            <p style="color: #999; margin: 0.3rem 0 0 0; font-size: 0.8rem;">Limit 200MB per file • {', '.join(accepted_types).upper()}</p>
-        </div>
+        <p style="color: #666; margin: 0.3rem 0; font-size: 0.9rem;">{help_text}</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1471,19 +1528,456 @@ def export_current_store_mappings(db_service: DatabaseService, source_filter: st
 
 def show_customer_mapping_upload_form(db_service: DatabaseService, processor: str):
     """Show form for uploading customer mapping files"""
-    st.info("🚧 Customer mapping upload form - Implementation in progress")
+    
+    with st.expander("📤 Upload Customer Mappings", expanded=True):
+        st.write("Upload a CSV file with the unified customer mapping template format")
+        
+        uploaded_file = st.file_uploader(
+            "Choose CSV file",
+            type=['csv'],
+            key=f"customer_upload_file_{processor}",
+            help="Use the unified customer template format"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Read and validate uploaded file
+                df = pd.read_csv(uploaded_file)
+                
+                st.write(f"📋 **File Preview** ({len(df)} rows):")
+                st.dataframe(df.head(10), use_container_width=True)
+                
+                # Validate required columns
+                required_columns = ['Source', 'RawCustomerID', 'MappedCustomerName']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+                    st.write("**Required columns:**")
+                    for col in required_columns:
+                        st.write(f"• {col}")
+                else:
+                    st.success("✅ File format is valid!")
+                    
+                    # Show column mapping
+                    st.write("**Column Mapping:**")
+                    col_mapping = {
+                        'Source': 'source',
+                        'RawCustomerID': 'raw_customer_id', 
+                        'MappedCustomerName': 'mapped_customer_name',
+                        'CustomerType': 'customer_type',
+                        'Priority': 'priority',
+                        'Active': 'active',
+                        'Notes': 'notes'
+                    }
+                    
+                    for csv_col, db_col in col_mapping.items():
+                        if csv_col in df.columns:
+                            st.write(f"• {csv_col} → {db_col}")
+                    
+                    # Upload button
+                    if st.button("📤 Upload Customer Mappings", key=f"upload_customer_btn_{processor}"):
+                        # Convert DataFrame to list of dictionaries
+                        mappings_data = []
+                        for _, row in df.iterrows():
+                            mapping_data = {
+                                'source': str(row.get('Source', processor)).strip(),
+                                'raw_customer_id': str(row.get('RawCustomerID', '')).strip(),
+                                'mapped_customer_name': str(row.get('MappedCustomerName', '')).strip(),
+                                'customer_type': str(row.get('CustomerType', 'store')).strip(),
+                                'priority': int(row.get('Priority', 100)),
+                                'active': parse_boolean(row.get('Active', True)),
+                                'notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) else ''
+                            }
+                            mappings_data.append(mapping_data)
+                        
+                        # Upload to database
+                        with st.spinner("Uploading customer mappings..."):
+                            result = db_service.bulk_upsert_customer_mappings(mappings_data)
+                        
+                        # Show results
+                        if result['errors'] == 0:
+                            st.success(f"✅ Successfully uploaded {result['added']} new mappings and updated {result['updated']} existing mappings!")
+                        else:
+                            st.warning(f"⚠️ Upload completed with {result['errors']} errors:")
+                            for error in result['error_details']:
+                                st.error(f"• {error}")
+                        
+                        # Clear the upload form
+                        st.session_state[f'show_customer_upload_{processor}'] = False
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+                st.write("**Troubleshooting:**")
+                st.write("1. Make sure the file is a valid CSV")
+                st.write("2. Check that all required columns are present")
+                st.write("3. Verify the data format matches the template")
 
 def show_add_customer_mapping_form(db_service: DatabaseService, processor: str):
     """Show form for adding new customer mapping"""
-    st.info("🚧 Add customer mapping form - Implementation in progress")
+    
+    with st.expander("➕ Add New Customer Mapping", expanded=True):
+        st.write("Add a new customer mapping manually")
+        
+        with st.form(key=f"add_customer_form_{processor}"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                source = st.selectbox(
+                    "Source",
+                    options=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+                    index=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'].index(processor) if processor in ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'] else 0,
+                    key=f"add_customer_source_{processor}"
+                )
+                
+                raw_customer_id = st.text_input(
+                    "Raw Customer ID",
+                    placeholder="e.g., 10005, WF001, UNFI001",
+                    key=f"add_customer_raw_id_{processor}"
+                )
+                
+                mapped_customer_name = st.text_input(
+                    "Mapped Customer Name",
+                    placeholder="e.g., KL - Richmond, IDI - Richmond",
+                    key=f"add_customer_mapped_name_{processor}"
+                )
+            
+            with col2:
+                customer_type = st.selectbox(
+                    "Customer Type",
+                    options=['store', 'distributor', 'warehouse', 'retail'],
+                    index=0,
+                    key=f"add_customer_type_{processor}"
+                )
+                
+                priority = st.number_input(
+                    "Priority",
+                    min_value=1,
+                    max_value=999,
+                    value=100,
+                    help="Lower values = higher priority",
+                    key=f"add_customer_priority_{processor}"
+                )
+                
+                active = st.checkbox(
+                    "Active",
+                    value=True,
+                    key=f"add_customer_active_{processor}"
+                )
+            
+            notes = st.text_area(
+                "Notes (Optional)",
+                placeholder="Additional notes about this customer mapping...",
+                key=f"add_customer_notes_{processor}"
+            )
+            
+            # Submit button
+            submitted = st.form_submit_button("➕ Add Customer Mapping", type="primary")
+            
+            if submitted:
+                # Validate required fields
+                if not raw_customer_id.strip():
+                    st.error("❌ Raw Customer ID is required")
+                elif not mapped_customer_name.strip():
+                    st.error("❌ Mapped Customer Name is required")
+                else:
+                    # Create mapping data
+                    mapping_data = [{
+                        'source': source,
+                        'raw_customer_id': raw_customer_id.strip(),
+                        'mapped_customer_name': mapped_customer_name.strip(),
+                        'customer_type': customer_type,
+                        'priority': priority,
+                        'active': active,
+                        'notes': notes.strip() if notes.strip() else None
+                    }]
+                    
+                    # Add to database
+                    with st.spinner("Adding customer mapping..."):
+                        result = db_service.bulk_upsert_customer_mappings(mapping_data)
+                    
+                    # Show results
+                    if result['errors'] == 0:
+                        st.success(f"✅ Successfully added customer mapping!")
+                        # Clear the form
+                        st.session_state[f'show_customer_add_form_{processor}'] = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Error adding customer mapping: {result['error_details'][0] if result['error_details'] else 'Unknown error'}")
 
 def show_customer_data_editor_mappings(mappings: list, db_service: DatabaseService, processor: str):
     """Show customer mappings in data editor for bulk editing"""
-    st.info("🚧 Customer data editor - Implementation in progress")
+    
+    if not mappings:
+        st.info("No customer mappings to display")
+        return
+    
+    # Convert mappings to DataFrame for editing
+    df_data = []
+    for mapping in mappings:
+        df_data.append({
+            'ID': mapping['id'],
+            'Source': mapping['source'],
+            'Raw Customer ID': mapping['raw_customer_id'],
+            'Mapped Customer Name': mapping['mapped_customer_name'],
+            'Customer Type': mapping['customer_type'],
+            'Priority': mapping['priority'],
+            'Active': mapping['active'],
+            'Notes': mapping['notes']
+        })
+    
+    df = pd.DataFrame(df_data)
+    
+    # Display editable DataFrame
+    st.write("**Edit customer mappings (double-click to edit):**")
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="dynamic",
+        key=f"customer_data_editor_{processor}",
+        column_config={
+            "ID": st.column_config.NumberColumn("ID", disabled=True),
+            "Source": st.column_config.SelectboxColumn(
+                "Source",
+                options=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+                required=True
+            ),
+            "Raw Customer ID": st.column_config.TextColumn("Raw Customer ID", required=True),
+            "Mapped Customer Name": st.column_config.TextColumn("Mapped Customer Name", required=True),
+            "Customer Type": st.column_config.SelectboxColumn(
+                "Customer Type",
+                options=['store', 'distributor', 'warehouse', 'retail'],
+                required=True
+            ),
+            "Priority": st.column_config.NumberColumn("Priority", min_value=1, max_value=999, required=True),
+            "Active": st.column_config.CheckboxColumn("Active"),
+            "Notes": st.column_config.TextColumn("Notes")
+        }
+    )
+    
+    # Save changes button
+    if st.button("💾 Save Changes", key=f"save_customer_changes_{processor}"):
+        # Convert edited DataFrame back to mapping format
+        updated_mappings = []
+        for _, row in edited_df.iterrows():
+            updated_mappings.append({
+                'id': row['ID'],
+                'source': row['Source'],
+                'raw_customer_id': row['Raw Customer ID'],
+                'mapped_customer_name': row['Mapped Customer Name'],
+                'customer_type': row['Customer Type'],
+                'priority': int(row['Priority']),
+                'active': bool(row['Active']),
+                'notes': row['Notes'] if pd.notna(row['Notes']) else None
+            })
+        
+        # Update database
+        with st.spinner("Saving changes..."):
+            # For now, we'll use bulk upsert (this could be optimized for updates only)
+            mappings_data = []
+            for mapping in updated_mappings:
+                mappings_data.append({
+                    'source': mapping['source'],
+                    'raw_customer_id': mapping['raw_customer_id'],
+                    'mapped_customer_name': mapping['mapped_customer_name'],
+                    'customer_type': mapping['customer_type'],
+                    'priority': mapping['priority'],
+                    'active': mapping['active'],
+                    'notes': mapping['notes']
+                })
+            
+            result = db_service.bulk_upsert_customer_mappings(mappings_data)
+        
+        if result['errors'] == 0:
+            st.success(f"✅ Successfully saved changes! Updated {result['updated']} mappings.")
+            st.rerun()
+        else:
+            st.error(f"❌ Error saving changes: {result['error_details']}")
+    
+    # Delete selected mappings
+    st.markdown("---")
+    st.write("**Delete Mappings:**")
+    
+    # Get IDs to delete
+    delete_ids = st.multiselect(
+        "Select mappings to delete:",
+        options=[mapping['id'] for mapping in mappings],
+        format_func=lambda x: f"ID {x}: {next(m['raw_customer_id'] for m in mappings if m['id'] == x)} → {next(m['mapped_customer_name'] for m in mappings if m['id'] == x)}",
+        key=f"delete_customer_select_{processor}"
+    )
+    
+    if delete_ids and st.button("🗑️ Delete Selected", type="secondary", key=f"delete_customer_btn_{processor}"):
+        with st.spinner("Deleting mappings..."):
+            # Note: We need to add a delete method to the database service
+            st.info("Delete functionality will be implemented in the database service")
+            # For now, just show what would be deleted
+            st.write(f"Would delete {len(delete_ids)} mappings: {delete_ids}")
 
 def show_customer_row_by_row_mappings(mappings: list, db_service: DatabaseService, processor: str):
     """Show customer mappings in row-by-row format"""
-    st.info("🚧 Customer row-by-row editor - Implementation in progress")
+    
+    if not mappings:
+        st.info("No customer mappings to display")
+        return
+    
+    st.write(f"**Customer Mappings ({len(mappings)} total):**")
+    
+    # Pagination
+    items_per_page = 10
+    total_pages = (len(mappings) - 1) // items_per_page + 1
+    
+    if total_pages > 1:
+        page = st.selectbox("Page:", range(1, total_pages + 1), key=f"customer_page_{processor}")
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        page_mappings = mappings[start_idx:end_idx]
+    else:
+        page_mappings = mappings
+    
+    # Display mappings in cards
+    for i, mapping in enumerate(page_mappings):
+        with st.expander(f"ID {mapping['id']}: {mapping['raw_customer_id']} → {mapping['mapped_customer_name']}", expanded=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write(f"**Source:** {mapping['source']}")
+                st.write(f"**Raw Customer ID:** {mapping['raw_customer_id']}")
+                st.write(f"**Mapped Customer Name:** {mapping['mapped_customer_name']}")
+                st.write(f"**Customer Type:** {mapping['customer_type']}")
+            
+            with col2:
+                st.write(f"**Priority:** {mapping['priority']}")
+                st.write(f"**Active:** {'✅ Yes' if mapping['active'] else '❌ No'}")
+                st.write(f"**Created:** {mapping['created_at'].strftime('%Y-%m-%d %H:%M') if mapping['created_at'] else 'N/A'}")
+                st.write(f"**Updated:** {mapping['updated_at'].strftime('%Y-%m-%d %H:%M') if mapping['updated_at'] else 'N/A'}")
+            
+            if mapping['notes']:
+                st.write(f"**Notes:** {mapping['notes']}")
+            
+            # Edit and delete buttons
+            col1, col2, col3 = st.columns([1, 1, 1])
+            
+            with col1:
+                if st.button("✏️ Edit", key=f"edit_customer_{mapping['id']}_{processor}"):
+                    st.session_state[f'edit_customer_{mapping["id"]}'] = True
+            
+            with col2:
+                if st.button("🗑️ Delete", key=f"delete_customer_{mapping['id']}_{processor}"):
+                    st.session_state[f'delete_customer_{mapping["id"]}'] = True
+            
+            with col3:
+                if st.button("📋 Copy", key=f"copy_customer_{mapping['id']}_{processor}"):
+                    st.session_state[f'copy_customer_{mapping["id"]}'] = True
+            
+            # Edit form (if edit button clicked)
+            if st.session_state.get(f'edit_customer_{mapping["id"]}', False):
+                st.markdown("---")
+                st.write("**Edit Customer Mapping:**")
+                
+                with st.form(key=f"edit_customer_form_{mapping['id']}_{processor}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        edit_source = st.selectbox(
+                            "Source",
+                            options=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+                            index=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'].index(mapping['source']),
+                            key=f"edit_customer_source_{mapping['id']}_{processor}"
+                        )
+                        
+                        edit_raw_id = st.text_input(
+                            "Raw Customer ID",
+                            value=mapping['raw_customer_id'],
+                            key=f"edit_customer_raw_id_{mapping['id']}_{processor}"
+                        )
+                        
+                        edit_mapped_name = st.text_input(
+                            "Mapped Customer Name",
+                            value=mapping['mapped_customer_name'],
+                            key=f"edit_customer_mapped_name_{mapping['id']}_{processor}"
+                        )
+                    
+                    with col2:
+                        edit_type = st.selectbox(
+                            "Customer Type",
+                            options=['store', 'distributor', 'warehouse', 'retail'],
+                            index=['store', 'distributor', 'warehouse', 'retail'].index(mapping['customer_type']),
+                            key=f"edit_customer_type_{mapping['id']}_{processor}"
+                        )
+                        
+                        edit_priority = st.number_input(
+                            "Priority",
+                            min_value=1,
+                            max_value=999,
+                            value=mapping['priority'],
+                            key=f"edit_customer_priority_{mapping['id']}_{processor}"
+                        )
+                        
+                        edit_active = st.checkbox(
+                            "Active",
+                            value=mapping['active'],
+                            key=f"edit_customer_active_{mapping['id']}_{processor}"
+                        )
+                    
+                    edit_notes = st.text_area(
+                        "Notes",
+                        value=mapping['notes'] or "",
+                        key=f"edit_customer_notes_{mapping['id']}_{processor}"
+                    )
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.form_submit_button("💾 Save Changes", type="primary"):
+                            # Update mapping
+                            updated_mapping = [{
+                                'source': edit_source,
+                                'raw_customer_id': edit_raw_id.strip(),
+                                'mapped_customer_name': edit_mapped_name.strip(),
+                                'customer_type': edit_type,
+                                'priority': edit_priority,
+                                'active': edit_active,
+                                'notes': edit_notes.strip() if edit_notes.strip() else None
+                            }]
+                            
+                            with st.spinner("Saving changes..."):
+                                result = db_service.bulk_upsert_customer_mappings(updated_mapping)
+                            
+                            if result['errors'] == 0:
+                                st.success("✅ Customer mapping updated successfully!")
+                                st.session_state[f'edit_customer_{mapping["id"]}'] = False
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Error updating mapping: {result['error_details'][0] if result['error_details'] else 'Unknown error'}")
+                    
+                    with col2:
+                        if st.form_submit_button("❌ Cancel"):
+                            st.session_state[f'edit_customer_{mapping["id"]}'] = False
+                            st.rerun()
+            
+            # Delete confirmation (if delete button clicked)
+            if st.session_state.get(f'delete_customer_{mapping["id"]}', False):
+                st.markdown("---")
+                st.warning(f"⚠️ Are you sure you want to delete this customer mapping?")
+                st.write(f"**ID {mapping['id']}:** {mapping['raw_customer_id']} → {mapping['mapped_customer_name']}")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Yes, Delete", key=f"confirm_delete_customer_{mapping['id']}_{processor}"):
+                        st.info("Delete functionality will be implemented in the database service")
+                        st.session_state[f'delete_customer_{mapping["id"]}'] = False
+                        st.rerun()
+                
+                with col2:
+                    if st.button("❌ Cancel", key=f"cancel_delete_customer_{mapping['id']}_{processor}"):
+                        st.session_state[f'delete_customer_{mapping["id"]}'] = False
+                        st.rerun()
+            
+            # Copy functionality (if copy button clicked)
+            if st.session_state.get(f'copy_customer_{mapping["id"]}', False):
+                st.markdown("---")
+                st.info("📋 Customer mapping copied to clipboard (functionality to be implemented)")
+                st.session_state[f'copy_customer_{mapping["id"]}'] = False
 
 def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
     """Show form for uploading store mapping files"""

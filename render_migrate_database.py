@@ -30,8 +30,7 @@ def get_database_engine():
 
 def migrate_item_mapping_table():
     """
-    Migrate ItemMapping table to support enhanced template structure.
-    Adds new columns while maintaining backward compatibility.
+    Migrate item_mappings table to include new columns
     """
     
     engine = get_database_engine()
@@ -42,225 +41,57 @@ def migrate_item_mapping_table():
             inspector = inspect(engine)
             if 'item_mappings' not in inspector.get_table_names():
                 logger.info("Creating item_mappings table...")
-                # Create the table with all columns
-                create_table_sql = """
+                create_item_mappings_sql = """
                 CREATE TABLE item_mappings (
                     id SERIAL PRIMARY KEY,
                     source VARCHAR(50) NOT NULL,
                     raw_item VARCHAR(100) NOT NULL,
                     mapped_item VARCHAR(100) NOT NULL,
-                    key_type VARCHAR(50) NOT NULL DEFAULT 'vendor_item',
+                    key_type VARCHAR(50) DEFAULT 'vendor_item',
                     priority INTEGER DEFAULT 100,
                     active BOOLEAN DEFAULT TRUE,
                     vendor VARCHAR(100),
                     mapped_description TEXT,
                     notes TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(source, raw_item, key_type)
                 );
                 """
-                conn.execute(text(create_table_sql))
+                conn.execute(text(create_item_mappings_sql))
                 conn.commit()
                 logger.info("✅ Created item_mappings table")
-                return True, "Created item_mappings table"
-            
-            # Check if new columns already exist
-            columns = [col['name'] for col in inspector.get_columns('item_mappings')]
-            
-            new_columns = [
-                ('key_type', "VARCHAR(50) NOT NULL DEFAULT 'vendor_item'"),
-                ('priority', "INTEGER DEFAULT 100"),
-                ('active', "BOOLEAN DEFAULT TRUE"),
-                ('vendor', "VARCHAR(100)"),
-                ('mapped_description', "TEXT"),
-                ('notes', "TEXT")
-            ]
-            
-            columns_added = []
-            for col_name, col_definition in new_columns:
-                if col_name not in columns:
-                    try:
-                        # Add column
-                        alter_sql = f"ALTER TABLE item_mappings ADD COLUMN {col_name} {col_definition}"
-                        conn.execute(text(alter_sql))
-                        columns_added.append(col_name)
-                        logger.info(f"✅ Added column: {col_name}")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Failed to add column {col_name}: {e}")
-                        raise
-            
-            # Add indexes for better performance
-            indexes_to_create = [
-                ("idx_item_mappings_source", "CREATE INDEX IF NOT EXISTS idx_item_mappings_source ON item_mappings(source)"),
-                ("idx_item_mappings_active", "CREATE INDEX IF NOT EXISTS idx_item_mappings_active ON item_mappings(active)"),
-                ("idx_item_mappings_priority", "CREATE INDEX IF NOT EXISTS idx_item_mappings_priority ON item_mappings(priority)"),
-                ("idx_item_mappings_key_type", "CREATE INDEX IF NOT EXISTS idx_item_mappings_key_type ON item_mappings(key_type)"),
-                ("idx_item_mappings_lookup", "CREATE INDEX IF NOT EXISTS idx_item_mappings_lookup ON item_mappings(source, key_type, raw_item) WHERE active = TRUE")
-            ]
-            
-            for idx_name, idx_sql in indexes_to_create:
-                try:
-                    conn.execute(text(idx_sql))
-                    logger.info(f"✅ Created index: {idx_name}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Index creation warning for {idx_name}: {e}")
-            
-            # Commit the transaction
-            conn.commit()
-            
-            if columns_added:
-                logger.info(f"✅ Migration completed. Added columns: {', '.join(columns_added)}")
-                return True, f"Migration completed. Added columns: {', '.join(columns_added)}"
             else:
-                logger.info("✅ Migration skipped. All columns already exist.")
-                return True, "Migration skipped. All columns already exist."
+                # Table exists, check and add missing columns
+                logger.info("Checking item_mappings table structure...")
                 
-    except Exception as e:
-        logger.error(f"❌ Migration failed: {e}")
-        return False, f"Migration failed: {e}"
-
-def migrate_csv_mappings_to_database():
-    """
-    Migrate CSV mapping files to the database
-    """
-    
-    engine = get_database_engine()
-    
-    try:
-        with engine.connect() as conn:
-            # Check if we have any existing mappings
-            result = conn.execute(text("SELECT COUNT(*) FROM item_mappings"))
-            existing_count = result.scalar()
-            
-            if existing_count > 0:
-                logger.info(f"✅ Database already has {existing_count} item mappings")
-                return True, f"Database already has {existing_count} item mappings"
-            
-            # Import mappings from CSV files
-            sources = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
-            total_imported = 0
-            
-            for source in sources:
-                logger.info(f"📦 Importing mappings for {source}...")
+                # Get existing columns
+                existing_columns = [col['name'] for col in inspector.get_columns('item_mappings')]
                 
-                # Try different file locations
-                csv_files = [
-                    f"mappings/{source}/item_mapping.csv",
-                    f"mappings/{source}/item_mapping.xlsx",
-                    f"mappings/kehe_item_mapping.csv" if source == 'kehe' else None
-                ]
+                # Add missing columns
+                new_columns = {
+                    'key_type': "ALTER TABLE item_mappings ADD COLUMN IF NOT EXISTS key_type VARCHAR(50) DEFAULT 'vendor_item'",
+                    'priority': "ALTER TABLE item_mappings ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 100",
+                    'active': "ALTER TABLE item_mappings ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE",
+                    'vendor': "ALTER TABLE item_mappings ADD COLUMN IF NOT EXISTS vendor VARCHAR(100)",
+                    'mapped_description': "ALTER TABLE item_mappings ADD COLUMN IF NOT EXISTS mapped_description TEXT",
+                    'notes': "ALTER TABLE item_mappings ADD COLUMN IF NOT EXISTS notes TEXT"
+                }
                 
-                source_file = None
-                for file_path in csv_files:
-                    if file_path and os.path.exists(file_path):
-                        source_file = file_path
-                        break
-                
-                if not source_file:
-                    logger.warning(f"⚠️ No item mapping file found for {source}")
-                    continue
-                
-                try:
-                    # Read the file
-                    if source_file.endswith('.xlsx'):
-                        df = pd.read_excel(source_file, dtype=str)
+                for col_name, sql in new_columns.items():
+                    if col_name not in existing_columns:
+                        logger.info(f"Adding column: {col_name}")
+                        conn.execute(text(sql))
+                        conn.commit()
+                        logger.info(f"✅ Added column: {col_name}")
                     else:
-                        df = pd.read_csv(source_file, dtype=str)
-                    
-                    if len(df) == 0:
-                        logger.warning(f"⚠️ Empty mapping file for {source}")
-                        continue
-                    
-                    # Handle different column structures
-                    imported_count = 0
-                    
-                    if source == 'kehe':
-                        # KEHE format: ['SPS Customer#', 'CompanyName', 'Vendor P.N', 'Xoro Item#', 'Xoro Description']
-                        if len(df.columns) >= 4:
-                            for _, row in df.iterrows():
-                                if pd.notna(row.iloc[2]) and pd.notna(row.iloc[3]):  # Vendor P.N -> Xoro Item#
-                                    raw_item = str(row.iloc[2]).strip()
-                                    mapped_item = str(row.iloc[3]).strip()
-                                    
-                                    insert_sql = """
-                                    INSERT INTO item_mappings (source, raw_item, mapped_item, key_type, priority, active)
-                                    VALUES (:source, :raw_item, :mapped_item, :key_type, :priority, :active)
-                                    ON CONFLICT (source, raw_item) DO NOTHING
-                                    """
-                                    
-                                    conn.execute(text(insert_sql), {
-                                        'source': source,
-                                        'raw_item': raw_item,
-                                        'mapped_item': mapped_item,
-                                        'key_type': 'vendor_item',
-                                        'priority': 100,
-                                        'active': True
-                                    })
-                                    imported_count += 1
-                    
-                    elif source == 'unfi_east':
-                        # UNFI East format: ['UPC', 'UNFI East ', 'Description', 'Xoro Item#', 'Xoro Description']
-                        if len(df.columns) >= 4:
-                            for _, row in df.iterrows():
-                                if pd.notna(row.iloc[1]) and pd.notna(row.iloc[3]):  # UNFI East -> Xoro Item#
-                                    raw_item = str(row.iloc[1]).strip()
-                                    mapped_item = str(row.iloc[3]).strip()
-                                    
-                                    insert_sql = """
-                                    INSERT INTO item_mappings (source, raw_item, mapped_item, key_type, priority, active)
-                                    VALUES (:source, :raw_item, :mapped_item, :key_type, :priority, :active)
-                                    ON CONFLICT (source, raw_item) DO NOTHING
-                                    """
-                                    
-                                    conn.execute(text(insert_sql), {
-                                        'source': source,
-                                        'raw_item': raw_item,
-                                        'mapped_item': mapped_item,
-                                        'key_type': 'vendor_item',
-                                        'priority': 100,
-                                        'active': True
-                                    })
-                                    imported_count += 1
-                    
-                    else:
-                        # Standard format: first two columns
-                        if len(df.columns) >= 2:
-                            for _, row in df.iterrows():
-                                if pd.notna(row.iloc[0]) and pd.notna(row.iloc[1]):
-                                    raw_item = str(row.iloc[0]).strip()
-                                    mapped_item = str(row.iloc[1]).strip()
-                                    
-                                    insert_sql = """
-                                    INSERT INTO item_mappings (source, raw_item, mapped_item, key_type, priority, active)
-                                    VALUES (:source, :raw_item, :mapped_item, :key_type, :priority, :active)
-                                    ON CONFLICT (source, raw_item) DO NOTHING
-                                    """
-                                    
-                                    conn.execute(text(insert_sql), {
-                                        'source': source,
-                                        'raw_item': raw_item,
-                                        'mapped_item': mapped_item,
-                                        'key_type': 'vendor_item',
-                                        'priority': 100,
-                                        'active': True
-                                    })
-                                    imported_count += 1
-                    
-                    conn.commit()
-                    total_imported += imported_count
-                    logger.info(f"✅ Imported {imported_count} mappings for {source}")
-                    
-                except Exception as e:
-                    logger.error(f"❌ Error importing mappings for {source}: {e}")
-                    continue
-            
-            logger.info(f"✅ Total imported: {total_imported} item mappings")
-            return True, f"Imported {total_imported} item mappings"
-            
+                        logger.info(f"Column {col_name} already exists")
+        
+        return True, "Item mappings table migration completed"
+        
     except Exception as e:
-        logger.error(f"❌ Failed to migrate CSV mappings: {e}")
-        return False, f"Failed to migrate CSV mappings: {e}"
+        logger.error(f"❌ Failed to migrate item_mappings table: {e}")
+        return False, f"Failed to migrate item_mappings table: {e}"
 
 def create_other_tables():
     """
@@ -288,6 +119,7 @@ def create_other_tables():
             );
             """
             conn.execute(text(create_customer_mappings_sql))
+            logger.info("✅ Created customer_mappings table")
             
             # Create store_mappings table (enhanced)
             create_store_mappings_sql = """
@@ -306,6 +138,42 @@ def create_other_tables():
             );
             """
             conn.execute(text(create_store_mappings_sql))
+            logger.info("✅ Created store_mappings table")
+            
+            # Check if old store_mappings table exists and migrate it
+            inspector = inspect(engine)
+            if 'store_mappings' in inspector.get_table_names():
+                existing_columns = [col['name'] for col in inspector.get_columns('store_mappings')]
+                
+                # If old structure exists, migrate it
+                if 'raw_name' in existing_columns and 'raw_store_id' not in existing_columns:
+                    logger.info("Migrating old store_mappings table structure...")
+                    
+                    # Add new columns
+                    migration_sql = [
+                        "ALTER TABLE store_mappings ADD COLUMN IF NOT EXISTS raw_store_id VARCHAR(100)",
+                        "ALTER TABLE store_mappings ADD COLUMN IF NOT EXISTS mapped_store_name VARCHAR(200)",
+                        "ALTER TABLE store_mappings ADD COLUMN IF NOT EXISTS store_type VARCHAR(50) DEFAULT 'retail'",
+                        "ALTER TABLE store_mappings ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE",
+                        "ALTER TABLE store_mappings ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 100",
+                        "ALTER TABLE store_mappings ADD COLUMN IF NOT EXISTS notes TEXT"
+                    ]
+                    
+                    for sql in migration_sql:
+                        conn.execute(text(sql))
+                        conn.commit()
+                    
+                    # Migrate data from old columns to new columns
+                    migrate_data_sql = """
+                    UPDATE store_mappings 
+                    SET raw_store_id = raw_name,
+                        mapped_store_name = mapped_name
+                    WHERE raw_store_id IS NULL OR mapped_store_name IS NULL;
+                    """
+                    conn.execute(text(migrate_data_sql))
+                    conn.commit()
+                    
+                    logger.info("✅ Migrated store_mappings table structure")
             
             # Create processed_orders table
             create_orders_sql = """
@@ -314,36 +182,243 @@ def create_other_tables():
                 order_number VARCHAR(100) NOT NULL,
                 source VARCHAR(50) NOT NULL,
                 customer_name VARCHAR(200),
-                raw_customer_name VARCHAR(200),
-                order_date TIMESTAMP,
-                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                source_file VARCHAR(500)
+                store_name VARCHAR(200),
+                order_date DATE,
+                total_amount DECIMAL(10,2),
+                status VARCHAR(50) DEFAULT 'processed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """
             conn.execute(text(create_orders_sql))
+            logger.info("✅ Created processed_orders table")
             
             # Create order_line_items table
             create_line_items_sql = """
             CREATE TABLE IF NOT EXISTS order_line_items (
                 id SERIAL PRIMARY KEY,
                 order_id INTEGER REFERENCES processed_orders(id),
-                item_number VARCHAR(200),
-                raw_item_number VARCHAR(200),
-                item_description TEXT,
-                quantity INTEGER DEFAULT 1,
-                unit_price DECIMAL(10,2) DEFAULT 0.0,
-                total_price DECIMAL(10,2) DEFAULT 0.0
+                item_number VARCHAR(100),
+                description TEXT,
+                quantity INTEGER,
+                unit_price DECIMAL(10,2),
+                total_price DECIMAL(10,2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """
             conn.execute(text(create_line_items_sql))
+            logger.info("✅ Created order_line_items table")
             
-            conn.commit()
-            logger.info("✅ Created all required tables")
-            return True, "Created all required tables"
-            
+            # Create conversion_history table
+            create_history_sql = """
+            CREATE TABLE IF NOT EXISTS conversion_history (
+                id SERIAL PRIMARY KEY,
+                filename VARCHAR(200) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                orders_count INTEGER DEFAULT 0,
+                line_items_count INTEGER DEFAULT 0,
+                success BOOLEAN DEFAULT TRUE,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            conn.execute(text(create_history_sql))
+            logger.info("✅ Created conversion_history table")
+        
+        return True, "All tables created successfully"
+        
     except Exception as e:
         logger.error(f"❌ Failed to create tables: {e}")
         return False, f"Failed to create tables: {e}"
+
+def migrate_csv_mappings_to_database():
+    """
+    Migrate CSV mapping files to database
+    """
+    
+    engine = get_database_engine()
+    
+    try:
+        # Define mapping file paths
+        mapping_files = {
+            'kehe': {
+                'item': 'mappings/kehe_item_mapping.csv',
+                'customer': 'mappings/kehe/customer_mapping.csv',
+                'store': 'mappings/kehe/xoro_store_mapping.csv'
+            },
+            'wholefoods': {
+                'item': 'mappings/wholefoods/item_mapping.csv',
+                'customer': 'mappings/wholefoods/customer_mapping.csv',
+                'store': 'mappings/wholefoods/xoro_store_mapping.csv'
+            },
+            'unfi_east': {
+                'item': 'mappings/unfi_east/item_mapping.csv',
+                'customer': 'mappings/unfi_east/customer_mapping.csv',
+                'store': 'mappings/unfi_east/xoro_store_mapping.csv'
+            },
+            'unfi_west': {
+                'item': 'mappings/unfi_west/item_mapping.csv',
+                'customer': 'mappings/unfi_west/customer_mapping.csv',
+                'store': 'mappings/unfi_west/xoro_store_mapping.csv'
+            },
+            'tkmaxx': {
+                'item': 'mappings/tkmaxx/item_mapping.csv',
+                'customer': 'mappings/tkmaxx/customer_mapping.csv',
+                'store': 'mappings/tkmaxx/xoro_store_mapping.csv'
+            }
+        }
+        
+        total_migrated = 0
+        
+        for source, files in mapping_files.items():
+            logger.info(f"Processing {source} mappings...")
+            
+            # Process item mappings
+            if os.path.exists(files['item']):
+                try:
+                    df = pd.read_csv(files['item'])
+                    logger.info(f"Found {len(df)} item mappings for {source}")
+                    
+                    # Migrate to database
+                    for _, row in df.iterrows():
+                        # Handle different CSV formats
+                        if 'KeHE Number' in df.columns:
+                            # KEHE format
+                            raw_item = str(row.get('KeHE Number', ''))
+                            mapped_item = str(row.get('ItemNumber', ''))
+                            key_type = 'vendor_item'
+                        elif 'RawKeyValue' in df.columns:
+                            # Standard format
+                            raw_item = str(row.get('RawKeyValue', ''))
+                            mapped_item = str(row.get('MappedItemNumber', ''))
+                            key_type = str(row.get('RawKeyType', 'vendor_item'))
+                        else:
+                            # Fallback
+                            raw_item = str(row.get('raw_item', ''))
+                            mapped_item = str(row.get('mapped_item', ''))
+                            key_type = 'vendor_item'
+                        
+                        if raw_item and mapped_item:
+                            insert_sql = """
+                            INSERT INTO item_mappings (source, raw_item, mapped_item, key_type, priority, active, vendor, mapped_description, notes)
+                            VALUES (%(source)s, %(raw_item)s, %(mapped_item)s, %(key_type)s, %(priority)s, %(active)s, %(vendor)s, %(mapped_description)s, %(notes)s)
+                            ON CONFLICT (source, raw_item, key_type) DO UPDATE SET
+                                mapped_item = EXCLUDED.mapped_item,
+                                priority = EXCLUDED.priority,
+                                active = EXCLUDED.active,
+                                vendor = EXCLUDED.vendor,
+                                mapped_description = EXCLUDED.mapped_description,
+                                notes = EXCLUDED.notes,
+                                updated_at = CURRENT_TIMESTAMP
+                            """
+                            
+                            with engine.connect() as conn:
+                                conn.execute(text(insert_sql), {
+                                    'source': source,
+                                    'raw_item': raw_item,
+                                    'mapped_item': mapped_item,
+                                    'key_type': key_type,
+                                    'priority': 100,
+                                    'active': True,
+                                    'vendor': source.upper(),
+                                    'mapped_description': str(row.get('Description', '')),
+                                    'notes': f'Migrated from CSV - {source}'
+                                })
+                                conn.commit()
+                    
+                    total_migrated += len(df)
+                    logger.info(f"✅ Migrated {len(df)} item mappings for {source}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not migrate item mappings for {source}: {e}")
+            
+            # Process customer mappings
+            if os.path.exists(files['customer']):
+                try:
+                    df = pd.read_csv(files['customer'])
+                    logger.info(f"Found {len(df)} customer mappings for {source}")
+                    
+                    for _, row in df.iterrows():
+                        raw_customer_id = str(row.get('Raw Customer ID', row.get('raw_customer_id', '')))
+                        mapped_customer_name = str(row.get('Mapped Customer Name', row.get('mapped_customer_name', '')))
+                        
+                        if raw_customer_id and mapped_customer_name:
+                            insert_sql = """
+                            INSERT INTO customer_mappings (source, raw_customer_id, mapped_customer_name, customer_type, priority, active, notes)
+                            VALUES (%(source)s, %(raw_customer_id)s, %(mapped_customer_name)s, %(customer_type)s, %(priority)s, %(active)s, %(notes)s)
+                            ON CONFLICT (source, raw_customer_id) DO UPDATE SET
+                                mapped_customer_name = EXCLUDED.mapped_customer_name,
+                                customer_type = EXCLUDED.customer_type,
+                                priority = EXCLUDED.priority,
+                                active = EXCLUDED.active,
+                                notes = EXCLUDED.notes,
+                                updated_at = CURRENT_TIMESTAMP
+                            """
+                            
+                            with engine.connect() as conn:
+                                conn.execute(text(insert_sql), {
+                                    'source': source,
+                                    'raw_customer_id': raw_customer_id,
+                                    'mapped_customer_name': mapped_customer_name,
+                                    'customer_type': 'store',
+                                    'priority': 100,
+                                    'active': True,
+                                    'notes': f'Migrated from CSV - {source}'
+                                })
+                                conn.commit()
+                    
+                    total_migrated += len(df)
+                    logger.info(f"✅ Migrated {len(df)} customer mappings for {source}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not migrate customer mappings for {source}: {e}")
+            
+            # Process store mappings
+            if os.path.exists(files['store']):
+                try:
+                    df = pd.read_csv(files['store'])
+                    logger.info(f"Found {len(df)} store mappings for {source}")
+                    
+                    for _, row in df.iterrows():
+                        raw_store_id = str(row.get('Raw Store ID', row.get('raw_store_id', row.get('raw_name', ''))))
+                        mapped_store_name = str(row.get('Mapped Store Name', row.get('mapped_store_name', row.get('mapped_name', ''))))
+                        
+                        if raw_store_id and mapped_store_name:
+                            insert_sql = """
+                            INSERT INTO store_mappings (source, raw_store_id, mapped_store_name, store_type, priority, active, notes)
+                            VALUES (%(source)s, %(raw_store_id)s, %(mapped_store_name)s, %(store_type)s, %(priority)s, %(active)s, %(notes)s)
+                            ON CONFLICT (source, raw_store_id) DO UPDATE SET
+                                mapped_store_name = EXCLUDED.mapped_store_name,
+                                store_type = EXCLUDED.store_type,
+                                priority = EXCLUDED.priority,
+                                active = EXCLUDED.active,
+                                notes = EXCLUDED.notes,
+                                updated_at = CURRENT_TIMESTAMP
+                            """
+                            
+                            with engine.connect() as conn:
+                                conn.execute(text(insert_sql), {
+                                    'source': source,
+                                    'raw_store_id': raw_store_id,
+                                    'mapped_store_name': mapped_store_name,
+                                    'store_type': 'retail',
+                                    'priority': 100,
+                                    'active': True,
+                                    'notes': f'Migrated from CSV - {source}'
+                                })
+                                conn.commit()
+                    
+                    total_migrated += len(df)
+                    logger.info(f"✅ Migrated {len(df)} store mappings for {source}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not migrate store mappings for {source}: {e}")
+        
+        return True, f"Successfully migrated {total_migrated} mappings from CSV files"
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to migrate CSV mappings: {e}")
+        return False, f"Failed to migrate CSV mappings: {e}"
 
 def main():
     """Main migration function"""
