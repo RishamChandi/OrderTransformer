@@ -1197,6 +1197,9 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
             search_term=search_param
         )
         
+        # Debug: Show query parameters
+        st.info(f"**Debug Query**: source=`{source_param}`, store_type=`{store_type_param}`, search=`{search_param}`, processor=`{processor}`")
+        
         # Apply active filter if specified
         if active_filter is not None:
             mappings = [m for m in mappings if m['active'] == active_filter]
@@ -2296,6 +2299,12 @@ def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
                         # Show results
                         if result['errors'] == 0:
                             st.success(f"✅ Successfully uploaded {result['added']} new mappings and updated {result['updated']} existing mappings!")
+                            
+                            # Debug: Show what was uploaded
+                            st.info(f"**Debug Info**: Uploaded {len(mappings_data)} mappings for source: **{processor}**")
+                            if mappings_data:
+                                sample_data = mappings_data[0]
+                                st.write(f"Sample mapping source: `{sample_data['source']}`")
                         else:
                             st.warning(f"⚠️ Upload completed with {result['errors']} errors:")
                             for error in result['error_details']:
