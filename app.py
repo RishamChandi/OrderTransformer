@@ -326,6 +326,148 @@ def main():
         width: auto !important;
         min-width: 200px !important;
     }
+    
+    /* Enhanced font sizing and readability for dropdowns */
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__single-value"] {
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        color: #333333 !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* Dropdown menu options styling */
+    [data-baseweb="menu"] [role="option"] {
+        font-size: 14px !important;
+        font-weight: 400 !important;
+        color: #333333 !important;
+        line-height: 1.5 !important;
+        padding: 8px 12px !important;
+        min-height: 36px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    /* Hover state for dropdown options */
+    [data-baseweb="menu"] [role="option"]:hover {
+        background-color: #f0f2f6 !important;
+        color: #1f2937 !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Selected option styling */
+    [data-baseweb="menu"] [role="option"][aria-selected="true"] {
+        background-color: #667eea !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Dropdown container height and spacing */
+    .stSelectbox [data-baseweb="select"] {
+        min-height: 40px !important;
+    }
+    
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__value-container"] {
+        min-height: 40px !important;
+        padding: 4px 8px !important;
+    }
+    
+    /* Dropdown arrow styling */
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__dropdown-indicator"] {
+        padding: 8px !important;
+    }
+    
+    /* Menu container with better spacing */
+    [data-baseweb="popover"] [data-baseweb="menu"] {
+        padding: 4px 0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        border-radius: 8px !important;
+        border: 1px solid #e5e7eb !important;
+        background-color: white !important;
+    }
+    
+    /* Fix text truncation in all dropdown states */
+    .stSelectbox * {
+        text-overflow: unset !important;
+        overflow: visible !important;
+        white-space: nowrap !important;
+    }
+    
+    /* Specific fixes for filter dropdowns */
+    div[data-testid="stSelectbox"] label {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #374151 !important;
+        margin-bottom: 4px !important;
+    }
+    
+    /* Ensure proper contrast and visibility */
+    .stSelectbox [data-baseweb="select__placeholder"] {
+        font-size: 14px !important;
+        color: #6b7280 !important;
+    }
+    
+    /* Mobile responsiveness for dropdowns */
+    @media (max-width: 768px) {
+        .stSelectbox [data-baseweb="select"] {
+            min-width: 150px !important;
+        }
+        [data-baseweb="menu"] [role="option"] {
+            font-size: 13px !important;
+            padding: 6px 10px !important;
+        }
+    }
+    
+    /* Sidebar specific dropdown improvements */
+    .css-1d391kg .stSelectbox [data-baseweb="select"] [data-baseweb="select__single-value"] {
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: #333333 !important;
+    }
+    
+    /* Ensure sidebar dropdown menu options are readable */
+    .css-1d391kg [data-baseweb="menu"] [role="option"] {
+        font-size: 13px !important;
+        font-weight: 400 !important;
+        color: #333333 !important;
+        padding: 6px 10px !important;
+        min-height: 32px !important;
+    }
+    
+    /* Main content area dropdown improvements */
+    .main .stSelectbox [data-baseweb="select"] [data-baseweb="select__single-value"] {
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Filter section specific styling */
+    .stSelectbox[data-testid="stSelectbox"] [data-baseweb="select"] {
+        border: 1px solid #d1d5db !important;
+        border-radius: 6px !important;
+        background-color: white !important;
+        transition: border-color 0.2s ease !important;
+    }
+    
+    .stSelectbox[data-testid="stSelectbox"] [data-baseweb="select"]:focus-within {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1) !important;
+    }
+    
+    /* Ensure all text is visible and not cut off */
+    [data-baseweb="select__value-container"] * {
+        max-width: none !important;
+        width: auto !important;
+        flex-shrink: 0 !important;
+    }
+    
+    /* Force text to be fully visible */
+    .stSelectbox [data-baseweb="select"] [data-baseweb="select__single-value"] {
+        max-width: none !important;
+        width: auto !important;
+        text-overflow: unset !important;
+        overflow: visible !important;
+        white-space: nowrap !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
