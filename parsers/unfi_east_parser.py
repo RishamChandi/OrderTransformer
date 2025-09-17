@@ -206,14 +206,22 @@ class UNFIEastParser(BaseParser):
                 print(f"DEBUG: Found IOW location code: {iow_location} (from {len(matches)} matches)")
                 break
         
-        # Apply IOW-based mapping using the Excel file data
-        if iow_location and iow_location in self.iow_customer_mapping:
-            mapped_customer = self.iow_customer_mapping[iow_location]
-            order_info['customer_name'] = mapped_customer
-            order_info['raw_customer_name'] = iow_location
-            print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
-        else:
-            print(f"DEBUG: IOW code {iow_location} not found in mapping -> UNKNOWN")
+        # NEW: Use database-first customer mapping approach
+        if iow_location:
+            # Try database-first customer mapping
+            db_mapped_customer = self.mapping_utils.get_customer_mapping(iow_location, 'unfi_east')
+            if db_mapped_customer and db_mapped_customer != iow_location:
+                order_info['customer_name'] = db_mapped_customer
+                order_info['raw_customer_name'] = iow_location
+                print(f"DEBUG: UNFI East DB Customer Mapping: '{iow_location}' → '{db_mapped_customer}'")
+            # Fallback to legacy Excel mapping
+            elif iow_location in self.iow_customer_mapping:
+                mapped_customer = self.iow_customer_mapping[iow_location]
+                order_info['customer_name'] = mapped_customer
+                order_info['raw_customer_name'] = iow_location
+                print(f"DEBUG: UNFI East Legacy Customer Mapping: '{iow_location}' → '{mapped_customer}'")
+            else:
+                print(f"DEBUG: IOW code {iow_location} not found in database or legacy mapping -> UNKNOWN")
             # Fallback: Look for warehouse location in Ship To section
             warehouse_location = ""
             ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
@@ -256,24 +264,35 @@ class UNFIEastParser(BaseParser):
                 }
                 
                 location_code = warehouse_to_code.get(warehouse_location, warehouse_location.upper()[:3])
-                mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
-                if mapped_customer and mapped_customer != location_code:
-                    order_info['customer_name'] = mapped_customer
+                
+                # Try database-first store mapping
+                db_mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
+                if db_mapped_customer and db_mapped_customer != location_code:
+                    order_info['customer_name'] = db_mapped_customer
                     order_info['raw_customer_name'] = warehouse_location
-                    print(f"DEBUG: Mapped {warehouse_location} ({location_code}) -> {mapped_customer}")
+                    print(f"DEBUG: UNFI East DB Store Mapping: '{location_code}' → '{db_mapped_customer}'")
+                else:
+                    # Fallback to legacy mapping
+                    mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
+                    if mapped_customer and mapped_customer != location_code:
+                        order_info['customer_name'] = mapped_customer
+                        order_info['raw_customer_name'] = warehouse_location
+                        print(f"DEBUG: UNFI East Legacy Store Mapping: '{warehouse_location}' ({location_code}) → '{mapped_customer}'")
         
         # Apply vendor-based store mapping for SaleStoreName and StoreName
         # This determines which store to use in Xoro template based on vendor number
         if order_info.get('vendor_number'):
-            mapped_store = self.mapping_utils.get_store_mapping(order_info['vendor_number'], 'unfi_east')
-            if mapped_store and mapped_store != order_info['vendor_number']:
-                order_info['sale_store_name'] = mapped_store
-                order_info['store_name'] = mapped_store
-                print(f"DEBUG: Mapped vendor {order_info['vendor_number']} -> store {mapped_store}")
+            # Try database-first store mapping for vendor
+            db_mapped_store = self.mapping_utils.get_store_mapping(order_info['vendor_number'], 'unfi_east')
+            if db_mapped_store and db_mapped_store != order_info['vendor_number']:
+                order_info['sale_store_name'] = db_mapped_store
+                order_info['store_name'] = db_mapped_store
+                print(f"DEBUG: UNFI East DB Vendor Mapping: '{order_info['vendor_number']}' → '{db_mapped_store}'")
             else:
                 # Default fallback stores
                 order_info['sale_store_name'] = 'PSS-NJ'  # Default store
                 order_info['store_name'] = 'PSS-NJ'
+                print(f"DEBUG: No vendor mapping found for '{order_info['vendor_number']}', using default store: PSS-NJ")
         
         return order_info
     
@@ -398,9 +417,28 @@ class UNFIEastParser(BaseParser):
                     unit_cost = float(match.group(6))     # Unit Cost
                     extension = float(match.group(7).replace(',', ''))  # Extension
                     
-                    # Apply item mapping using the original Prod#
-                    mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
-                    print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
+                    # NEW: Use enhanced item mapping with multiple key types
+                    item_attributes = {
+                        'vendor_item': prod_number,  # Primary key: Prod# (like 315851)
+                    }
+                    
+                    # Add vendor ID as secondary key if available
+                    if vend_id and vend_id != prod_number:
+                        item_attributes['sku_alias'] = vend_id
+                    
+                    # Use enhanced mapping resolution with priority system
+                    mapped_item = self.mapping_utils.resolve_item_number(item_attributes, 'unfi_east')
+                    
+                    if mapped_item:
+                        print(f"DEBUG: UNFI East Priority Item Mapping: {item_attributes} → '{mapped_item}'")
+                    else:
+                        # Fallback to legacy single-key mapping
+                        mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
+                        if mapped_item != prod_number:
+                            print(f"DEBUG: UNFI East Legacy Item Mapping: '{prod_number}' → '{mapped_item}'")
+                        else:
+                            mapped_item = prod_number  # Final fallback to original number
+                            print(f"DEBUG: No UNFI East item mapping found for '{prod_number}', using raw number")
                     
                     item = {
                         'item_number': mapped_item,
