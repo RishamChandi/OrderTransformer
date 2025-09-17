@@ -18,6 +18,17 @@ from database.models import Base
 from database.connection import get_database_engine
 from sqlalchemy import inspect
 
+# Utility functions
+def parse_boolean(value):
+    """Parse various boolean representations to actual boolean"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ('true', '1', 'yes', 'on', 'active', 'enabled')
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return bool(value)
+
 # Health check for deployment
 def health_check():
     """Health check endpoint for deployment readiness"""
@@ -1476,10 +1487,20 @@ def show_customer_template_download():
     st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, unfi_west, tkmaxx)")
     st.write("• **RawCustomerID**: Original customer identifier from order files")
     st.write("• **MappedCustomerName**: Standardized customer name for Xoro")
-    st.write("• **CustomerType**: Type of customer (store, distributor, warehouse)")
+    st.write("• **CustomerType**: Type of customer - Use one of:")
+    st.write("  - **store**: Retail store location (most common)")
+    st.write("  - **distributor**: Distribution center or warehouse")
+    st.write("  - **retail**: General retail customer")
+    st.write("  - **warehouse**: Storage/fulfillment facility")
     st.write("• **Priority**: Resolution priority (100=highest, 999=lowest)")
-    st.write("• **Active**: Whether mapping is active (true/false)")
-    st.write("• **Notes**: Additional notes (optional)")
+    st.write("• **Active**: Enable/disable mapping (True/False, 1/0, Yes/No)")
+    st.write("• **Notes**: Optional description or comments")
+    
+    st.success("💡 **CustomerType Legend:**")
+    st.write("📍 **store** = Individual retail store locations (e.g., 'Store #123', 'Richmond Location')")
+    st.write("🏭 **distributor** = Distribution centers and warehouses (e.g., 'UNFI East DC', 'KeHe Nashville')")  
+    st.write("🛍️ **retail** = General retail customers or chains (e.g., 'Target', 'Walmart')")
+    st.write("📦 **warehouse** = Storage and fulfillment facilities (e.g., 'Amazon FC', 'Regional Warehouse')")
 
 def export_current_customer_mappings(db_service: DatabaseService, source_filter: str = None):
     """Export current customer mappings to CSV"""
@@ -1585,6 +1606,15 @@ def show_customer_mapping_upload_form(db_service: DatabaseService, processor: st
     
     with st.expander("📤 Upload Customer Mappings", expanded=True):
         st.write("Upload a CSV file with the unified customer mapping template format")
+        
+        st.info("💡 **Quick Reference - CustomerType Values:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("📍 **store** - Individual retail locations")
+            st.write("🏭 **distributor** - Distribution centers")
+        with col2:
+            st.write("🛍️ **retail** - General retail customers") 
+            st.write("📦 **warehouse** - Storage facilities")
         
         uploaded_file = st.file_uploader(
             "Choose CSV file",
