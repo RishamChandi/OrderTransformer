@@ -1197,9 +1197,6 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
             search_term=search_param
         )
         
-        # Debug: Show query parameters
-        st.info(f"**Debug Query**: source=`{source_param}`, store_type=`{store_type_param}`, search=`{search_param}`, processor=`{processor}`")
-        
         # Apply active filter if specified
         if active_filter is not None:
             mappings = [m for m in mappings if m['active'] == active_filter]
@@ -1223,16 +1220,33 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
         else:
             st.info("🔍 No store mappings found with current filters")
             
+            # Show helpful information about current filter state
+            filter_info = []
+            if source_param:
+                filter_info.append(f"Source: **{source_param}**")
+            if store_type_param:
+                filter_info.append(f"Store Type: **{store_type_param}**")
+            if search_param:
+                filter_info.append(f"Search: **{search_param}**")
+            
+            if filter_info:
+                st.write(f"Current filters: {', '.join(filter_info)}")
+                st.write("Try clearing some filters or uploading mappings for this source.")
+            else:
+                st.write("No mappings exist yet for any source.")
+            
             # Suggest creating new mappings
             st.markdown("### 🚀 Get Started")
-            st.write("Start by downloading the template or adding your first mapping:")
-            
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
-                if st.button("📥 Download Empty Template", key=f"store_download_empty_{processor}"):
+                if st.button("📥 Download Template", key=f"store_download_empty_{processor}"):
                     show_store_template_download()
             with col2:
-                if st.button("➕ Add First Mapping", key=f"store_add_first_{processor}"):
+                if st.button("📤 Upload Mappings", key=f"store_upload_empty_{processor}"):
+                    st.session_state[f'show_store_upload_{processor}'] = True
+                    st.rerun()
+            with col3:
+                if st.button("➕ Add Manually", key=f"store_add_first_{processor}"):
                     st.session_state[f'show_store_add_form_{processor}'] = True
                     st.rerun()
     
@@ -2299,19 +2313,16 @@ def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
                         # Show results
                         if result['errors'] == 0:
                             st.success(f"✅ Successfully uploaded {result['added']} new mappings and updated {result['updated']} existing mappings!")
-                            
-                            # Debug: Show what was uploaded
-                            st.info(f"**Debug Info**: Uploaded {len(mappings_data)} mappings for source: **{processor}**")
-                            if mappings_data:
-                                sample_data = mappings_data[0]
-                                st.write(f"Sample mapping source: `{sample_data['source']}`")
+                            st.info("🔄 Refreshing data to show updated mappings...")
                         else:
                             st.warning(f"⚠️ Upload completed with {result['errors']} errors:")
                             for error in result['error_details']:
                                 st.error(f"• {error}")
                         
-                        # Clear the upload form
+                        # Clear the upload form and refresh
                         st.session_state[f'show_store_upload_{processor}'] = False
+                        
+                        # Force a rerun to refresh the data
                         st.rerun()
                         
             except Exception as e:
