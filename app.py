@@ -1563,10 +1563,20 @@ def show_store_template_download():
     st.write("• **Source**: Order source (kehe, wholefoods, unfi_east, unfi_west, tkmaxx)")
     st.write("• **RawStoreID**: Original store identifier from order files")
     st.write("• **MappedStoreName**: Standardized store name for Xoro")
-    st.write("• **StoreType**: Type of store (retail, warehouse, distribution)")
+    st.write("• **StoreType**: Type of store location - Use one of:")
+    st.write("  - **retail**: Individual retail store locations")
+    st.write("  - **warehouse**: Storage and distribution facilities")
+    st.write("  - **distribution**: Distribution centers")
+    st.write("  - **corporate**: Corporate offices and headquarters")
     st.write("• **Priority**: Resolution priority (100=highest, 999=lowest)")
-    st.write("• **Active**: Whether mapping is active (true/false)")
-    st.write("• **Notes**: Additional notes (optional)")
+    st.write("• **Active**: Enable/disable mapping (True/False, 1/0, Yes/No)")
+    st.write("• **Notes**: Optional description or comments")
+    
+    st.success("💡 **StoreType Legend:**")
+    st.write("🏪 **retail** = Individual store locations (e.g., 'Store #123', 'Main Street Location', 'Downtown Branch')")
+    st.write("📦 **warehouse** = Storage facilities (e.g., 'Regional Warehouse', 'Distribution Facility', 'Storage Center')")  
+    st.write("🏭 **distribution** = Distribution centers (e.g., 'UNFI East DC', 'KeHe Nashville', 'Regional Distribution')")
+    st.write("🏢 **corporate** = Corporate offices (e.g., 'Corporate HQ', 'Regional Office', 'Admin Center')")
 
 def export_current_store_mappings(db_service: DatabaseService, source_filter: str = None):
     """Export current store mappings to CSV"""
@@ -2065,19 +2075,463 @@ def show_customer_row_by_row_mappings(mappings: list, db_service: DatabaseServic
 
 def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
     """Show form for uploading store mapping files"""
-    st.info("🚧 Store mapping upload form - Implementation in progress")
+    
+    with st.expander("📤 Upload Store Mappings", expanded=True):
+        st.write("Upload a CSV file with the unified store mapping template format")
+        
+        st.info("💡 **Quick Reference - StoreType Values:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("🏪 **retail** - Retail store locations")
+            st.write("📦 **warehouse** - Storage facilities")
+        with col2:
+            st.write("🏭 **distribution** - Distribution centers") 
+            st.write("🏢 **corporate** - Corporate offices")
+        
+        uploaded_file = st.file_uploader(
+            "Choose CSV file",
+            type=['csv'],
+            key=f"store_upload_file_{processor}",
+            help="Use the unified store template format"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Read and validate uploaded file
+                df = pd.read_csv(uploaded_file)
+                
+                st.write(f"📋 **File Preview** ({len(df)} rows):")
+                st.dataframe(df.head(10), use_container_width=True)
+                
+                # Validate required columns
+                required_columns = ['Source', 'RawStoreID', 'MappedStoreName']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+                    st.write("**Required columns:**")
+                    for col in required_columns:
+                        st.write(f"• {col}")
+                else:
+                    st.success("✅ File format is valid!")
+                    
+                    # Show column mapping
+                    st.write("**Column Mapping:**")
+                    col_mapping = {
+                        'Source': 'source',
+                        'RawStoreID': 'raw_store_id', 
+                        'MappedStoreName': 'mapped_store_name',
+                        'StoreType': 'store_type',
+                        'Priority': 'priority',
+                        'Active': 'active',
+                        'Notes': 'notes'
+                    }
+                    
+                    for csv_col, db_col in col_mapping.items():
+                        if csv_col in df.columns:
+                            st.write(f"• {csv_col} → {db_col}")
+                    
+                    # Upload button
+                    if st.button("📤 Upload Store Mappings", key=f"upload_store_btn_{processor}"):
+                        # Convert DataFrame to list of dictionaries
+                        mappings_data = []
+                        for _, row in df.iterrows():
+                            mapping_data = {
+                                'source': str(row.get('Source', processor)).strip(),
+                                'raw_store_id': str(row.get('RawStoreID', '')).strip(),
+                                'mapped_store_name': str(row.get('MappedStoreName', '')).strip(),
+                                'store_type': str(row.get('StoreType', 'retail')).strip(),
+                                'priority': int(row.get('Priority', 100)),
+                                'active': parse_boolean(row.get('Active', True)),
+                                'notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) else ''
+                            }
+                            mappings_data.append(mapping_data)
+                        
+                        # Upload to database
+                        with st.spinner("Uploading store mappings..."):
+                            result = db_service.bulk_upsert_store_mappings(mappings_data)
+                        
+                        # Show results
+                        if result['errors'] == 0:
+                            st.success(f"✅ Successfully uploaded {result['added']} new mappings and updated {result['updated']} existing mappings!")
+                        else:
+                            st.warning(f"⚠️ Upload completed with {result['errors']} errors:")
+                            for error in result['error_details']:
+                                st.error(f"• {error}")
+                        
+                        # Clear the upload form
+                        st.session_state[f'show_store_upload_{processor}'] = False
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+                st.write("**Troubleshooting:**")
+                st.write("1. Make sure the file is a valid CSV")
+                st.write("2. Check that all required columns are present")
+                st.write("3. Verify the data format matches the template")
 
 def show_add_store_mapping_form(db_service: DatabaseService, processor: str):
     """Show form for adding new store mapping"""
-    st.info("🚧 Add store mapping form - Implementation in progress")
+    
+    with st.expander("➕ Add New Store Mapping", expanded=True):
+        st.write("Add a new store mapping manually")
+        
+        with st.form(key=f"add_store_form_{processor}"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                source = st.selectbox(
+                    "Source",
+                    ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+                    index=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'].index(processor) if processor in ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'] else 0,
+                    help="Order source system"
+                )
+                
+                raw_store_id = st.text_input(
+                    "Raw Store ID *",
+                    placeholder="Enter original store ID from orders",
+                    help="The store ID as it appears in the order files"
+                )
+                
+                mapped_store_name = st.text_input(
+                    "Mapped Store Name *", 
+                    placeholder="Enter standardized store name",
+                    help="The standardized store name for Xoro"
+                )
+                
+            with col2:
+                store_type = st.selectbox(
+                    "Store Type",
+                    ['retail', 'warehouse', 'distribution', 'corporate'],
+                    help="Type of store location"
+                )
+                
+                priority = st.number_input(
+                    "Priority",
+                    min_value=1,
+                    max_value=999,
+                    value=100,
+                    help="Resolution priority (100=highest, 999=lowest)"
+                )
+                
+                active = st.checkbox(
+                    "Active",
+                    value=True,
+                    help="Enable this mapping"
+                )
+                
+            notes = st.text_area(
+                "Notes",
+                placeholder="Optional notes about this store mapping",
+                help="Additional information about this mapping"
+            )
+            
+            submitted = st.form_submit_button("➕ Add Store Mapping")
+            
+            if submitted:
+                if not raw_store_id or not mapped_store_name:
+                    st.error("❌ Please fill in all required fields (marked with *)")
+                else:
+                    try:
+                        # Create mapping data
+                        mapping_data = [{
+                            'source': source,
+                            'raw_store_id': raw_store_id.strip(),
+                            'mapped_store_name': mapped_store_name.strip(),
+                            'store_type': store_type,
+                            'priority': priority,
+                            'active': active,
+                            'notes': notes.strip() if notes else ''
+                        }]
+                        
+                        # Add to database
+                        with st.spinner("Adding store mapping..."):
+                            result = db_service.bulk_upsert_store_mappings(mapping_data)
+                        
+                        # Show results
+                        if result['errors'] == 0:
+                            st.success(f"✅ Successfully added store mapping: {raw_store_id} → {mapped_store_name}")
+                        else:
+                            st.error(f"❌ Failed to add mapping:")
+                            for error in result['error_details']:
+                                st.error(f"• {error}")
+                        
+                        # Clear the form
+                        st.session_state[f'show_store_add_form_{processor}'] = False
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error adding store mapping: {e}")
+        
+        # Cancel button
+        if st.button("❌ Cancel", key=f"cancel_add_store_{processor}"):
+            st.session_state[f'show_store_add_form_{processor}'] = False
+            st.rerun()
 
 def show_store_data_editor_mappings(mappings: list, db_service: DatabaseService, processor: str):
     """Show store mappings in data editor for bulk editing"""
-    st.info("🚧 Store data editor - Implementation in progress")
+    
+    if not mappings:
+        st.info("📝 No store mappings found to edit")
+        return
+    
+    st.write("### 📊 Bulk Edit Store Mappings")
+    st.caption("Edit multiple store mappings at once using the data editor below")
+    
+    # Convert mappings to DataFrame for editing
+    df_data = []
+    for mapping in mappings:
+        df_data.append({
+            'ID': mapping['id'],
+            'Source': mapping['source'],
+            'RawStoreID': mapping['raw_store_id'],
+            'MappedStoreName': mapping['mapped_store_name'],
+            'StoreType': mapping['store_type'],
+            'Priority': mapping['priority'],
+            'Active': mapping['active'],
+            'Notes': mapping.get('notes', '')
+        })
+    
+    df = pd.DataFrame(df_data)
+    
+    # Data editor configuration
+    column_config = {
+        'ID': st.column_config.NumberColumn('ID', disabled=True, width='small'),
+        'Source': st.column_config.SelectboxColumn(
+            'Source',
+            options=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+            width='medium'
+        ),
+        'RawStoreID': st.column_config.TextColumn('Raw Store ID', width='medium'),
+        'MappedStoreName': st.column_config.TextColumn('Mapped Store Name', width='large'),
+        'StoreType': st.column_config.SelectboxColumn(
+            'Store Type',
+            options=['retail', 'warehouse', 'distribution', 'corporate'],
+            width='medium'
+        ),
+        'Priority': st.column_config.NumberColumn(
+            'Priority',
+            min_value=1,
+            max_value=999,
+            width='small'
+        ),
+        'Active': st.column_config.CheckboxColumn('Active', width='small'),
+        'Notes': st.column_config.TextColumn('Notes', width='large')
+    }
+    
+    # Show data editor
+    edited_df = st.data_editor(
+        df,
+        column_config=column_config,
+        use_container_width=True,
+        num_rows="dynamic",
+        key=f"store_data_editor_{processor}"
+    )
+    
+    # Save changes button
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        if st.button("💾 Save Changes", key=f"save_store_bulk_{processor}"):
+            try:
+                # Convert edited DataFrame back to list of dictionaries
+                updated_mappings = []
+                for _, row in edited_df.iterrows():
+                    mapping_data = {
+                        'id': int(row['ID']),
+                        'source': str(row['Source']).strip(),
+                        'raw_store_id': str(row['RawStoreID']).strip(),
+                        'mapped_store_name': str(row['MappedStoreName']).strip(),
+                        'store_type': str(row['StoreType']).strip(),
+                        'priority': int(row['Priority']),
+                        'active': bool(row['Active']),
+                        'notes': str(row['Notes']).strip() if pd.notna(row['Notes']) else ''
+                    }
+                    updated_mappings.append(mapping_data)
+                
+                # Update database
+                with st.spinner("Saving changes..."):
+                    result = db_service.bulk_upsert_store_mappings(updated_mappings)
+                
+                # Show results
+                if result['errors'] == 0:
+                    st.success(f"✅ Successfully updated {result['updated']} store mappings!")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Update failed with {result['errors']} errors:")
+                    for error in result['error_details']:
+                        st.error(f"• {error}")
+                        
+            except Exception as e:
+                st.error(f"❌ Error saving changes: {e}")
+    
+    with col2:
+        if st.button("🔄 Reset", key=f"reset_store_bulk_{processor}"):
+            st.rerun()
+    
+    with col3:
+        st.info("💡 **Tip**: Add new rows using the + button, edit cells directly, then click Save Changes")
 
 def show_store_row_by_row_mappings(mappings: list, db_service: DatabaseService, processor: str):
-    """Show store mappings in row-by-row format"""
-    st.info("🚧 Store row-by-row editor - Implementation in progress")
+    """Show store mappings in row-by-row format for individual editing"""
+    
+    if not mappings:
+        st.info("📝 No store mappings found to edit")
+        return
+    
+    st.write("### 📝 Individual Store Mapping Editor")
+    st.caption("Edit store mappings one by one with detailed controls")
+    
+    # Pagination controls
+    items_per_page = 5
+    total_pages = (len(mappings) + items_per_page - 1) // items_per_page
+    
+    if total_pages > 1:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            page = st.selectbox(
+                f"Page (showing {items_per_page} per page)",
+                range(1, total_pages + 1),
+                key=f"store_page_selector_{processor}"
+            )
+        
+        start_idx = (page - 1) * items_per_page
+        end_idx = min(start_idx + items_per_page, len(mappings))
+        page_mappings = mappings[start_idx:end_idx]
+        
+        st.caption(f"Showing {start_idx + 1}-{end_idx} of {len(mappings)} store mappings")
+    else:
+        page_mappings = mappings
+    
+    # Display each mapping in an expandable section
+    for i, mapping in enumerate(page_mappings):
+        mapping_id = mapping['id']
+        
+        with st.expander(
+            f"🏪 **{mapping['raw_store_id']}** → **{mapping['mapped_store_name']}** "
+            f"({'✅ Active' if mapping['active'] else '❌ Inactive'})",
+            expanded=False
+        ):
+            # Create form for this mapping
+            with st.form(key=f"edit_store_form_{mapping_id}_{processor}"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    source = st.selectbox(
+                        "Source",
+                        ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'],
+                        index=['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'].index(mapping['source']) if mapping['source'] in ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'] else 0,
+                        key=f"store_source_{mapping_id}",
+                        help="Order source system"
+                    )
+                    
+                    raw_store_id = st.text_input(
+                        "Raw Store ID",
+                        value=mapping['raw_store_id'],
+                        key=f"store_raw_id_{mapping_id}",
+                        help="The store ID as it appears in order files"
+                    )
+                    
+                    mapped_store_name = st.text_input(
+                        "Mapped Store Name",
+                        value=mapping['mapped_store_name'],
+                        key=f"store_mapped_name_{mapping_id}",
+                        help="The standardized store name for Xoro"
+                    )
+                
+                with col2:
+                    store_type = st.selectbox(
+                        "Store Type",
+                        ['retail', 'warehouse', 'distribution', 'corporate'],
+                        index=['retail', 'warehouse', 'distribution', 'corporate'].index(mapping['store_type']) if mapping['store_type'] in ['retail', 'warehouse', 'distribution', 'corporate'] else 0,
+                        key=f"store_type_{mapping_id}",
+                        help="Type of store location"
+                    )
+                    
+                    priority = st.number_input(
+                        "Priority",
+                        min_value=1,
+                        max_value=999,
+                        value=mapping['priority'],
+                        key=f"store_priority_{mapping_id}",
+                        help="Resolution priority (100=highest, 999=lowest)"
+                    )
+                    
+                    active = st.checkbox(
+                        "Active",
+                        value=mapping['active'],
+                        key=f"store_active_{mapping_id}",
+                        help="Enable this mapping"
+                    )
+                
+                notes = st.text_area(
+                    "Notes",
+                    value=mapping.get('notes', ''),
+                    key=f"store_notes_{mapping_id}",
+                    help="Additional information about this mapping"
+                )
+                
+                # Action buttons
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    update_submitted = st.form_submit_button("💾 Update", type="primary")
+                
+                with col2:
+                    delete_submitted = st.form_submit_button("🗑️ Delete", type="secondary")
+                
+                if update_submitted:
+                    if not raw_store_id or not mapped_store_name:
+                        st.error("❌ Raw Store ID and Mapped Store Name are required")
+                    else:
+                        try:
+                            # Update mapping data
+                            mapping_data = [{
+                                'id': mapping_id,
+                                'source': source,
+                                'raw_store_id': raw_store_id.strip(),
+                                'mapped_store_name': mapped_store_name.strip(),
+                                'store_type': store_type,
+                                'priority': priority,
+                                'active': active,
+                                'notes': notes.strip() if notes else ''
+                            }]
+                            
+                            # Update database
+                            with st.spinner("Updating store mapping..."):
+                                result = db_service.bulk_upsert_store_mappings(mapping_data)
+                            
+                            # Show results
+                            if result['errors'] == 0:
+                                st.success(f"✅ Successfully updated store mapping: {raw_store_id} → {mapped_store_name}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Update failed:")
+                                for error in result['error_details']:
+                                    st.error(f"• {error}")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error updating store mapping: {e}")
+                
+                if delete_submitted:
+                    try:
+                        # Delete from database (implement this in db_service if needed)
+                        st.warning("🗑️ Delete functionality - Implementation needed in database service")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error deleting store mapping: {e}")
+            
+            # Show mapping metadata
+            st.caption(f"**ID:** {mapping['id']} | **Created:** {mapping.get('created_at', 'N/A')} | **Updated:** {mapping.get('updated_at', 'N/A')}")
+            
+            # Copy functionality placeholder
+            if st.button(f"📋 Copy Mapping", key=f"copy_store_{mapping_id}"):
+                st.session_state[f'copy_store_{mapping_id}'] = True
+            
+            if st.session_state.get(f'copy_store_{mapping_id}', False):
+                st.markdown("---")
+                st.info("📋 Store mapping copied to clipboard (functionality to be implemented)")
+                st.session_state[f'copy_store_{mapping_id}'] = False
 
 def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
     """Upload mappings from DataFrame to database"""
