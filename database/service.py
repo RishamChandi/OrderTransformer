@@ -219,20 +219,38 @@ class DatabaseService:
         
         with get_session() as session:
             mappings = session.query(StoreMapping)\
-                             .filter_by(source=source)\
+                             .filter_by(source=source, active=True)\
                              .all()
             
-            return {str(mapping.raw_name): str(mapping.mapped_name) for mapping in mappings}
+            return {str(mapping.raw_store_id): str(mapping.mapped_store_name) for mapping in mappings}
     
     def get_item_mappings(self, source: str) -> Dict[str, str]:
         """Get all item mappings for a source"""
         
         with get_session() as session:
             mappings = session.query(ItemMapping)\
-                             .filter_by(source=source)\
+                             .filter_by(source=source, active=True)\
                              .all()
             
-            return {str(mapping.raw_item): str(mapping.mapped_item) for mapping in mappings}
+            # For item mappings, we need to handle multiple key types
+            # Return a dict with raw_key_value as key and mapped_item_number as value
+            result = {}
+            for mapping in mappings:
+                key = str(mapping.raw_key_value)
+                value = str(mapping.mapped_item_number)
+                result[key] = value
+            
+            return result
+    
+    def get_customer_mappings(self, source: str) -> Dict[str, str]:
+        """Get all customer mappings for a source"""
+        
+        with get_session() as session:
+            mappings = session.query(CustomerMapping)\
+                             .filter_by(source=source, active=True)\
+                             .all()
+            
+            return {str(mapping.raw_customer_id): str(mapping.mapped_customer_name) for mapping in mappings}
     
     # Enhanced Item Mapping Methods for Template System
     

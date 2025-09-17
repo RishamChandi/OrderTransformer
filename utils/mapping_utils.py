@@ -213,6 +213,50 @@ class MappingUtils:
         
         return self.mapping_cache.get(mapping_key, {})
     
+    def get_customer_mapping(self, raw_customer: str, source: str) -> str:
+        """
+        Get mapped customer name for a given raw customer and source
+        
+        Args:
+            raw_customer: Original customer ID from order file
+            source: Order source (wholefoods, unfi_west, unfi_east, kehe, tkmaxx)
+            
+        Returns:
+            Mapped customer name or original customer if no mapping found
+        """
+        
+        if not raw_customer or not raw_customer.strip():
+            return "UNKNOWN"
+        
+        raw_customer_clean = raw_customer.strip()
+        
+        # Try database first if available
+        if self.use_database and self.db_service:
+            try:
+                customer_mapping_dict = self.db_service.get_customer_mappings(source)
+                
+                # Try exact match first
+                if raw_customer_clean in customer_mapping_dict:
+                    return customer_mapping_dict[raw_customer_clean]
+                
+                # Try case-insensitive match
+                raw_customer_lower = raw_customer_clean.lower()
+                for key, value in customer_mapping_dict.items():
+                    if key.lower() == raw_customer_lower:
+                        return value
+                
+                # Try partial match
+                for key, value in customer_mapping_dict.items():
+                    if key.lower() in raw_customer_lower or raw_customer_lower in key.lower():
+                        return value
+                        
+            except Exception:
+                pass  # Fall back to file-based mapping
+        
+        # Fallback to file-based mapping (if implemented)
+        # For now, return original customer
+        return raw_customer_clean
+    
     def get_item_mapping(self, raw_item: str, source: str) -> str:
         """
         Get mapped item number for a given raw item and source
