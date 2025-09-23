@@ -76,43 +76,43 @@ class WholeFoodsParser(BaseParser):
                         
                         for row in rows[1:]:  # Skip header row
                             cells = row.find_all('td')
-                            if len(cells) >= 6:  # Expect: Line, Item No, Qty, Description, Size, Cost, UPC
+                            
+                            # Skip rows with colspan (like HR rows) or insufficient cells
+                            if len(cells) < 6:
+                                continue
                                 
-                                # Extract data from specific columns
-                                item_number = cells[1].get_text(strip=True)
-                                qty_text = cells[2].get_text(strip=True)
-                                description = cells[3].get_text(strip=True)
-                                cost_text = cells[5].get_text(strip=True)
-                                
-                                # Skip totals row and empty rows
-                                if not item_number or item_number.lower() == 'totals:' or not any(c.isdigit() for c in item_number):
-                                    continue
-                                
-                                # Parse cost
-                                unit_price = 0.0
-                                if cost_text:
-                                    cost_value = self.clean_numeric_value(cost_text)
-                                    if cost_value > 0:
-                                        unit_price = cost_value
-                                
-                                line_items.append({
-                                    'item_no': item_number,
-                                    'description': description,
-                                    'qty': qty_text,
-                                    'cost': str(unit_price)
-                                })
+                            # Extract data from specific columns
+                            item_number = cells[1].get_text(strip=True)
+                            qty_text = cells[2].get_text(strip=True)
+                            description = cells[3].get_text(strip=True)
+                            cost_text = cells[5].get_text(strip=True)
+                            
+                            # Skip totals row and empty rows
+                            # Allow alphanumeric item numbers with spaces and special characters
+                            if not item_number or item_number.lower() == 'totals:' or item_number.strip() == '':
+                                continue
+                            
+                            # Parse cost
+                            unit_price = 0.0
+                            if cost_text:
+                                cost_value = self.clean_numeric_value(cost_text)
+                                if cost_value > 0:
+                                    unit_price = cost_value
+                            
+                            line_items.append({
+                                'item_no': item_number,
+                                'description': description,
+                                'qty': qty_text,
+                                'cost': str(unit_price)
+                            })
                         
                         break  # Found and processed the line items table, exit loop
             
             # Build orders using the reference code pattern
             orders = []
             if line_items:
-                # Validate item count matches expected total
-                expected_total = self._get_expected_item_total(soup)
-                if expected_total and len(line_items) != expected_total:
-                    print(f"⚠️ WARNING: Expected {expected_total} items but parsed {len(line_items)} items")
-                    print(f"   This may indicate missing or incorrectly parsed line items")
-                    print(f"   Please review the order for completeness")
+                # Enhanced validation with comprehensive line count checking
+                self._validate_line_count(soup, line_items, filename)
                 
                 # Process each line item
                 for line_item in line_items:
@@ -174,6 +174,77 @@ class WholeFoodsParser(BaseParser):
         except Exception as e:
             print(f"Error extracting expected total: {e}")
             return None
+
+    def _count_actual_line_items_in_html(self, soup):
+        """Count the actual number of line items in the HTML table"""
+        try:
+            line_count = 0
+            for table in soup.find_all('table'):
+                header_row = table.find('tr')
+                if header_row:
+                    header_text = header_row.get_text().lower()
+                    if 'item no' in header_text and 'description' in header_text and 'cost' in header_text:
+                        # Found the line items table
+                        rows = table.find_all('tr')
+                        
+                        for row in rows[1:]:  # Skip header row
+                            cells = row.find_all('td')
+                            
+                            # Skip rows with insufficient cells (like HR rows)
+                            if len(cells) < 6:
+                                continue
+                                
+                            # Extract item number
+                            item_number = cells[1].get_text(strip=True)
+                            
+                            # Count valid line items (not totals or empty)
+                            if item_number and item_number.lower() != 'totals:' and item_number.strip() != '':
+                                line_count += 1
+                        
+                        break  # Found the line items table, exit loop
+            
+            return line_count
+        except Exception as e:
+            print(f"Error counting line items in HTML: {e}")
+            return None
+
+    def _validate_line_count(self, soup, parsed_line_items, filename):
+        """Comprehensive validation of line count with detailed messages"""
+        try:
+            # Count actual line items in HTML
+            html_line_count = self._count_actual_line_items_in_html(soup)
+            parsed_count = len(parsed_line_items)
+            
+            # Get expected total from "Totals:" field
+            expected_total = self._get_expected_item_total(soup)
+            
+            print(f"\n📊 LINE COUNT VALIDATION for {filename}")
+            print(f"   Original HTML line items: {html_line_count}")
+            print(f"   Processed Xoro orders: {parsed_count}")
+            if expected_total:
+                print(f"   Expected total (from 'Totals:'): {expected_total}")
+            
+            # Validation logic
+            if html_line_count is not None and parsed_count != html_line_count:
+                print(f"   ❌ MISMATCH: {html_line_count} lines in original vs {parsed_count} processed")
+                print(f"   ⚠️  {html_line_count - parsed_count} line(s) may be missing from processing")
+                print(f"   🔍 Please review the order for completeness")
+            elif expected_total and parsed_count != expected_total:
+                print(f"   ⚠️  WARNING: Expected {expected_total} items but processed {parsed_count}")
+                print(f"   📝 Note: 'Totals:' field may refer to quantity, not line count")
+            else:
+                print(f"   ✅ SUCCESS: All {parsed_count} line items processed correctly")
+            
+            # Show processed items for verification
+            if parsed_line_items:
+                print(f"   📋 Processed items:")
+                for i, item in enumerate(parsed_line_items, 1):
+                    print(f"      {i}. {item.get('item_no', 'N/A')} - {item.get('description', 'N/A')}")
+            
+            print()  # Add spacing
+            
+        except Exception as e:
+            print(f"Error during line count validation: {e}")
     
     def _build_xoro_row(self, order_data: Dict[str, Any], line_item: Dict[str, str]) -> Dict[str, Any]:
         """Build a row for Xoro Sales Order Import Template following reference code pattern"""
@@ -307,7 +378,8 @@ class WholeFoodsParser(BaseParser):
                                 upc = cells[6].get_text(strip=True) if len(cells) > 6 else ""
                                 
                                 # Skip totals row and empty rows
-                                if not item_number or item_number.lower() == 'totals:' or not any(c.isdigit() for c in item_number):
+                                # Allow alphanumeric item numbers with spaces and special characters
+                                if not item_number or item_number.lower() == 'totals:' or item_number.strip() == '':
                                     continue
                                 
                                 # Parse quantity (e.g., "1  CA" -> 1)
