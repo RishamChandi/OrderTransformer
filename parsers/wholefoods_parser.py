@@ -155,12 +155,12 @@ class WholeFoodsParser(BaseParser):
         
         # Map store info using the reference code pattern
         if store_number:
-            # Use mapping_utils to get the mapped customer name 
-            mapped_customer = self.mapping_utils.get_store_mapping(str(store_number).strip(), 'wholefoods')
+            # Use mapping_utils to get the mapped customer name from customer mappings
+            mapped_customer = self.mapping_utils.get_customer_mapping(str(store_number).strip(), 'wholefoods')
             if not mapped_customer or mapped_customer == 'UNKNOWN':
-                mapped_customer = "IDI - Richmond"  # Default fallback for Whole Foods
+                mapped_customer = f"WHOLE FOODS #{store_number}"  # Fallback to store format
         else:
-            mapped_customer = "IDI - Richmond"  # Default fallback
+            mapped_customer = "UNKNOWN"  # Default fallback
         
         # Map item number
         mapped_item = self.mapping_utils.get_item_mapping(line_item['item_no'], 'wholefoods')
@@ -241,10 +241,12 @@ class WholeFoodsParser(BaseParser):
             if store_match:
                 store_number = store_match.group(1)
                 customer_name = f"WHOLE FOODS #{store_number}"
-                # Map store number to customer name
-                mapped_customer = self.mapping_utils.get_store_mapping(store_number, 'wholefoods')
+                # Map store number to customer name using customer mappings
+                mapped_customer = self.mapping_utils.get_customer_mapping(store_number, 'wholefoods')
+                if not mapped_customer or mapped_customer == 'UNKNOWN':
+                    mapped_customer = customer_name  # Fallback to store format
             else:
-                mapped_customer = "IDI - Richmond"  # Default fallback
+                mapped_customer = "UNKNOWN"  # Default fallback
             
             # Find and parse the line items table
             line_items_found = False

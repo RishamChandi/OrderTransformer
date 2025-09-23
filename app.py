@@ -4,6 +4,120 @@ import io
 from datetime import datetime
 import os
 import sys
+
+# Configure page for wider layout
+st.set_page_config(
+    page_title="Order Transformation Platform",
+    page_icon="🔄",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Add custom CSS for wider layout
+st.markdown("""
+<style>
+    /* Force maximum width for all containers */
+    .main .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    /* Make all elements use more width */
+    .element-container {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force buttons to be wider */
+    .stButton > button {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force success/error messages to be wider */
+    .stAlert {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force headers and text to use full width */
+    .stMarkdown {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force dataframe to use full width */
+    .stDataFrame {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .stDataFrame > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .stDataFrame > div > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force table to use full width */
+    .stDataFrame table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: auto !important;
+        min-width: 100% !important;
+    }
+    
+    /* Make columns expand to fill space */
+    .stDataFrame th, .stDataFrame td {
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        min-width: fit-content !important;
+    }
+    
+    /* Force the main content area to use full width */
+    .main .block-container > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Override any Streamlit default width constraints */
+    div[data-testid="stDataFrame"] {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Make sure the dataframe container uses all available space */
+    .stDataFrame > div[data-testid="stDataFrameResizable"] {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Make expanders wider */
+    .streamlit-expander {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Make download buttons wider */
+    .stDownloadButton {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .stDownloadButton > button {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 from parsers.wholefoods_parser import WholeFoodsParser
 from parsers.unfi_west_parser import UNFIWestParser
 from parsers.unfi_east_parser import UNFIEastParser
@@ -774,36 +888,48 @@ def process_orders(uploaded_files, parser, source_name, db_service: DatabaseServ
     
     status_text.text("Processing complete!")
     
-    # Display results
+    # Display results in a wider container
     if all_converted_data:
-        st.subheader("Conversion Results")
-        
-        # Create DataFrame for preview
-        df_converted = pd.DataFrame(all_converted_data)
-        
-        # Display summary
-        unique_orders = df_converted['ThirdPartyRefNo'].nunique()
-        st.write(f"**Total Orders Processed:** {unique_orders}")
-        st.write(f"**Unique Customers:** {df_converted['CustomerName'].nunique()}")
-        st.write(f"**Total Line Items:** {len(df_converted)}")
-        
-        # Preview data
-        st.subheader("Data Preview")
-        st.dataframe(df_converted.head(10))
-        
-        # Download button
-        csv_data = df_converted.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Xoro CSV",
-            data=csv_data,
-            file_name=f"xoro_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            type="primary"
-        )
-        
-        # Show detailed data in expander
-        with st.expander("View Full Converted Data"):
-            st.dataframe(df_converted)
+        # Use a wider container for the entire results section
+        col1, col2, col3 = st.columns([0.01, 0.98, 0.01])
+        with col2:
+            st.subheader("Conversion Results")
+            
+            # Create DataFrame for preview
+            df_converted = pd.DataFrame(all_converted_data)
+            
+            # Display summary
+            unique_orders = df_converted['ThirdPartyRefNo'].nunique()
+            st.write(f"**Total Orders Processed:** {unique_orders}")
+            st.write(f"**Unique Customers:** {df_converted['CustomerName'].nunique()}")
+            st.write(f"**Total Line Items:** {len(df_converted)}")
+            
+            # Preview data with full width
+            st.subheader("Data Preview")
+            
+            st.dataframe(
+                df_converted.head(10), 
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Download button
+            csv_data = df_converted.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Xoro CSV",
+                data=csv_data,
+                file_name=f"xoro_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                type="primary"
+            )
+            
+            # Show detailed data in expander with full width
+            with st.expander("View Full Converted Data"):
+                st.dataframe(
+                    df_converted, 
+                    use_container_width=True,
+                    hide_index=True
+                )
     
     # Display errors if any
     if errors:

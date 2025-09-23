@@ -40,15 +40,30 @@ def create_database_engine():
     # Configure engine with connection pooling and stability settings
     engine_config = {
         'echo': False,  # Set to True for SQL debugging
-        'pool_size': 5,  # Maintain 5 connections in pool
-        'max_overflow': 10,  # Allow up to 10 overflow connections
-        'pool_pre_ping': True,  # Validate connections before use
-        'pool_recycle': 300,  # Recycle connections every 5 minutes
-        'connect_args': {
+    }
+    
+    # Configure connection args based on database type
+    connect_args = {}
+    
+    if 'sqlite' in database_url.lower():
+        # SQLite-specific configuration
+        connect_args = {
+            'timeout': 30,  # SQLite timeout
+        }
+    else:
+        # PostgreSQL-specific configuration
+        engine_config.update({
+            'pool_size': 5,  # Maintain 5 connections in pool
+            'max_overflow': 10,  # Allow up to 10 overflow connections
+            'pool_pre_ping': True,  # Validate connections before use
+            'pool_recycle': 300,  # Recycle connections every 5 minutes
+        })
+        connect_args = {
             'connect_timeout': 30,  # 30 second connection timeout
             'application_name': 'order_transformer_dev'  # Identify our connections
         }
-    }
+    
+    engine_config['connect_args'] = connect_args
     
     # Add SSL configuration for production and cloud databases
     if env == 'production':
