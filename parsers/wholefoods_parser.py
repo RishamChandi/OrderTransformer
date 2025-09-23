@@ -5,6 +5,7 @@ Parser for Whole Foods order files
 from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 import pandas as pd
+import re
 from .base_parser import BaseParser
 
 class WholeFoodsParser(BaseParser):
@@ -84,7 +85,7 @@ class WholeFoodsParser(BaseParser):
                                 cost_text = cells[5].get_text(strip=True)
                                 
                                 # Skip totals row and empty rows
-                                if not item_number or item_number.lower() == 'totals:' or not item_number.isdigit():
+                                if not item_number or item_number.lower() == 'totals:' or not any(c.isdigit() for c in item_number):
                                     continue
                                 
                                 # Parse cost
@@ -106,6 +107,13 @@ class WholeFoodsParser(BaseParser):
             # Build orders using the reference code pattern
             orders = []
             if line_items:
+                # Validate item count matches expected total
+                expected_total = self._get_expected_item_total(soup)
+                if expected_total and len(line_items) != expected_total:
+                    print(f"⚠️ WARNING: Expected {expected_total} items but parsed {len(line_items)} items")
+                    print(f"   This may indicate missing or incorrectly parsed line items")
+                    print(f"   Please review the order for completeness")
+                
                 # Process each line item
                 for line_item in line_items:
                     xoro_row = self._build_xoro_row(order_data, line_item)
@@ -140,6 +148,32 @@ class WholeFoodsParser(BaseParser):
         
         # If all encodings fail, use utf-8 with error handling
         return file_content.decode('utf-8', errors='replace')
+    
+    def _get_expected_item_total(self, soup):
+        """Extract the expected total number of items from the HTML"""
+        try:
+            # Look for "Totals: X" pattern in the HTML
+            all_text = soup.get_text()
+            
+            # Try different patterns for totals
+            total_patterns = [
+                r'Totals:\s*(\d+)',
+                r'Total:\s*(\d+)',
+                r'Total Items:\s*(\d+)',
+                r'Total Line Items:\s*(\d+)',
+                r'(\d+)\s*items?',
+                r'(\d+)\s*line items?'
+            ]
+            
+            for pattern in total_patterns:
+                match = re.search(pattern, all_text, re.IGNORECASE)
+                if match:
+                    return int(match.group(1))
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting expected total: {e}")
+            return None
     
     def _build_xoro_row(self, order_data: Dict[str, Any], line_item: Dict[str, str]) -> Dict[str, Any]:
         """Build a row for Xoro Sales Order Import Template following reference code pattern"""
@@ -273,7 +307,7 @@ class WholeFoodsParser(BaseParser):
                                 upc = cells[6].get_text(strip=True) if len(cells) > 6 else ""
                                 
                                 # Skip totals row and empty rows
-                                if not item_number or item_number.lower() == 'totals:' or not item_number.isdigit():
+                                if not item_number or item_number.lower() == 'totals:' or not any(c.isdigit() for c in item_number):
                                     continue
                                 
                                 # Parse quantity (e.g., "1  CA" -> 1)
@@ -417,7 +451,7 @@ class WholeFoodsParser(BaseParser):
         
         # Parse Whole Foods table structure: Item No, Qty, Description, Size, Cost, UPC
         for i, text in enumerate(cell_texts):
-            if text and not item_number and text.isdigit() and len(text) <= 10:
+            if text and not item_number and any(c.isdigit() for c in text) and len(text) <= 10:
                 # First numeric cell is likely item number
                 item_number = text
             elif text and not description and text != item_number and len(text) <= 200:
