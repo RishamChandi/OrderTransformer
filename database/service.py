@@ -162,24 +162,24 @@ class DatabaseService:
             
             return result
     
-    def save_store_mapping(self, source: str, raw_name: str, mapped_name: str) -> bool:
+    def save_store_mapping(self, source: str, raw_store_id: str, mapped_store_name: str) -> bool:
         """Save or update store mapping"""
         
         try:
             with get_session() as session:
                 # Check if mapping already exists
                 existing = session.query(StoreMapping)\
-                                .filter_by(source=source, raw_name=raw_name)\
+                                .filter_by(source=source, raw_store_id=raw_store_id)\
                                 .first()
                 
                 if existing:
-                    existing.mapped_name = mapped_name  # type: ignore
+                    existing.mapped_store_name = mapped_store_name  # type: ignore
                     existing.updated_at = datetime.utcnow()  # type: ignore
                 else:
                     mapping = StoreMapping(
                         source=source,
-                        raw_name=raw_name,
-                        mapped_name=mapped_name
+                        raw_store_id=raw_store_id,
+                        mapped_store_name=mapped_store_name
                     )
                     session.add(mapping)
                 
@@ -233,11 +233,11 @@ class DatabaseService:
                              .all()
             
             # For item mappings, we need to handle multiple key types
-            # Return a dict with raw_key_value as key and mapped_item_number as value
+            # Return a dict with raw_item as key and mapped_item as value
             result = {}
             for mapping in mappings:
-                key = str(mapping.raw_key_value)
-                value = str(mapping.mapped_item_number)
+                key = str(mapping.raw_item)
+                value = str(mapping.mapped_item)
                 result[key] = value
             
             return result

@@ -76,7 +76,7 @@ def create_database_engine():
             'keepalives_count': 3   # Give up after 3 failed keepalives
         })
     
-    print(f"🔌 Connecting to {env} database...")
+    print(f"Connecting to {env} database...")
     
     try:
         engine = create_engine(database_url, **engine_config)
@@ -86,21 +86,21 @@ def create_database_engine():
             try:
                 connection = engine.connect()
                 connection.close()
-                print(f"✅ Connected to {env} database successfully (attempt {attempt + 1})")
+                print(f"Connected to {env} database successfully (attempt {attempt + 1})")
                 return engine
             except Exception as retry_error:
                 if attempt < max_retries - 1:
-                    print(f"⚠️ Connection attempt {attempt + 1} failed, retrying...")
+                    print(f"Connection attempt {attempt + 1} failed, retrying...")
                     import time
                     time.sleep(1)  # Wait 1 second before retry
                 else:
                     raise retry_error
     except Exception as e:
-        print(f"❌ Failed to connect to {env} database: {e}")
+        print(f"Failed to connect to {env} database: {e}")
         
         # Enhanced fallback for development environments
         if env != 'production':
-            print(f"🔄 Attempting fallback connection strategies...")
+            print(f"Attempting fallback connection strategies...")
             
             # Strategy 1: Try with SSL allow (works with cloud databases like Neon)
             fallback_url = database_url.replace('?sslmode=require', '').replace('&sslmode=require', '')
@@ -114,22 +114,22 @@ def create_database_engine():
                 engine = create_engine(fallback_url, echo=False)
                 connection = engine.connect()
                 connection.close()
-                print(f"✅ Connected to {env} database (SSL allow)")
+                print(f"Connected to {env} database (SSL allow)")
                 return engine
             except Exception as e2:
-                print(f"❌ SSL allow connection failed: {e2}")
+                print(f"SSL allow connection failed: {e2}")
                 
                 # Strategy 2: Try with SSL allow
                 try:
                     allow_url = fallback_url.replace('sslmode=disable', 'sslmode=allow')
-                    print(f"📝 Trying with SSL allow...")
+                    print(f"Trying with SSL allow...")
                     engine = create_engine(allow_url, echo=False)
                     connection = engine.connect()
                     connection.close()
-                    print(f"✅ Connected to {env} database (SSL allow)")
+                    print(f"Connected to {env} database (SSL allow)")
                     return engine
                 except Exception as e3:
-                    print(f"❌ All connection strategies failed. Last error: {e3}")
+                    print(f"All connection strategies failed. Last error: {e3}")
         
         # If all strategies fail, raise the original error
         raise Exception(f"Database connection failed after all retry attempts. Environment: {env}, Error: {e}")
