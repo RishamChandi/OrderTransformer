@@ -504,6 +504,31 @@ class DatabaseService:
         
         return pd.DataFrame(df_data)
     
+    def update_item_mapping_description(self, source: str, raw_item: str, new_description: str) -> bool:
+        """Update the mapped_description for a specific item mapping"""
+        
+        try:
+            with get_session() as session:
+                # Find the mapping
+                mapping = session.query(ItemMapping).filter(
+                    and_(
+                        ItemMapping.source == source,
+                        ItemMapping.raw_item == raw_item,
+                        ItemMapping.active == True
+                    )
+                ).first()
+                
+                if mapping:
+                    mapping.mapped_description = new_description  # type: ignore
+                    mapping.updated_at = datetime.utcnow()  # type: ignore
+                    session.commit()
+                    return True
+                else:
+                    return False
+                    
+        except Exception:
+            return False
+    
     def deactivate_item_mappings(self, mapping_ids: List[int]) -> int:
         """Deactivate item mappings by IDs"""
         
@@ -718,6 +743,31 @@ class DatabaseService:
         
         return pd.DataFrame(df_data)
     
+    def update_item_mapping_description(self, source: str, raw_item: str, new_description: str) -> bool:
+        """Update the mapped_description for a specific item mapping"""
+        
+        try:
+            with get_session() as session:
+                # Find the mapping
+                mapping = session.query(ItemMapping).filter(
+                    and_(
+                        ItemMapping.source == source,
+                        ItemMapping.raw_item == raw_item,
+                        ItemMapping.active == True
+                    )
+                ).first()
+                
+                if mapping:
+                    mapping.mapped_description = new_description  # type: ignore
+                    mapping.updated_at = datetime.utcnow()  # type: ignore
+                    session.commit()
+                    return True
+                else:
+                    return False
+                    
+        except Exception:
+            return False
+    
     # Store Mapping Methods
     
     def get_store_mappings_advanced(self, source: str = None, active_only: bool = True, 
@@ -852,3 +902,28 @@ class DatabaseService:
             })
         
         return pd.DataFrame(df_data)
+    
+    def update_item_mapping_description(self, source: str, raw_item: str, new_description: str) -> bool:
+        """Update the mapped_description for a specific item mapping"""
+        
+        try:
+            with get_session() as session:
+                # Find the mapping
+                mapping = session.query(ItemMapping).filter(
+                    and_(
+                        ItemMapping.source == source,
+                        ItemMapping.raw_item == raw_item,
+                        ItemMapping.active == True
+                    )
+                ).first()
+                
+                if mapping:
+                    mapping.mapped_description = new_description  # type: ignore
+                    mapping.updated_at = datetime.utcnow()  # type: ignore
+                    session.commit()
+                    return True
+                else:
+                    return False
+                    
+        except Exception:
+            return False

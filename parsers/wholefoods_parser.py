@@ -218,7 +218,7 @@ class WholeFoodsParser(BaseParser):
             # Get expected total from "Totals:" field
             expected_total = self._get_expected_item_total(soup)
             
-            print(f"\n📊 LINE COUNT VALIDATION for {filename}")
+            print(f"\n[INFO] LINE COUNT VALIDATION for {filename}")
             print(f"   Original HTML line items: {html_line_count}")
             print(f"   Processed Xoro orders: {parsed_count}")
             if expected_total:
@@ -226,18 +226,18 @@ class WholeFoodsParser(BaseParser):
             
             # Validation logic
             if html_line_count is not None and parsed_count != html_line_count:
-                print(f"   ❌ MISMATCH: {html_line_count} lines in original vs {parsed_count} processed")
-                print(f"   ⚠️  {html_line_count - parsed_count} line(s) may be missing from processing")
-                print(f"   🔍 Please review the order for completeness")
+                print(f"   [ERROR] MISMATCH: {html_line_count} lines in original vs {parsed_count} processed")
+                print(f"   [WARNING] {html_line_count - parsed_count} line(s) may be missing from processing")
+                print(f"   [INFO] Please review the order for completeness")
             elif expected_total and parsed_count != expected_total:
-                print(f"   ⚠️  WARNING: Expected {expected_total} items but processed {parsed_count}")
-                print(f"   📝 Note: 'Totals:' field may refer to quantity, not line count")
+                print(f"   [WARNING] Expected {expected_total} items but processed {parsed_count}")
+                print(f"   [INFO] Note: 'Totals:' field may refer to quantity, not line count")
             else:
-                print(f"   ✅ SUCCESS: All {parsed_count} line items processed correctly")
+                print(f"   [SUCCESS] All {parsed_count} line items processed correctly")
             
             # Show processed items for verification
             if parsed_line_items:
-                print(f"   📋 Processed items:")
+                print(f"   [INFO] Processed items:")
                 for i, item in enumerate(parsed_line_items, 1):
                     print(f"      {i}. {item.get('item_no', 'N/A')} - {item.get('description', 'N/A')}")
             
