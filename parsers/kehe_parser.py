@@ -37,14 +37,14 @@ class KEHEParser(BaseParser):
                     sps_customer = str(row['SPS Customer#']).strip()
                     company_name = str(row['CompanyName']).strip()
                     mapping[sps_customer] = company_name
-                print(f"✅ Loaded {len(mapping)} KEHE customer mappings")
+                print(f"Loaded {len(mapping)} KEHE customer mappings")
                 print(f"DEBUG: Sample mapping keys: {list(mapping.keys())[:3]}")  # Show first 3 keys for verification
                 return mapping
             else:
-                print("⚠️ KEHE customer mapping file not found")
+                print("KEHE customer mapping file not found")
                 return {}
         except Exception as e:
-            print(f"❌ Error loading KEHE customer mapping: {e}")
+            print(f"Error loading KEHE customer mapping: {e}")
             return {}
     
     def _get_store_mapping(self, ship_to_location: str) -> str:
@@ -55,7 +55,7 @@ class KEHEParser(BaseParser):
                 matching_row = self.mapping_df[self.mapping_df['SPS Customer#'] == ship_to_location]
                 if not matching_row.empty:
                     store_mapping = str(matching_row.iloc[0]['Store Mapping']).strip()
-                    print(f"DEBUG: KEHE Store Mapping: '{ship_to_location}' → '{store_mapping}'")
+                    print(f"DEBUG: KEHE Store Mapping: '{ship_to_location}' -> '{store_mapping}'")
                     return store_mapping
             return "KL - Richmond"  # Default fallback
         except Exception as e:
@@ -123,7 +123,7 @@ class KEHEParser(BaseParser):
                     # Ensure KEHE number has proper leading zeros (should be 8 digits)
                     if kehe_number.isdigit() and len(kehe_number) < 8:
                         kehe_number = kehe_number.zfill(8)
-                        print(f"DEBUG: Padded KEHE number with leading zeros: '{str(row.get('Buyers Catalog or Stock Keeping #', '')).strip()}' → '{kehe_number}'")
+                        print(f"DEBUG: Padded KEHE number with leading zeros: '{str(row.get('Buyers Catalog or Stock Keeping #', '')).strip()}' -> '{kehe_number}'")
                     
                     quantity = self.clean_numeric_value(str(row.get('Qty Ordered', '0')))
                     unit_price = self.clean_numeric_value(str(row.get('Unit Price', '0')))
@@ -152,12 +152,12 @@ class KEHEParser(BaseParser):
                     mapped_item = self.mapping_utils.resolve_item_number(item_attributes, 'kehe')
                     
                     if mapped_item:
-                        print(f"DEBUG: KEHE Priority Mapping: {item_attributes} → '{mapped_item}'")
+                        print(f"DEBUG: KEHE Priority Mapping: {item_attributes} -> '{mapped_item}'")
                     else:
                         # Fallback to legacy CSV mapping for backward compatibility
                         if kehe_number in self.item_mapping:
                             mapped_item = self.item_mapping[kehe_number]
-                            print(f"DEBUG: KEHE Legacy Mapping: '{kehe_number}' → '{mapped_item}'")
+                            print(f"DEBUG: KEHE Legacy Mapping: '{kehe_number}' -> '{mapped_item}'")
                         else:
                             mapped_item = kehe_number  # Final fallback to original number
                             print(f"DEBUG: No KEHE mapping found for '{kehe_number}', using raw number")
@@ -181,7 +181,7 @@ class KEHEParser(BaseParser):
                     # Ensure it starts with 0 if it's a numeric value (KEHE Ship To Location should be 13 digits)
                     if ship_to_location.isdigit() and len(ship_to_location) == 12:
                         ship_to_location = '0' + ship_to_location
-                        print(f"DEBUG: Added leading zero to Ship To Location: '{ship_to_location_raw}' → '{ship_to_location}'")
+                        print(f"DEBUG: Added leading zero to Ship To Location: '{ship_to_location_raw}' -> '{ship_to_location}'")
                     
                     # NEW: Use database-first store mapping resolution
                     customer_name = "IDI - Richmond"  # Default value
@@ -190,11 +190,11 @@ class KEHEParser(BaseParser):
                         db_mapped_customer = self.mapping_utils.get_store_mapping(ship_to_location, 'kehe')
                         if db_mapped_customer and db_mapped_customer != ship_to_location:
                             customer_name = db_mapped_customer
-                            print(f"DEBUG: KEHE DB Store Mapping: '{ship_to_location}' → '{customer_name}'")
+                            print(f"DEBUG: KEHE DB Store Mapping: '{ship_to_location}' -> '{customer_name}'")
                         # Fallback to legacy CSV mapping
                         elif ship_to_location in self.customer_mapping:
                             customer_name = self.customer_mapping[ship_to_location]
-                            print(f"DEBUG: KEHE Legacy Customer Mapping: '{ship_to_location}' → '{customer_name}'")
+                            print(f"DEBUG: KEHE Legacy Customer Mapping: '{ship_to_location}' -> '{customer_name}'")
                         else:
                             print(f"DEBUG: No KEHE customer mapping found for '{ship_to_location}' (raw: '{ship_to_location_raw}'), using default: '{customer_name}'")
                     
@@ -328,14 +328,14 @@ class KEHEParser(BaseParser):
                     kehe_number = str(row['KeHE Number']).strip()
                     item_number = str(row['ItemNumber']).strip()
                     mapping[kehe_number] = item_number
-                print(f"✅ Loaded {len(mapping)} KEHE item mappings")
+                print(f"Loaded {len(mapping)} KEHE item mappings")
                 print(f"DEBUG: Sample item mapping keys: {list(mapping.keys())[:3]}")  # Show first 3 keys
                 return mapping
             else:
-                print("⚠️ KEHE item mapping file not found")
+                print("KEHE item mapping file not found")
                 return {}
         except Exception as e:
-            print(f"❌ Error loading KEHE item mapping: {e}")
+            print(f"Error loading KEHE item mapping: {e}")
             return {}
     
     def _extract_line_items_from_csv(self, df: pd.DataFrame) -> List[Dict[str, Any]]:

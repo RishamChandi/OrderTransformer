@@ -269,7 +269,7 @@ class WholeFoodsParser(BaseParser):
         
         # Map item number
         mapped_item = self.mapping_utils.get_item_mapping(line_item['item_no'], 'wholefoods')
-        if not mapped_item or mapped_item == line_item['item_no']:
+        if not mapped_item:
             # If no mapping found, use "Invalid Item" as specified
             mapped_item = "Invalid Item"
         
@@ -398,7 +398,7 @@ class WholeFoodsParser(BaseParser):
                                 
                                 # Apply item mapping
                                 mapped_item = self.mapping_utils.get_item_mapping(item_number, 'wholefoods')
-                                if not mapped_item or mapped_item == item_number:
+                                if not mapped_item:
                                     mapped_item = "Invalid Item"  # Use "Invalid Item" if no mapping found
                                 
                                 order_item = {
