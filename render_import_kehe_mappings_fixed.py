@@ -115,11 +115,47 @@ def import_kehe_mappings():
         else:
             print(f"[WARNING] Customer mapping file not found: {customer_file}")
         
-        # Import store mappings - SKIP for now due to database schema issues
+        # Import store mappings - Try to import and show exact error
         store_file = 'mappings/kehe/render_store_mappings.csv'
         if os.path.exists(store_file):
-            print(f"[INFO] Store mappings file found but skipping due to database schema issues")
-            print(f"[INFO] Store mappings will need to be imported manually or schema fixed")
+            print(f"[INFO] Importing store mappings from {store_file}...")
+            try:
+                store_df = pd.read_csv(store_file)
+                print(f"[DEBUG] Store CSV columns: {list(store_df.columns)}")
+                
+                # Convert to database format
+                mappings_data = []
+                for idx, row in store_df.iterrows():
+                    try:
+                        mappings_data.append({
+                            'source': str(row['Source']),
+                            'raw_store_id': str(row['RawStoreID']),
+                            'mapped_store_name': str(row['MappedStoreName']),
+                            'store_type': str(row['StoreType']),
+                            'priority': int(row['Priority']),
+                            'active': bool(row['Active']),
+                            'notes': str(row['Notes']) if pd.notna(row['Notes']) else None
+                        })
+                    except Exception as e:
+                        print(f"[ERROR] Store row {idx}: {str(e)}")
+                        total_errors += 1
+                
+                if mappings_data:
+                    result = db_service.bulk_upsert_store_mappings(mappings_data)
+                    print(f"[SUCCESS] Store mappings: {result['added']} added, {result['updated']} updated, {result['errors']} errors")
+                    total_errors += result['errors']
+                    
+                    if result['errors'] > 0:
+                        print("[ERROR] Store mapping errors:")
+                        for error in result['error_details']:
+                            print(f"  - {error}")
+                else:
+                    print("[ERROR] No valid store mappings to import")
+            except Exception as e:
+                print(f"[ERROR] Failed to import store mappings: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                total_errors += 1
         else:
             print(f"[WARNING] Store mapping file not found: {store_file}")
         
