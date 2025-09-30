@@ -260,8 +260,8 @@ class WholeFoodsParser(BaseParser):
         
         # Map store info using the reference code pattern
         if store_number:
-            # Use mapping_utils to get the mapped customer name from customer mappings
-            mapped_customer = self.mapping_utils.get_customer_mapping(str(store_number).strip(), 'wholefoods')
+            # Use mapping_utils to get the mapped customer name from store mappings
+            mapped_customer = self.mapping_utils.get_store_mapping(str(store_number).strip(), 'wholefoods')
             if not mapped_customer or mapped_customer == 'UNKNOWN':
                 mapped_customer = f"WHOLE FOODS #{store_number}"  # Fallback to store format
         else:
@@ -272,6 +272,14 @@ class WholeFoodsParser(BaseParser):
         if not mapped_item:
             # If no mapping found, use "Invalid Item" as specified
             mapped_item = "Invalid Item"
+        
+        # Get mapped description if item is mapped, otherwise use "Invalid Item"
+        if mapped_item == "Invalid Item":
+            mapped_description = "Invalid Item"
+        else:
+            mapped_description = self.mapping_utils.get_item_description(line_item['item_no'], 'wholefoods')
+            if not mapped_description:
+                mapped_description = line_item.get('description', '')  # Fallback to original description
         
         # Parse quantity from qty field
         import re
@@ -291,7 +299,7 @@ class WholeFoodsParser(BaseParser):
             'raw_customer_name': f"WHOLE FOODS #{store_number}" if store_number else 'UNKNOWN',
             'item_number': mapped_item,
             'raw_item_number': line_item['item_no'],
-            'item_description': line_item.get('description', ''),
+            'item_description': mapped_description,
             'quantity': quantity,
             'unit_price': unit_price,
             'total_price': unit_price * quantity,
@@ -346,8 +354,8 @@ class WholeFoodsParser(BaseParser):
             if store_match:
                 store_number = store_match.group(1)
                 customer_name = f"WHOLE FOODS #{store_number}"
-                # Map store number to customer name using customer mappings
-                mapped_customer = self.mapping_utils.get_customer_mapping(store_number, 'wholefoods')
+                # Map store number to customer name using store mappings
+                mapped_customer = self.mapping_utils.get_store_mapping(store_number, 'wholefoods')
                 if not mapped_customer or mapped_customer == 'UNKNOWN':
                     mapped_customer = customer_name  # Fallback to store format
             else:
@@ -401,6 +409,14 @@ class WholeFoodsParser(BaseParser):
                                 if not mapped_item:
                                     mapped_item = "Invalid Item"  # Use "Invalid Item" if no mapping found
                                 
+                                # Get mapped description if item is mapped, otherwise use "Invalid Item"
+                                if mapped_item == "Invalid Item":
+                                    mapped_description = "Invalid Item"
+                                else:
+                                    mapped_description = self.mapping_utils.get_item_description(item_number, 'wholefoods')
+                                    if not mapped_description:
+                                        mapped_description = description  # Fallback to original description
+                                
                                 order_item = {
                                     'order_number': order_number or filename,
                                     'order_date': self.parse_date(order_date) if order_date else None,
@@ -409,7 +425,7 @@ class WholeFoodsParser(BaseParser):
                                     'raw_customer_name': customer_name,
                                     'item_number': mapped_item,
                                     'raw_item_number': item_number,
-                                    'item_description': description,
+                                    'item_description': mapped_description,
                                     'quantity': quantity,
                                     'unit_price': unit_price,
                                     'total_price': unit_price * quantity,

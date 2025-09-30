@@ -86,8 +86,33 @@ class MappingUtils:
             if key.lower() in raw_name_lower or raw_name_lower in key.lower():
                 return value
         
-        # Return original name if no mapping found
-        return raw_name_clean
+        # Return None if no mapping found (so parser can handle as "Invalid Item")
+        return None
+    
+    def get_item_description(self, raw_item: str, source: str) -> str:
+        """Get the mapped item description for a raw item number"""
+        
+        if not raw_item or not source:
+            return ""
+        
+        raw_item_clean = str(raw_item).strip()
+        
+        # Try database first if available
+        if self.use_database and self.db_service:
+            try:
+                mappings = self.db_service.get_item_mappings_advanced(source=source, active_only=True)
+                
+                # Find the mapping for this item
+                for mapping in mappings:
+                    if mapping['raw_item'] == raw_item_clean:
+                        return mapping.get('mapped_description', '') or ''
+                        
+            except Exception:
+                pass  # Fall back to file-based mapping
+        
+        # For now, return empty string if no description found
+        # This could be enhanced to read from CSV files if needed
+        return ""
     
     def _load_mapping(self, source: str) -> None:
         """Load mapping file for the given source"""
@@ -310,8 +335,8 @@ class MappingUtils:
             if key.lower() == raw_item_lower:
                 return value
         
-        # Return original item if no mapping found
-        return raw_item_clean
+        # Return None if no mapping found (so parser can handle as "Invalid Item")
+        return None
     
     def _load_item_mapping(self, source: str) -> None:
         """Load item mapping file for the given source"""
