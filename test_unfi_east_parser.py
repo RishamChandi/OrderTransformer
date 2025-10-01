@@ -1,50 +1,79 @@
+#!/usr/bin/env python3
+"""
+Test UNFI East parser with PO4480501
+"""
+
 import os
-os.environ['DATABASE_URL'] = 'sqlite:///./orderparser_dev.db'
+import sys
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+
+# Set database URL
+os.environ['DATABASE_URL'] = 'sqlite:///orderparser_dev.db'
+
 from parsers.unfi_east_parser import UNFIEastParser
 from utils.mapping_utils import MappingUtils
 
-print('Testing UNFI East parser...')
-
-# Initialize parser
-mapping_utils = MappingUtils()
-parser = UNFIEastParser(mapping_utils)
-
-# Read sample PDF file
-pdf_path = 'order_samples/unfi_east/UNFI East PO4480501 (1).pdf'
-if os.path.exists(pdf_path):
-    print(f'Found sample PDF: {pdf_path}')
-    
-    with open(pdf_path, 'rb') as f:
-        file_content = f.read()
+def test_unfi_east_parser():
+    print("Testing UNFI East Parser with PO4480501")
+    print("=" * 50)
     
     try:
-        # Parse the PDF
+        # Initialize parser
+        mapping_utils = MappingUtils()
+        mapping_utils.use_database = True
+        parser = UNFIEastParser(mapping_utils)
+        
+        # Read the PDF file
+        pdf_path = "order_samples/unfi_east/UNFI East PO4480501 (1).pdf"
+        if not os.path.exists(pdf_path):
+            print(f"PDF file not found: {pdf_path}")
+            return False
+        
+        with open(pdf_path, 'rb') as f:
+            file_content = f.read()
+        
+        print(f"PDF file size: {len(file_content)} bytes")
+        
+        # Parse the file
         orders = parser.parse(file_content, 'pdf', 'UNFI East PO4480501 (1).pdf')
+        print(f"Total orders parsed: {len(orders) if orders else 0}")
         
         if orders:
-            print(f'Successfully parsed {len(orders)} orders')
+            print("\nFirst order details:")
+            for key, value in orders[0].items():
+                print(f"  {key}: {value}")
             
-            # Show first order details
-            first_order = orders[0]
-            print(f'Order Number: {first_order.get("order_number")}')
-            print(f'Customer Name: {first_order.get("customer_name")}')
-            print(f'Raw Customer Name: {first_order.get("raw_customer_name")}')
-            print(f'Order Date: {first_order.get("order_date")}')
-            print(f'Pickup Date: {first_order.get("pickup_date")}')
-            print(f'Vendor Number: {first_order.get("vendor_number")}')
-            print(f'Store Name: {first_order.get("store_name")}')
-            print(f'Item Number: {first_order.get("item_number")}')
-            print(f'Raw Item Number: {first_order.get("raw_item_number")}')
-            print(f'Item Description: {first_order.get("item_description")}')
-            print(f'Quantity: {first_order.get("quantity")}')
-            print(f'Unit Price: {first_order.get("unit_price")}')
-            print(f'Total Price: {first_order.get("total_price")}')
+            print(f"\nTotal line items: {len(orders)}")
+            for i, order in enumerate(orders[:5]):  # Show first 5 items
+                item_num = order.get('item_number', 'N/A')
+                desc = order.get('item_description', 'N/A')
+                qty = order.get('quantity', 'N/A')
+                price = order.get('unit_price', 'N/A')
+                print(f"Item {i+1}: {item_num} - {desc} - Qty: {qty} - Price: {price}")
+            
+            # Check customer mapping
+            customer_name = orders[0].get('customer_name', 'UNKNOWN')
+            raw_customer = orders[0].get('raw_customer_name', '')
+            print(f"\nCustomer Mapping:")
+            print(f"  Raw: {raw_customer}")
+            print(f"  Mapped: {customer_name}")
+            
         else:
-            print('No orders parsed')
+            print("No orders parsed")
+            return False
             
+        return True
+        
     except Exception as e:
-        print(f'Error parsing PDF: {e}')
+        print(f"Error: {e}")
         import traceback
         traceback.print_exc()
-else:
-    print(f'Sample PDF not found: {pdf_path}')
+        return False
+
+if __name__ == "__main__":
+    success = test_unfi_east_parser()
+    sys.exit(0 if success else 1)

@@ -230,7 +230,7 @@ class UNFIWestParser(BaseParser):
                     vendor_pn = part
                     found_vendor_pn = True
                     
-                    # After vendor P.N., look for Cost (with 'p' suffix) and Extension
+                    # After vendor P.N., look for Cost (with or without 'p' suffix) and Extension
                     for j in range(i+1, min(i+5, len(parts))):
                         if j < len(parts):
                             current_part = parts[j]
@@ -239,6 +239,16 @@ class UNFIWestParser(BaseParser):
                                 try:
                                     cost = float(current_part[:-1])  # Remove 'p' suffix
                                     cost_found = True
+                                except ValueError:
+                                    pass
+                            # Check for cost without 'p' suffix (e.g., "20.0000", "22.0000")
+                            elif not cost_found and re.match(r'^\d+\.?\d*$', current_part):
+                                try:
+                                    cost_value = float(current_part)
+                                    # Only use this as cost if it's a reasonable price (not too large)
+                                    if 0.01 <= cost_value <= 1000.0:
+                                        cost = cost_value
+                                        cost_found = True
                                 except ValueError:
                                     pass
                             # Check for extension (next numeric value after cost)
@@ -258,12 +268,18 @@ class UNFIWestParser(BaseParser):
             # Apply item mapping using Prod# instead of Vendor P.N.
             mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_west')
             
+            # Get mapped description from the mapping table
+            mapped_description = self.mapping_utils.get_item_description(prod_number, 'unfi_west')
+            if not mapped_description:
+                # Fallback to raw description if no mapping found
+                mapped_description = description.strip()
+            
             return {
                 'item_number': mapped_item,
                 'raw_item_number': raw_prod_number,  # Store original Prod# with leading zeros
-                'item_description': description.strip(),
+                'item_description': mapped_description,
                 'quantity': qty,
-                'unit_price': cost,  # Use cost column (with 'p' suffix removed) as unit price
+                'unit_price': cost,  # Use cost column (with or without 'p' suffix) as unit price
                 'total_price': cost * qty,  # Calculate total from cost, not extension
                 'extension': extension  # Store extension separately for reference
             }
