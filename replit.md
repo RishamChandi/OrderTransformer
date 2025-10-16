@@ -7,6 +7,19 @@ A robust Streamlit-based order transformation platform that converts complex mul
 
 ### Latest Updates (October 16, 2025)
 
+#### UNFI East Customer Mapping Fix
+✅ **Fixed customer name extraction** - Updated UNFI East parser to extract customer codes from "Internal Ref Number" field instead of product lines
+✅ **Regex pattern enhancement** - Implemented pattern `r'Int(?:ernal)?\s+Ref(?:\s+Number)?[:#\s]+([A-Za-z]{2})-\d+-'` to capture 2-letter codes
+✅ **Case-insensitive matching** - Normalized all customer codes to uppercase for reliable mapping (handles both "ss" and "SS")
+✅ **Added missing mappings** - Added HH (Howell NJ), SS (Sarasota FL), MM (York PA) to IOW customer mapping dictionary
+✅ **Validated fix** - Both test PDFs (PO4531546 with "ss" code, PO4531367 with "HH" code) now correctly map to customer names instead of showing "UNKNOWN"
+
+#### Database Delete Operations Fix
+✅ **Fixed customer mapping delete button** - Updated delete functionality to use database operations instead of CSV-only approach
+✅ **Added database methods** - Implemented `delete_store_mapping()` and `delete_item_mapping()` in DatabaseService
+✅ **Backward compatibility** - Delete operations now update both database and CSV files for dual-storage support
+✅ **Proper error handling** - Enhanced delete function with appropriate success/warning messages
+
 #### UNFI West Parser Enhancement
 ✅ **Fixed missing cost extraction** - Updated UNFI West parser to handle line items with empty Vendor P.N. fields
 ✅ **Robust cost detection** - Added fallback logic to detect costs with or without 'p' suffix (e.g., "13.5000p" or "13.5000")
