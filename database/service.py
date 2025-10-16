@@ -234,6 +234,40 @@ class DatabaseService:
             
             return {str(mapping.raw_item): str(mapping.mapped_item) for mapping in mappings}
     
+    def delete_store_mapping(self, source: str, raw_name: str) -> bool:
+        """Delete a store mapping"""
+        
+        try:
+            with get_session() as session:
+                mapping = session.query(StoreMapping)\
+                               .filter_by(source=source, raw_name=raw_name)\
+                               .first()
+                
+                if mapping:
+                    session.delete(mapping)
+                    return True
+                return False
+                
+        except Exception:
+            return False
+    
+    def delete_item_mapping(self, source: str, raw_item: str) -> bool:
+        """Delete an item mapping"""
+        
+        try:
+            with get_session() as session:
+                mapping = session.query(ItemMapping)\
+                               .filter_by(source=source, raw_item=raw_item)\
+                               .first()
+                
+                if mapping:
+                    session.delete(mapping)
+                    return True
+                return False
+                
+        except Exception:
+            return False
+    
     # Enhanced Item Mapping Methods for Template System
     
     def get_item_mappings_advanced(self, source: str = None, active_only: bool = True, 

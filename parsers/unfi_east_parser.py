@@ -74,7 +74,7 @@ class UNFIEastParser(BaseParser):
                 raise ValueError(f"Could not extract text from PDF: {str(e)}")
     
     def _load_iow_customer_mapping(self) -> Dict[str, str]:
-        """Load IOW customer mapping from Excel file"""
+        """Load IOW customer mapping from Excel file with case-insensitive keys"""
         try:
             import pandas as pd
             import os
@@ -85,25 +85,27 @@ class UNFIEastParser(BaseParser):
                 df = pd.read_excel(mapping_file)
                 mapping = {}
                 for _, row in df.iterrows():
-                    unfi_code = str(row['UNFI East ']).strip()  # Column name has trailing space
+                    unfi_code = str(row['UNFI East ']).strip().upper()  # Normalize to uppercase
                     company_name = str(row['CompanyName']).strip()
                     mapping[unfi_code] = company_name
                 
-                # Add any missing mappings that we've discovered from PDFs
+                # Add any missing mappings that we've discovered from PDFs (all uppercase keys)
                 if 'SS' not in mapping:
                     mapping['SS'] = 'UNFI EAST SARASOTA FL'  # SS appears to be Sarasota based on Ship To data
+                if 'HH' not in mapping:
+                    mapping['HH'] = 'UNFI EAST HOWELL NJ'  # HH from PO4531367 - Montgomery/Howell
                 if 'GG' not in mapping:
                     mapping['GG'] = 'UNFI EAST GREENWOOD IN'  # GG appears to be Greenwood based on warehouse data
                 if 'JJ' not in mapping:
                     mapping['JJ'] = 'UNFI EAST HOWELL NJ'  # JJ appears to be Howell based on warehouse data
-                if 'mm' not in mapping:
-                    mapping['mm'] = 'UNFI EAST YORK PA'  # mm appears to be York/Manchester based on warehouse data
+                if 'MM' not in mapping:
+                    mapping['MM'] = 'UNFI EAST YORK PA'  # MM appears to be York/Manchester based on warehouse data
                 
                 print(f"✅ Loaded {len(mapping)} IOW customer mappings from Excel file")
                 return mapping
             else:
                 print("⚠️ IOW customer mapping file not found, using fallback mapping")
-                # Fallback mapping based on known values plus missing codes
+                # Fallback mapping based on known values plus missing codes (all uppercase keys)
                 return {
                     'IOW': 'UNFI EAST IOWA CITY',
                     'RCH': 'UNFI EAST - RICHBURG', 
@@ -111,11 +113,12 @@ class UNFIEastParser(BaseParser):
                     'CHE': 'UNFI EAST CHESTERFIELD',
                     'YOR': 'UNFI EAST YORK PA',
                     'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
+                    'HH': 'UNFI EAST HOWELL NJ',  # Added missing HH mapping (Montgomery/Howell)
                     'SAR': 'UNFI EAST SARASOTA FL',
                     'SRQ': 'UNFI EAST SARASOTA FL',
                     'GG': 'UNFI EAST GREENWOOD IN',  # Added missing GG mapping
                     'JJ': 'UNFI EAST HOWELL NJ',  # Added missing JJ mapping (Howell)
-                    'mm': 'UNFI EAST YORK PA'  # Added missing mm mapping (York/Manchester)
+                    'MM': 'UNFI EAST YORK PA'  # Added missing MM mapping (York/Manchester)
                 }
                 
         except Exception as e:
@@ -127,11 +130,12 @@ class UNFIEastParser(BaseParser):
                 'CHE': 'UNFI EAST CHESTERFIELD',
                 'YOR': 'UNFI EAST YORK PA',
                 'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
+                'HH': 'UNFI EAST HOWELL NJ',  # Added missing HH mapping (Montgomery/Howell)
                 'SAR': 'UNFI EAST SARASOTA FL',
                 'SRQ': 'UNFI EAST SARASOTA FL',
                 'GG': 'UNFI EAST GREENWOOD IN',  # Added missing GG mapping
                 'JJ': 'UNFI EAST HOWELL NJ',  # Added missing JJ mapping (Howell)
-                'mm': 'UNFI EAST YORK PA'  # Added missing mm mapping (York/Manchester)
+                'MM': 'UNFI EAST YORK PA'  # Added missing MM mapping (York/Manchester)
             }
     
     def _extract_order_header(self, text_content: str, filename: str) -> Dict[str, Any]:
@@ -183,37 +187,32 @@ class UNFIEastParser(BaseParser):
             if 'Ord Date' in line or 'Pck Date' in line or 'ETA Date' in line:
                 print(f"DEBUG: Date line {i}: {repr(line)}")
         
-        # Extract IOW location information for customer mapping using Excel file data
-        # Look for the 3-letter IOW code in the blue highlighted area (like "GRW", "HOW", "MAN")
-        # This appears near the end of product lines in the format like "GRW 6-A", "HOW 38-A", "MAN 0-"
+        # Extract IOW location information for customer mapping from Internal Ref Number field
+        # The Internal Ref Number contains the IOW customer code as a 2-letter prefix before the dash
+        # Examples: "ss-85948-J10" -> "ss", "HH-85948-J10" -> "HH", "II-85948-H01" -> "II"
         iow_location = ""
         
-        # Look for 3-letter codes that appear at the end of product description lines
-        # Pattern: Find lines with product codes followed by warehouse codes like "GRW", "HOW", "MAN"
-        iow_patterns = [
-            r'\b([A-Z]{3})\s+\d+-[A-Z]',  # Pattern: GRW 6-A, HOW 38-A, MAN 0-
-            r'\b([A-Z]{3})\s+\d+-',       # Pattern: GRW 6-, HOW 38-
-            r'VCU\s+([A-Z]{3})\s+\d+',    # Pattern: VCU GRW 6, VCU HOW 38
-        ]
+        # Look for Internal Ref Number or Int Ref# field with 2-letter code pattern
+        # Pattern matches: "Internal Ref Number: ss-85948-J10" or "Int Ref#: HH-85948-J10"
+        int_ref_pattern = r'Int(?:ernal)?\s+Ref(?:\s+Number)?[:#\s]+([A-Za-z]{2})-\d+-'
+        int_ref_match = re.search(int_ref_pattern, text_content, re.IGNORECASE)
         
-        for pattern in iow_patterns:
-            matches = list(re.finditer(pattern, text_content))
-            if matches:
-                # Get the most common IOW code (in case there are multiple)
-                iow_codes = [match.group(1) for match in matches]
-                most_common_iow = max(set(iow_codes), key=iow_codes.count)
-                iow_location = most_common_iow
-                print(f"DEBUG: Found IOW location code: {iow_location} (from {len(matches)} matches)")
-                break
-        
-        # Apply IOW-based mapping using the Excel file data
-        if iow_location and iow_location in self.iow_customer_mapping:
-            mapped_customer = self.iow_customer_mapping[iow_location]
-            order_info['customer_name'] = mapped_customer
-            order_info['raw_customer_name'] = iow_location
-            print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
+        if int_ref_match:
+            iow_location = int_ref_match.group(1).upper()  # Convert to uppercase for consistent mapping
+            print(f"DEBUG: Found IOW code from Internal Ref Number: {iow_location}")
         else:
-            print(f"DEBUG: IOW code {iow_location} not found in mapping -> UNKNOWN")
+            print(f"DEBUG: Could not find Internal Ref Number pattern in PDF")
+        
+        # Apply IOW-based mapping using the Excel file data (case-insensitive)
+        if iow_location:
+            # Check mapping with uppercase version for case-insensitive matching
+            mapped_customer = self.iow_customer_mapping.get(iow_location.upper())
+            if mapped_customer:
+                order_info['customer_name'] = mapped_customer
+                order_info['raw_customer_name'] = iow_location
+                print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
+            else:
+                print(f"DEBUG: IOW code {iow_location} not found in mapping -> UNKNOWN")
             # Fallback: Look for warehouse location in Ship To section
             warehouse_location = ""
             ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)

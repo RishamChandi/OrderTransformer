@@ -1526,26 +1526,55 @@ def display_editable_mappings_table(page_df, file_path: str, columns: list, mapp
         st.divider()
 
 def delete_mapping_row(file_path: str, row_index: int, mapping_type: str, processor: str):
-    """Delete a mapping row"""
+    """Delete a mapping row using database operations"""
     
     import pandas as pd
     
     try:
+        # Read CSV to get the row data
         df = pd.read_csv(file_path, dtype=str)
         
-        # Remove the row at the specified index
+        # Validate row index
         if 0 <= row_index < len(df):
             deleted_row = df.iloc[row_index]
-            df = df.drop(index=row_index).reset_index(drop=True)
-            df.to_csv(file_path, index=False)
             
-            st.success(f"✅ Deleted {mapping_type.lower()} mapping: {deleted_row.iloc[0]}")
-            st.rerun()
+            # Initialize database service
+            db_service = DatabaseService()
+            
+            # Determine which type of mapping to delete
+            if mapping_type.lower() == "customer":
+                # Customer mapping - use the first column as raw customer ID
+                raw_id = deleted_row.iloc[0]
+                success = db_service.delete_store_mapping(processor, raw_id)
+                
+            elif mapping_type.lower() == "store":
+                # Store mapping - use the first column as raw store ID
+                raw_id = deleted_row.iloc[0]
+                success = db_service.delete_store_mapping(processor, raw_id)
+                
+            else:
+                st.error(f"❌ Unknown mapping type: {mapping_type}")
+                return
+            
+            # Also delete from CSV file for backward compatibility
+            if success:
+                df = df.drop(index=row_index).reset_index(drop=True)
+                df.to_csv(file_path, index=False)
+                st.success(f"✅ Deleted {mapping_type.lower()} mapping: {raw_id}")
+                st.rerun()
+            else:
+                st.warning(f"⚠️ Mapping not found in database, but removed from CSV: {deleted_row.iloc[0]}")
+                # Still delete from CSV even if not in database
+                df = df.drop(index=row_index).reset_index(drop=True)
+                df.to_csv(file_path, index=False)
+                st.rerun()
         else:
             st.error("❌ Invalid row index for deletion")
             
     except Exception as e:
         st.error(f"❌ Failed to delete mapping: {e}")
+        import traceback
+        st.error(traceback.format_exc())
 
 def save_mapping_edit(file_path: str, row_index: int, new_values: dict, mapping_type: str, processor: str):
     """Save edited mapping values"""
