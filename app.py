@@ -1899,19 +1899,59 @@ def show_unfi_east_customer_mappings(db_service):
         st.write("Using fallback mappings from parser...")
 
 def show_kehe_customer_mappings(db_service):
-    """Show KEHE customer mappings from CSV file"""
+    """Show KEHE customer mappings from database (with CSV fallback)"""
     
     try:
         import pandas as pd
         import os
         
-        # Load KEHE customer mapping from CSV file
+        display_data = []
+        
+        # Try loading from database first
+        try:
+            with db_service.get_session() as session:
+                mappings = session.query(db_service.StoreMapping).filter_by(source='kehe').all()
+                if mappings:
+                    st.write("**KEHE Customer Mappings (from Database):**")
+                    st.write("These mappings are loaded from the database and used by the parser to determine customer names from Ship To Location numbers found in KEHE order files.")
+                    
+                    # Group mappings by unique customer (remove duplicates from dual-format entries)
+                    seen_customers = {}
+                    for mapping in mappings:
+                        ship_to = mapping.raw_name
+                        customer_name = mapping.mapped_name
+                        
+                        # Skip if we've already seen this customer name (avoid showing both with/without leading zero)
+                        if customer_name not in seen_customers:
+                            seen_customers[customer_name] = ship_to
+                            display_data.append({
+                                'Ship To Location': ship_to,
+                                'Customer Name': customer_name,
+                                'Store Mapping': 'KL - Richmond'  # Default store mapping
+                            })
+                    
+                    # Display as a clean table
+                    display_df = pd.DataFrame(display_data)
+                    st.dataframe(display_df, use_container_width=True)
+                    
+                    st.info("💡 **How it works:**\n"
+                           "- Parser extracts Ship To Location from KEHE order header (e.g., '0569813430019')\n"
+                           "- Ship To Location is mapped to the corresponding Customer Name from database\n"
+                           "- Customer Name is used as CustomerName in Xoro template (Column J)\n"
+                           "- Example: '0569813430019' → 'KEHE DALLAS DC19'")
+                    
+                    st.success(f"✅ {len(display_data)} KEHE customer mappings loaded from database")
+                    return
+        except Exception as e:
+            st.warning(f"Could not load from database: {e}")
+        
+        # Fallback to CSV file if database is empty
         mapping_file = 'mappings/kehe_customer_mapping.csv'
         
         if os.path.exists(mapping_file):
             # Force SPS Customer# to be read as string to preserve leading zeros
             df = pd.read_csv(mapping_file, dtype={'SPS Customer#': 'str'})
-            st.write("**KEHE Customer Mappings:**")
+            st.write("**KEHE Customer Mappings (from CSV file):**")
             st.write("These mappings are loaded from the CSV file and used by the parser to determine customer names from Ship To Location numbers found in KEHE order files.")
             
             # Display the mappings in a structured table format
