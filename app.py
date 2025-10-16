@@ -623,23 +623,20 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                 mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
                 
                 if mappings:
-                    # Remove duplicates (e.g., KEHE has dual-format entries)
-                    seen_customers = {}
+                    # Load ALL rows (no de-duplication) to match production behavior
                     display_data = []
                     
                     for mapping in mappings:
-                        if mapping.mapped_name not in seen_customers:
-                            seen_customers[mapping.mapped_name] = True
-                            display_data.append({
-                                'ID': mapping.id,
-                                'Source': mapping.source,
-                                'Raw Customer ID': mapping.raw_name,
-                                'Mapped Customer Name': mapping.mapped_name,
-                                'Customer Type': mapping.store_type or 'distributor',
-                                'Priority': mapping.priority or 100,
-                                'Active': mapping.active if mapping.active is not None else True,
-                                'Notes': mapping.notes or ''
-                            })
+                        display_data.append({
+                            'ID': mapping.id,
+                            'Source': mapping.source,
+                            'Raw Customer ID': mapping.raw_name,
+                            'Mapped Customer Name': mapping.mapped_name,
+                            'Customer Type': mapping.store_type or 'distributor',
+                            'Priority': mapping.priority or 100,
+                            'Active': mapping.active if mapping.active is not None else True,
+                            'Notes': mapping.notes or ''
+                        })
                     
                     # Display count
                     st.success(f"✅ Found {len(display_data)} customer mappings")
