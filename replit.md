@@ -7,6 +7,14 @@ A robust Streamlit-based order transformation platform that converts complex mul
 
 ### Latest Updates (October 16, 2025)
 
+#### KEHE Customer Mapping System Overhaul
+✅ **Updated to new mapping CSV format** - Migrated from old "SPS Customer#/CompanyName" format to new "RawCustomerID/MappedCustomerName" structure
+✅ **New mapping file** - Using `attached_assets/Xoro KeHE Customer Mapping 9-17-25 (1)_1760651073226.csv` with 13 distributor customer mappings
+✅ **Dual-format mapping keys** - Created 26 mapping entries supporting both with/without leading zero formats (e.g., "569813430019" and "0569813430019")
+✅ **Correct customer attribution** - CustomerName field now shows proper mapped customer names (e.g., "KEHE DALLAS DC19", "KEHE CHINO A DC41") instead of hardcoded "IDI - Richmond"
+✅ **Validated with 5 PO files** - All test KEHE orders (Dallas DC19, Chino DC41, Ellettsville DC16, Romeoville DC18, Elkton DC01) process with correct customer mapping
+✅ **Simplified store mapping** - Removed dependency on "Store Mapping" column, using default "KL - Richmond" for all KEHE store names
+
 #### UNFI East Customer Mapping Fix
 ✅ **Fixed customer name extraction** - Updated UNFI East parser to extract customer codes from "Internal Ref Number" field instead of product lines
 ✅ **Regex pattern enhancement** - Implemented pattern `r'Int(?:ernal)?\s+Ref(?:\s+Number)?[:#\s]+([A-Za-z]{2})-\d+-'` to capture 2-letter codes
