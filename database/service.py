@@ -305,6 +305,7 @@ class DatabaseService:
                 
                 if mapping:
                     session.delete(mapping)
+                    session.commit()
                     return True
                 return False
                 
@@ -322,6 +323,7 @@ class DatabaseService:
                 
                 if mapping:
                     session.delete(mapping)
+                    session.commit()
                     return True
                 return False
                 
