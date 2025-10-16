@@ -25,19 +25,28 @@ class KEHEParser(BaseParser):
         self.item_mapping = self._load_item_mapping()
         
     def _load_customer_mapping(self) -> Dict[str, str]:
-        """Load KEHE customer mapping from CSV file"""
+        """Load KEHE customer mapping from new CSV file"""
         try:
-            mapping_file = os.path.join('mappings', 'kehe_customer_mapping.csv')
+            mapping_file = os.path.join('attached_assets', 'Xoro KeHE Customer Mapping 9-17-25 (1)_1760651073226.csv')
             if os.path.exists(mapping_file):
-                # Force SPS Customer# to be read as string to preserve leading zeros
-                self.mapping_df = pd.read_csv(mapping_file, dtype={'SPS Customer#': 'str'})
-                # Create mapping from SPS Customer# to CompanyName (for CustomerName field)
+                # Load new CSV format with RawCustomerID and MappedCustomerName columns
+                df = pd.read_csv(mapping_file, dtype={'RawCustomerID': 'str'})
+                # Create mapping from RawCustomerID to MappedCustomerName
                 mapping = {}
-                for _, row in self.mapping_df.iterrows():
-                    sps_customer = str(row['SPS Customer#']).strip()
-                    company_name = str(row['CompanyName']).strip()
-                    mapping[sps_customer] = company_name
-                print(f"✅ Loaded {len(mapping)} KEHE customer mappings")
+                for _, row in df.iterrows():
+                    raw_customer_id = str(row['RawCustomerID']).strip()
+                    mapped_customer_name = str(row['MappedCustomerName']).strip()
+                    
+                    # Add mapping for both formats: with and without leading zero
+                    # Format 1: Without leading zero (as stored in CSV): "569813430019"
+                    mapping[raw_customer_id] = mapped_customer_name
+                    
+                    # Format 2: With leading zero (as found in KEHE files): "0569813430019"
+                    if raw_customer_id.isdigit() and len(raw_customer_id) == 12:
+                        with_leading_zero = '0' + raw_customer_id
+                        mapping[with_leading_zero] = mapped_customer_name
+                
+                print(f"✅ Loaded {len(df)} KEHE customer mappings")
                 print(f"DEBUG: Sample mapping keys: {list(mapping.keys())[:3]}")  # Show first 3 keys for verification
                 return mapping
             else:
@@ -48,19 +57,9 @@ class KEHEParser(BaseParser):
             return {}
     
     def _get_store_mapping(self, ship_to_location: str) -> str:
-        """Get store mapping for the given Ship To Location"""
-        try:
-            if hasattr(self, 'mapping_df') and self.mapping_df is not None:
-                # Find the row with matching Ship To Location
-                matching_row = self.mapping_df[self.mapping_df['SPS Customer#'] == ship_to_location]
-                if not matching_row.empty:
-                    store_mapping = str(matching_row.iloc[0]['Store Mapping']).strip()
-                    print(f"DEBUG: KEHE Store Mapping: '{ship_to_location}' → '{store_mapping}'")
-                    return store_mapping
-            return "KL - Richmond"  # Default fallback
-        except Exception as e:
-            print(f"DEBUG: Error getting store mapping: {e}")
-            return "KL - Richmond"  # Default fallback
+        """Get store mapping for the given Ship To Location - returns default as new CSV lacks Store Mapping column"""
+        # New CSV file doesn't have Store Mapping column, so always return default
+        return "KL - Richmond"
     
     def parse(self, file_content, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """
