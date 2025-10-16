@@ -224,6 +224,7 @@ class UNFIWestParser(BaseParser):
             found_vendor_pn = False
             cost_found = False
             
+            # First pass: Look for vendor P.N. and collect description
             for i, part in enumerate(parts[5:], 5):  # Start after prod#
                 # Look for vendor P.N. pattern (numbers with dashes/letters)
                 if not found_vendor_pn and (re.match(r'^\d+[-]\d+[-]?\d*$', part) or re.match(r'^[A-Z][-]\d+[-]\d+$', part)):
@@ -252,6 +253,50 @@ class UNFIWestParser(BaseParser):
                 # Collect description parts before vendor P.N.
                 elif not found_vendor_pn and part and not part.replace('.', '').replace('-', '').isdigit() and not part.endswith('p'):
                     desc_parts.append(part)
+            
+            # If no vendor P.N. found, scan all remaining parts for cost
+            if not found_vendor_pn or not cost_found:
+                # Look through all parts after the description for cost values
+                for i, part in enumerate(parts[5:], 5):
+                    # Skip description words
+                    if part in desc_parts:
+                        continue
+                    
+                    # Check for cost with 'p' suffix (e.g., "13.5000p" or just "13.5000")
+                    if not cost_found:
+                        # Try with 'p' suffix first
+                        if part.endswith('p'):
+                            try:
+                                cost = float(part[:-1])
+                                cost_found = True
+                                # Look for extension in next few parts
+                                for j in range(i+1, min(i+3, len(parts))):
+                                    if j < len(parts) and re.match(r'^\d+\.?\d*$', parts[j]):
+                                        try:
+                                            extension = float(parts[j])
+                                            break
+                                        except ValueError:
+                                            pass
+                                break
+                            except ValueError:
+                                pass
+                        # Try plain decimal number (for cases without 'p' suffix)
+                        elif re.match(r'^\d+\.\d{2,}$', part):  # Match numbers with 2+ decimal places
+                            try:
+                                test_cost = float(part)
+                                # Verify it looks like a unit cost (typically < 1000)
+                                if test_cost < 1000:
+                                    cost = test_cost
+                                    cost_found = True
+                                    # Look for extension in next part
+                                    if i+1 < len(parts) and re.match(r'^\d+\.?\d*$', parts[i+1]):
+                                        try:
+                                            extension = float(parts[i+1])
+                                        except ValueError:
+                                            pass
+                                    break
+                            except ValueError:
+                                pass
             
             description = ' '.join(desc_parts)
             
