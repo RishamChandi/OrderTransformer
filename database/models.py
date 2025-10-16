@@ -65,6 +65,12 @@ class StoreMapping(Base):
     mapped_name = Column(String(200), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    raw_store_id = Column(String(200))
+    mapped_store_name = Column(String(200))
+    store_type = Column(String(50))
+    active = Column(Boolean, default=True)
+    priority = Column(Integer, default=100)
+    notes = Column(Text)
     
 class ItemMapping(Base):
     """Model for storing item number mappings with enhanced template support"""
