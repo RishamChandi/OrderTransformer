@@ -7,6 +7,13 @@ A robust Streamlit-based order transformation platform that converts complex mul
 
 ### Latest Updates (October 16, 2025)
 
+#### Customer Mapping UI Synchronization Fix (Latest)
+✅ **Fixed KEHE processor-based UI** - Updated `show_customer_mapping_manager()` to load from database instead of CSV for KEHE and UNFI West
+✅ **Imported UNFI West mappings** - Added 5 UNFI West customer mappings to store_mappings table from CSV file
+✅ **Database query consolidation** - Both old and new mapping UIs now use database-first approach for consistent display
+✅ **Duplicate removal logic** - Smart filtering displays 13 unique KEHE customers (from 26 database entries with dual-format support)
+✅ **Production-development parity** - Development environment now matches production with correct customer mapping counts
+
 #### KEHE Customer Mapping System Overhaul
 ✅ **Updated to new mapping CSV format** - Migrated from old "SPS Customer#/CompanyName" format to new "RawCustomerID/MappedCustomerName" structure
 ✅ **New mapping file** - Using `attached_assets/Xoro KeHE Customer Mapping 9-17-25 (1)_1760651073226.csv` with 13 distributor customer mappings

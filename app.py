@@ -611,11 +611,86 @@ def show_processor_mapping_management(processor: str, db_service: DatabaseServic
         show_item_mapping_manager(processor, db_service)
 
 def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
-    """Customer mapping management with CSV support"""
+    """Customer mapping management with database-first loading"""
     
     st.subheader("👥 Customer Mapping")
     st.write("Maps raw customer identifiers to Xoro customer names")
     
+    # For KEHE and UNFI West, load from database first
+    if processor in ['kehe', 'unfi_west']:
+        try:
+            with db_service.get_session() as session:
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                
+                if mappings:
+                    # Remove duplicates (e.g., KEHE has dual-format entries)
+                    seen_customers = {}
+                    display_data = []
+                    
+                    for mapping in mappings:
+                        if mapping.mapped_name not in seen_customers:
+                            seen_customers[mapping.mapped_name] = True
+                            display_data.append({
+                                'Raw Customer ID': mapping.raw_name,
+                                'Mapped Customer Name': mapping.mapped_name
+                            })
+                    
+                    # Display count
+                    st.success(f"✅ Loaded {len(display_data)} customer mappings")
+                    
+                    # Upload section for bulk updates
+                    with st.expander("📤 Upload Customer Mapping File"):
+                        st.info("Upload a CSV file to bulk update customer mappings")
+                        uploaded_file = st.file_uploader(
+                            "Upload CSV file (Raw Customer ID, Mapped Customer Name)", 
+                            type=['csv'], 
+                            key=f"customer_upload_{processor}"
+                        )
+                        if uploaded_file and st.button("Import to Database", key=f"save_customer_{processor}"):
+                            try:
+                                import pandas as pd
+                                df = pd.read_csv(uploaded_file)
+                                count = 0
+                                for _, row in df.iterrows():
+                                    raw_id = str(row.get('Raw Customer ID', '')).strip()
+                                    mapped_name = str(row.get('Mapped Customer Name', '')).strip()
+                                    if raw_id and mapped_name:
+                                        db_service.save_store_mapping(processor, raw_id, mapped_name)
+                                        count += 1
+                                st.success(f"✅ Imported {count} customer mappings to database")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Failed to import: {e}")
+                    
+                    # Download current mappings
+                    if st.button("📥 Download Customer Mappings", key=f"download_customer_{processor}"):
+                        import pandas as pd
+                        df = pd.DataFrame(display_data)
+                        csv = df.to_csv(index=False)
+                        st.download_button(
+                            "💾 Save CSV File",
+                            csv,
+                            f"{processor}_customer_mapping.csv",
+                            "text/csv",
+                            key=f"download_csv_{processor}"
+                        )
+                    
+                    # Display mappings table
+                    st.write("### Current Customer Mappings")
+                    import pandas as pd
+                    df = pd.DataFrame(display_data)
+                    st.dataframe(df, use_container_width=True)
+                    
+                    # Show count
+                    st.info(f"Showing {len(display_data)} of {len(display_data)} mappings")
+                    
+                    return
+                else:
+                    st.info(f"No customer mappings found in database for {processor}")
+        except Exception as e:
+            st.error(f"Error loading from database: {e}")
+    
+    # Fallback to CSV-based loading for other processors or if database is empty
     mapping_file = f"mappings/{processor}/customer_mapping.csv"
     
     # Upload section
