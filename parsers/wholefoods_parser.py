@@ -10,9 +10,10 @@ from .base_parser import BaseParser
 class WholeFoodsParser(BaseParser):
     """Parser for Whole Foods HTML order files"""
     
-    def __init__(self):
+    def __init__(self, db_service=None):
         super().__init__()
         self.source_name = "Whole Foods"
+        self.db_service = db_service
     
     def parse(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """Parse Whole Foods HTML order file following the reference code pattern"""
@@ -162,11 +163,30 @@ class WholeFoodsParser(BaseParser):
         else:
             mapped_customer = "IDI - Richmond"  # Default fallback
         
-        # Map item number
-        mapped_item = self.mapping_utils.get_item_mapping(line_item['item_no'], 'wholefoods')
-        if not mapped_item or mapped_item == line_item['item_no']:
-            # If no mapping found, use "Invalid Item" as specified
-            mapped_item = "Invalid Item"
+        # Map item number and description using database first, then CSV fallback
+        mapped_item = None
+        item_description = line_item.get('description', '')
+        
+        # Try database first if db_service is available
+        if self.db_service:
+            try:
+                db_mapping = self.db_service.get_item_mapping_with_description(line_item['item_no'], 'wholefoods')
+                if db_mapping:
+                    mapped_item = db_mapping.get('mapped_item')
+                    # Use database description if available, otherwise keep HTML description
+                    db_description = db_mapping.get('mapped_description', '').strip()
+                    if db_description:
+                        item_description = db_description
+            except Exception:
+                # If database lookup fails, continue to CSV fallback
+                pass
+        
+        # If no database mapping found, try CSV fallback
+        if not mapped_item:
+            mapped_item = self.mapping_utils.get_item_mapping(line_item['item_no'], 'wholefoods')
+            if not mapped_item or mapped_item == line_item['item_no']:
+                # If no mapping found at all, use "Invalid Item" as specified
+                mapped_item = "Invalid Item"
         
         # Parse quantity from qty field
         import re
@@ -186,7 +206,7 @@ class WholeFoodsParser(BaseParser):
             'raw_customer_name': f"WHOLE FOODS #{store_number}" if store_number else 'UNKNOWN',
             'item_number': mapped_item,
             'raw_item_number': line_item['item_no'],
-            'item_description': line_item.get('description', ''),
+            'item_description': item_description,
             'quantity': quantity,
             'unit_price': unit_price,
             'total_price': unit_price * quantity,

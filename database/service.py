@@ -234,6 +234,37 @@ class DatabaseService:
             
             return {str(mapping.raw_item): str(mapping.mapped_item) for mapping in mappings}
     
+    def get_item_mapping_with_description(self, raw_item: str, source: str) -> Optional[Dict[str, str]]:
+        """
+        Get item mapping with description for a specific raw item and source
+        
+        Args:
+            raw_item: Original item number from order file
+            source: Order source (wholefoods, unfi_west, etc.)
+            
+        Returns:
+            Dictionary with 'mapped_item' and 'mapped_description' if found, None otherwise
+        """
+        if not raw_item or not raw_item.strip():
+            return None
+        
+        try:
+            with get_session() as session:
+                mapping = session.query(ItemMapping)\
+                               .filter_by(source=source, raw_item=str(raw_item).strip())\
+                               .first()
+                
+                if mapping:
+                    return {
+                        'mapped_item': str(mapping.mapped_item),
+                        'mapped_description': str(mapping.mapped_description) if mapping.mapped_description else ''
+                    }
+                
+                return None
+                
+        except Exception:
+            return None
+    
     def delete_store_mapping(self, source: str, raw_name: str) -> bool:
         """Delete a store mapping"""
         

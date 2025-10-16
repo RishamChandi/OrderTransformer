@@ -282,7 +282,7 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         
         # Order source selection with modern styling
         order_sources = {
-            "Whole Foods": WholeFoodsParser(),
+            "Whole Foods": WholeFoodsParser(db_service),
             "UNFI West": UNFIWestParser(),
             "UNFI East": UNFIEastParser(mapping_utils),
             "KEHE - SPS": KEHEParser(),
@@ -297,7 +297,7 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
     
     # Order source selection for parsers
     order_sources = {
-        "Whole Foods": WholeFoodsParser(),
+        "Whole Foods": WholeFoodsParser(db_service),
         "UNFI West": UNFIWestParser(),
         "UNFI East": UNFIEastParser(mapping_utils),
         "KEHE - SPS": KEHEParser(),
