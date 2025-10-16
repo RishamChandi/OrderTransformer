@@ -3,9 +3,25 @@
 ## Project Overview
 A robust Streamlit-based order transformation platform that converts complex multi-source sales orders into standardized Xoro CSV templates. The platform supports multiple vendor ecosystems with advanced parsing capabilities and intelligent data extraction.
 
-## Recent Changes (August 29, 2025)
+## Recent Changes
 
-### Enhanced Mapping Management System
+### Latest Updates (October 16, 2025)
+
+#### UNFI West Parser Enhancement
+✅ **Fixed missing cost extraction** - Updated UNFI West parser to handle line items with empty Vendor P.N. fields
+✅ **Robust cost detection** - Added fallback logic to detect costs with or without 'p' suffix (e.g., "13.5000p" or "13.5000")
+✅ **Backward compatibility** - Maintains existing parsing logic for items with Vendor P.N. while adding secondary scan for missing fields
+✅ **Validated fix** - Tested with problematic HTML files showing correct cost extraction ($13.50 instead of $0.00)
+
+#### Database-First Item Mapping System (September 12, 2025)
+✅ **Complete migration to database** - Successfully migrated 180 KEHE item mappings from CSV to PostgreSQL
+✅ **Priority-based resolution** - Implemented multi-key type resolution (vendor_item, UPC, EAN, GTIN) with priority ordering
+✅ **Enhanced database schema** - Added columns: key_type, priority, active, vendor, mapped_description, notes
+✅ **Bulk operations** - Created efficient bulk_upsert_item_mappings for batch imports
+✅ **Advanced filtering** - Built comprehensive UI with source, key_type, and active status filters
+✅ **Template system** - Standardized CSV template for all processors with upload/download capabilities
+
+### Enhanced Mapping Management System (August 29, 2025)
 ✅ **Complete UI Overhaul** - Rebuilt mapping management with processor-specific organization (KEHE, Whole Foods, UNFI East/West, TK Maxx)
 ✅ **Inline Editing & Delete** - Added click-to-edit functionality with save/cancel options and delete buttons for each mapping row
 ✅ **Data Editor Integration** - Implemented dual view modes: Data Editor for bulk editing and Row-by-Row for individual edits
@@ -82,11 +98,13 @@ A robust Streamlit-based order transformation platform that converts complex mul
 - Streamlined deployment process with minimal configuration
 
 ## Known Issues & Solutions
+- **Neon Database Endpoint**: If "endpoint has been disabled" error appears, reactivate endpoint via Neon dashboard (see DATABASE_REACTIVATION_GUIDE.md)
 - **Database SSL**: Configured automatic SSL handling based on environment
 - **Deployment Health**: Health check endpoint ensures proper initialization
 - **Error Handling**: Enhanced error messages for troubleshooting deployment issues
 - **KEHE Leading Zeros**: Fixed CSV format and pandas data types to preserve Ship To Location leading zeros
 - **Customer Mapping**: Successfully implemented dynamic customer name mapping for KEHE orders
+- **UNFI West Missing Costs**: Fixed parser to handle items with empty Vendor P.N. fields (lines 260-302 in unfi_west_parser.py)
 
 ## Future Enhancements
 - Additional vendor parser support
