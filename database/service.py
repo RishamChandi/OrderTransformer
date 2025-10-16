@@ -234,6 +234,35 @@ class DatabaseService:
             
             return {str(mapping.raw_item): str(mapping.mapped_item) for mapping in mappings}
     
+    def get_item_mappings_dict(self, source: str) -> Dict[str, Dict[str, str]]:
+        """
+        Bulk-fetch all item mappings with descriptions for a source in one query
+        
+        Args:
+            source: Order source (wholefoods, unfi_west, etc.)
+            
+        Returns:
+            Dictionary mapping raw_item to {'mapped_item': str, 'mapped_description': str}
+            Example: {'71094': {'mapped_item': '13-025-23', 'mapped_description': 'Bonne Maman Cranberry...'}}
+        """
+        try:
+            with get_session() as session:
+                mappings = session.query(ItemMapping)\
+                                 .filter_by(source=source)\
+                                 .all()
+                
+                result = {}
+                for mapping in mappings:
+                    result[str(mapping.raw_item).strip()] = {
+                        'mapped_item': str(mapping.mapped_item),
+                        'mapped_description': str(mapping.mapped_description) if mapping.mapped_description else ''
+                    }
+                
+                return result
+                
+        except Exception:
+            return {}
+    
     def get_item_mapping_with_description(self, raw_item: str, source: str) -> Optional[Dict[str, str]]:
         """
         Get item mapping with description for a specific raw item and source

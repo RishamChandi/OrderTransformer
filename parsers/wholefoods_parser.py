@@ -64,6 +64,14 @@ class WholeFoodsParser(BaseParser):
             if store_match:
                 order_data['metadata']['store_number'] = store_match.group(1)
             
+            # Bulk-fetch all item mappings once (database-first optimization)
+            item_mappings_dict = {}
+            if self.db_service:
+                try:
+                    item_mappings_dict = self.db_service.get_item_mappings_dict('wholefoods')
+                except Exception:
+                    pass  # Fall back to CSV mappings if database fails
+            
             # Find and parse the line items table
             line_items = []
             for table in soup.find_all('table'):
@@ -107,9 +115,9 @@ class WholeFoodsParser(BaseParser):
             # Build orders using the reference code pattern
             orders = []
             if line_items:
-                # Process each line item
+                # Process each line item with bulk-fetched mappings
                 for line_item in line_items:
-                    xoro_row = self._build_xoro_row(order_data, line_item)
+                    xoro_row = self._build_xoro_row(order_data, line_item, item_mappings_dict)
                     orders.append(xoro_row)
             else:
                 # No line items found - create single fallback entry
@@ -119,7 +127,7 @@ class WholeFoodsParser(BaseParser):
                     'qty': '1',
                     'cost': '0.0'
                 }
-                xoro_row = self._build_xoro_row(order_data, fallback_item)
+                xoro_row = self._build_xoro_row(order_data, fallback_item, item_mappings_dict)
                 orders.append(xoro_row)
             
             return orders if orders else None
@@ -142,8 +150,15 @@ class WholeFoodsParser(BaseParser):
         # If all encodings fail, use utf-8 with error handling
         return file_content.decode('utf-8', errors='replace')
     
-    def _build_xoro_row(self, order_data: Dict[str, Any], line_item: Dict[str, str]) -> Dict[str, Any]:
-        """Build a row for Xoro Sales Order Import Template following reference code pattern"""
+    def _build_xoro_row(self, order_data: Dict[str, Any], line_item: Dict[str, str], 
+                        item_mappings_dict: Dict[str, Dict[str, str]] = None) -> Dict[str, Any]:
+        """Build a row for Xoro Sales Order Import Template following reference code pattern
+        
+        Args:
+            order_data: Order metadata dictionary
+            line_item: Individual line item data
+            item_mappings_dict: Pre-fetched item mappings dictionary (optimization to avoid per-row DB queries)
+        """
         
         # Robustly extract store number from metadata (following reference code)
         store_number = order_data['metadata'].get('store_number')
@@ -163,23 +178,18 @@ class WholeFoodsParser(BaseParser):
         else:
             mapped_customer = "IDI - Richmond"  # Default fallback
         
-        # Map item number and description using database first, then CSV fallback
+        # Map item number and description using bulk-fetched dictionary first, then CSV fallback
         mapped_item = None
         item_description = line_item.get('description', '')
         
-        # Try database first if db_service is available
-        if self.db_service:
-            try:
-                db_mapping = self.db_service.get_item_mapping_with_description(line_item['item_no'], 'wholefoods')
-                if db_mapping:
-                    mapped_item = db_mapping.get('mapped_item')
-                    # Use database description if available, otherwise keep HTML description
-                    db_description = db_mapping.get('mapped_description', '').strip()
-                    if db_description:
-                        item_description = db_description
-            except Exception:
-                # If database lookup fails, continue to CSV fallback
-                pass
+        # Try bulk-fetched mappings dictionary first (optimized - no per-row DB calls)
+        if item_mappings_dict and line_item['item_no'] in item_mappings_dict:
+            db_mapping = item_mappings_dict[line_item['item_no']]
+            mapped_item = db_mapping.get('mapped_item')
+            # Use database description if available, otherwise keep HTML description
+            db_description = db_mapping.get('mapped_description', '').strip()
+            if db_description:
+                item_description = db_description
         
         # If no database mapping found, try CSV fallback
         if not mapped_item:
