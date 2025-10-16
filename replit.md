@@ -7,12 +7,14 @@ A robust Streamlit-based order transformation platform that converts complex mul
 
 ### Latest Updates (October 16, 2025)
 
-#### Customer Mapping UI Synchronization Fix (Latest)
-✅ **Fixed KEHE processor-based UI** - Updated `show_customer_mapping_manager()` to load from database instead of CSV for KEHE and UNFI West
+#### Customer Mapping UI Complete Overhaul (Latest - October 16, 2025)
+✅ **Fixed StoreMapping Model** - Added missing database columns (store_type, active, priority, notes, raw_store_id, mapped_store_name) to ORM model
+✅ **Production-Parity UI** - Updated `show_customer_mapping_manager()` to match production's data editor with all 8 columns (ID, Source, Raw Customer ID, Mapped Customer Name, Customer Type, Priority, Active, Notes)
 ✅ **Imported UNFI West mappings** - Added 5 UNFI West customer mappings to store_mappings table from CSV file
-✅ **Database query consolidation** - Both old and new mapping UIs now use database-first approach for consistent display
-✅ **Duplicate removal logic** - Smart filtering displays 13 unique KEHE customers (from 26 database entries with dual-format support)
-✅ **Production-development parity** - Development environment now matches production with correct customer mapping counts
+✅ **Removed de-duplication** - All 26 KEHE rows now display (13 customers × 2 formats) matching production behavior
+✅ **Database-first loading** - Both old and new mapping UIs load from database with CSV fallback for all processors
+✅ **Enhanced UI features** - Added display mode selector (Data Editor vs Row-by-Row), action buttons (Download Template, Export Current, Upload Mappings, Refresh Data), and Save Changes functionality
+✅ **All parsers verified** - Confirmed KEHE, Whole Foods, UNFI East, UNFI West, TK Maxx all use database-first loading via MappingUtils class
 
 #### KEHE Customer Mapping System Overhaul
 ✅ **Updated to new mapping CSV format** - Migrated from old "SPS Customer#/CompanyName" format to new "RawCustomerID/MappedCustomerName" structure
