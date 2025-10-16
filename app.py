@@ -611,7 +611,7 @@ def show_processor_mapping_management(processor: str, db_service: DatabaseServic
         show_item_mapping_manager(processor, db_service)
 
 def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
-    """Customer mapping management with database-first loading"""
+    """Customer mapping management with database-first loading (matches production)"""
     
     st.subheader("👥 Customer Mapping")
     st.write("Maps raw customer identifiers to Xoro customer names")
@@ -631,55 +631,132 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                         if mapping.mapped_name not in seen_customers:
                             seen_customers[mapping.mapped_name] = True
                             display_data.append({
+                                'ID': mapping.id,
+                                'Source': mapping.source,
                                 'Raw Customer ID': mapping.raw_name,
-                                'Mapped Customer Name': mapping.mapped_name
+                                'Mapped Customer Name': mapping.mapped_name,
+                                'Customer Type': mapping.store_type or 'distributor',
+                                'Priority': mapping.priority or 100,
+                                'Active': mapping.active if mapping.active is not None else True,
+                                'Notes': mapping.notes or ''
                             })
                     
                     # Display count
-                    st.success(f"✅ Loaded {len(display_data)} customer mappings")
+                    st.success(f"✅ Found {len(display_data)} customer mappings")
                     
-                    # Upload section for bulk updates
-                    with st.expander("📤 Upload Customer Mapping File"):
-                        st.info("Upload a CSV file to bulk update customer mappings")
-                        uploaded_file = st.file_uploader(
-                            "Upload CSV file (Raw Customer ID, Mapped Customer Name)", 
-                            type=['csv'], 
-                            key=f"customer_upload_{processor}"
-                        )
-                        if uploaded_file and st.button("Import to Database", key=f"save_customer_{processor}"):
-                            try:
-                                import pandas as pd
-                                df = pd.read_csv(uploaded_file)
-                                count = 0
-                                for _, row in df.iterrows():
-                                    raw_id = str(row.get('Raw Customer ID', '')).strip()
-                                    mapped_name = str(row.get('Mapped Customer Name', '')).strip()
-                                    if raw_id and mapped_name:
-                                        db_service.save_store_mapping(processor, raw_id, mapped_name)
-                                        count += 1
-                                st.success(f"✅ Imported {count} customer mappings to database")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Failed to import: {e}")
+                    # Action buttons row
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        download_template = st.button("📥 Download Template", key=f"download_template_{processor}")
+                    with col2:
+                        export_current = st.button("📤 Export Current", key=f"export_current_{processor}")
+                    with col3:
+                        upload_mappings = st.button("📂 Upload Mappings", key=f"upload_btn_{processor}")
+                    with col4:
+                        refresh_data = st.button("🔄 Refresh Data", key=f"refresh_{processor}")
                     
-                    # Download current mappings
-                    if st.button("📥 Download Customer Mappings", key=f"download_customer_{processor}"):
+                    if refresh_data:
+                        st.rerun()
+                    
+                    if download_template:
                         import pandas as pd
-                        df = pd.DataFrame(display_data)
+                        template_data = [{
+                            'Raw Customer ID': '',
+                            'Mapped Customer Name': '',
+                            'Customer Type': 'distributor',
+                            'Priority': 100,
+                            'Active': True,
+                            'Notes': ''
+                        }]
+                        df = pd.DataFrame(template_data)
                         csv = df.to_csv(index=False)
                         st.download_button(
-                            "💾 Save CSV File",
+                            "💾 Save Template",
                             csv,
-                            f"{processor}_customer_mapping.csv",
+                            f"{processor}_customer_mapping_template.csv",
                             "text/csv",
-                            key=f"download_csv_{processor}"
+                            key=f"download_template_csv_{processor}"
                         )
                     
-                    # Display mappings table
-                    st.write("### Current Customer Mappings")
-                    import pandas as pd
-                    df = pd.DataFrame(display_data)
-                    st.dataframe(df, use_container_width=True)
+                    if export_current:
+                        import pandas as pd
+                        export_data = [{
+                            'Raw Customer ID': item['Raw Customer ID'],
+                            'Mapped Customer Name': item['Mapped Customer Name'],
+                            'Customer Type': item['Customer Type'],
+                            'Priority': item['Priority'],
+                            'Active': item['Active'],
+                            'Notes': item['Notes']
+                        } for item in display_data]
+                        df = pd.DataFrame(export_data)
+                        csv = df.to_csv(index=False)
+                        st.download_button(
+                            "💾 Save Current Mappings",
+                            csv,
+                            f"{processor}_customer_mapping_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+                            "text/csv",
+                            key=f"export_csv_{processor}"
+                        )
+                    
+                    # Display mode selector
+                    st.write("### Display Mode:")
+                    display_mode = st.radio(
+                        "Choose display mode",
+                        ["📊 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
+                        key=f"display_mode_{processor}",
+                        horizontal=True
+                    )
+                    
+                    # Data Editor mode (matches production)
+                    if "Data Editor" in display_mode:
+                        st.write("### Edit customer mappings (double-click to edit):")
+                        import pandas as pd
+                        df = pd.DataFrame(display_data)
+                        
+                        # Make ID and Source read-only by not including them in editable columns
+                        edited_df = st.data_editor(
+                            df,
+                            use_container_width=True,
+                            num_rows="dynamic",
+                            column_config={
+                                "ID": st.column_config.NumberColumn("ID", disabled=True),
+                                "Source": st.column_config.TextColumn("Source", disabled=True),
+                                "Raw Customer ID": st.column_config.TextColumn("Raw Customer ID", required=True),
+                                "Mapped Customer Name": st.column_config.TextColumn("Mapped Customer Name", required=True),
+                                "Customer Type": st.column_config.TextColumn("Customer Type"),
+                                "Priority": st.column_config.NumberColumn("Priority", min_value=0, max_value=1000),
+                                "Active": st.column_config.CheckboxColumn("Active"),
+                                "Notes": st.column_config.TextColumn("Notes")
+                            },
+                            key=f"data_editor_{processor}"
+                        )
+                        
+                        # Save changes button
+                        if st.button("💾 Save Changes", key=f"save_changes_{processor}"):
+                            try:
+                                # Update each mapping in database
+                                with db_service.get_session() as session:
+                                    for idx, row in edited_df.iterrows():
+                                        if pd.notna(row['ID']):
+                                            mapping = session.query(db_service.StoreMapping).filter_by(id=int(row['ID'])).first()
+                                            if mapping:
+                                                mapping.raw_name = str(row['Raw Customer ID'])
+                                                mapping.mapped_name = str(row['Mapped Customer Name'])
+                                                mapping.store_type = str(row['Customer Type']) if pd.notna(row['Customer Type']) else 'distributor'
+                                                mapping.priority = int(row['Priority']) if pd.notna(row['Priority']) else 100
+                                                mapping.active = bool(row['Active']) if pd.notna(row['Active']) else True
+                                                mapping.notes = str(row['Notes']) if pd.notna(row['Notes']) else ''
+                                    session.commit()
+                                st.success("✅ Changes saved successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Failed to save changes: {e}")
+                    else:
+                        # Row-by-row mode (simple table view)
+                        st.write("### Current Customer Mappings")
+                        import pandas as pd
+                        df = pd.DataFrame(display_data)
+                        st.dataframe(df, use_container_width=True)
                     
                     # Show count
                     st.info(f"Showing {len(display_data)} of {len(display_data)} mappings")
@@ -689,6 +766,8 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     st.info(f"No customer mappings found in database for {processor}")
         except Exception as e:
             st.error(f"Error loading from database: {e}")
+            import traceback
+            st.code(traceback.format_exc())
     
     # Fallback to CSV-based loading for other processors or if database is empty
     mapping_file = f"mappings/{processor}/customer_mapping.csv"
