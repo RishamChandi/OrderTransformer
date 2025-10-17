@@ -644,13 +644,13 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     # Action buttons row
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
-                        download_template = st.button("📥 Download Template", key=f"download_template_{processor}")
+                        download_template = st.button("📥 Download Template", key=f"customer_download_template_{processor}")
                     with col2:
-                        export_current = st.button("📤 Export Current", key=f"export_current_{processor}")
+                        export_current = st.button("📤 Export Current", key=f"customer_export_current_{processor}")
                     with col3:
-                        upload_mappings = st.button("📂 Upload Mappings", key=f"upload_btn_{processor}")
+                        upload_mappings = st.button("📂 Upload Mappings", key=f"customer_upload_btn_{processor}")
                     with col4:
-                        refresh_data = st.button("🔄 Refresh Data", key=f"refresh_{processor}")
+                        refresh_data = st.button("🔄 Refresh Data", key=f"customer_refresh_{processor}")
                     
                     if refresh_data:
                         st.rerun()
@@ -672,7 +672,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                             csv,
                             f"{processor}_customer_mapping_template.csv",
                             "text/csv",
-                            key=f"download_template_csv_{processor}"
+                            key=f"customer_download_template_csv_{processor}"
                         )
                     
                     if export_current:
@@ -692,7 +692,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                             csv,
                             f"{processor}_customer_mapping_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
                             "text/csv",
-                            key=f"export_csv_{processor}"
+                            key=f"customer_export_csv_{processor}"
                         )
                     
                     # Display mode selector
@@ -918,23 +918,23 @@ def show_item_mapping_manager(processor: str, db_service: DatabaseService):
     col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
     
     with col1:
-        if st.button("📥 Download Template", key=f"download_template_{processor}"):
+        if st.button("📥 Download Template", key=f"item_download_template_{processor}"):
             show_template_download()
     
     with col2:
-        if st.button("📊 Export Current", key=f"export_current_{processor}"):
+        if st.button("📊 Export Current", key=f"item_export_current_{processor}"):
             export_current_mappings(db_service, selected_source if selected_source != 'all' else None)
     
     with col3:
-        if st.button("📤 Upload Mappings", key=f"upload_mappings_{processor}"):
+        if st.button("📤 Upload Mappings", key=f"item_upload_mappings_{processor}"):
             st.session_state[f'show_upload_{processor}'] = True
     
     with col4:
-        if st.button("➕ Add New Mapping", key=f"add_new_{processor}"):
+        if st.button("➕ Add New Mapping", key=f"item_add_new_{processor}"):
             st.session_state[f'show_add_form_{processor}'] = True
     
     with col5:
-        if st.button("🔄 Refresh Data", key=f"refresh_data_{processor}"):
+        if st.button("🔄 Refresh Data", key=f"item_refresh_data_{processor}"):
             st.rerun()
     
     # Show upload form if requested
@@ -1519,10 +1519,14 @@ def show_edit_mapping_form(mapping: dict, db_service: DatabaseService, processor
             col1, col2 = st.columns(2)
             
             with col1:
-                source = st.selectbox("Source", ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx'], 
-                                    value=mapping['source'])
-                key_type = st.selectbox("Key Type", ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias'],
-                                      value=mapping['key_type'])
+                source_options = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
+                source_index = source_options.index(mapping['source']) if mapping['source'] in source_options else 0
+                source = st.selectbox("Source", source_options, index=source_index)
+                
+                key_type_options = ['vendor_item', 'upc', 'ean', 'gtin', 'sku_alias']
+                key_type_index = key_type_options.index(mapping['key_type']) if mapping['key_type'] in key_type_options else 0
+                key_type = st.selectbox("Key Type", key_type_options, index=key_type_index)
+                
                 raw_item = st.text_input("Raw Key Value *", value=mapping['raw_item'])
                 mapped_item = st.text_input("Mapped Item Number *", value=mapping['mapped_item'])
                 
