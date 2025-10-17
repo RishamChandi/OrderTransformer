@@ -5,7 +5,18 @@ A robust Streamlit-based order transformation platform that converts complex mul
 
 ## Recent Changes
 
-### Latest Updates (October 16, 2025)
+### Latest Updates (October 17, 2025)
+
+#### UNFI East Store Mapping Upload System (Latest - October 17, 2025)
+✅ **Created bulk_upsert_store_mappings** - Added database bulk upload method for store mappings with transaction safety
+✅ **Database-first store mapping UI** - Updated show_store_mapping_manager to load from database instead of CSV-only
+✅ **Complete upload workflow** - Created template download, upload form with preview, and database insertion functions
+✅ **Fixed column display bugs** - Explicitly specified DataFrame column order to prevent Notes/Active column misalignment
+✅ **Enhanced UI with checkboxes** - Updated to use st.data_editor with CheckboxColumn for Active field matching customer mapping UI
+✅ **Verified UNFI East mappings** - Successfully inserted and displayed RSG→PSL-NJ and RSG2_NJ→KL-Richmond mappings from database
+✅ **Production-ready upload** - All store mapping upload functionality now saves to database with CSV fallback for backward compatibility
+
+### Previous Updates (October 16, 2025)
 
 #### Customer Mapping UI Complete Overhaul (Latest - October 16, 2025)
 ✅ **Fixed StoreMapping Model** - Added missing database columns (store_type, active, priority, notes, raw_store_id, mapped_store_name) to ORM model
