@@ -386,6 +386,104 @@ class DatabaseService:
             
             return result
     
+    def bulk_upsert_store_mappings(self, mappings_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Bulk insert or update store mappings with transaction safety"""
+        
+        session = get_session().__enter__()
+        transaction = None
+        
+        try:
+            transaction = session.begin()
+            stats = {'added': 0, 'updated': 0, 'errors': 0, 'error_details': []}
+            
+            validated_data = []
+            for idx, mapping_data in enumerate(mappings_data):
+                try:
+                    source = mapping_data.get('source', mapping_data.get('Source', '')).strip()
+                    raw_store_id = mapping_data.get('raw_store_id', mapping_data.get('RawStoreID', '')).strip()
+                    mapped_store_name = mapping_data.get('mapped_store_name', mapping_data.get('MappedStoreName', '')).strip()
+                    
+                    if not source:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing source")
+                        continue
+                    
+                    if not raw_store_id and not mapped_store_name:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing both raw_store_id and mapped_store_name")
+                        continue
+                    
+                    active = parse_boolean(mapping_data.get('active', mapping_data.get('Active', True)))
+                    
+                    try:
+                        priority = int(mapping_data.get('priority', mapping_data.get('Priority', 100)))
+                    except (ValueError, TypeError):
+                        priority = 100
+                    
+                    validated_data.append({
+                        'row_index': idx + 1,
+                        'source': source,
+                        'raw_store_id': raw_store_id,
+                        'mapped_store_name': mapped_store_name,
+                        'store_type': mapping_data.get('store_type', mapping_data.get('StoreType', 'distributor')),
+                        'priority': priority,
+                        'active': active,
+                        'notes': mapping_data.get('notes', mapping_data.get('Notes', ''))
+                    })
+                    
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {idx + 1}: Validation error - {str(e)}")
+            
+            for data in validated_data:
+                try:
+                    existing = session.query(StoreMapping).filter(
+                        and_(
+                            StoreMapping.source == data['source'],
+                            StoreMapping.raw_store_id == data['raw_store_id']
+                        )
+                    ).first()
+                    
+                    if existing:
+                        existing.mapped_store_name = data['mapped_store_name']  # type: ignore
+                        existing.store_type = data['store_type']  # type: ignore
+                        existing.priority = data['priority']  # type: ignore
+                        existing.active = data['active']  # type: ignore
+                        existing.notes = data['notes']  # type: ignore
+                        existing.updated_at = datetime.utcnow()  # type: ignore
+                        stats['updated'] += 1
+                    else:
+                        new_mapping = StoreMapping(
+                            source=data['source'],
+                            raw_name=data['raw_store_id'],
+                            mapped_name=data['mapped_store_name'],
+                            raw_store_id=data['raw_store_id'],
+                            mapped_store_name=data['mapped_store_name'],
+                            store_type=data['store_type'],
+                            priority=data['priority'],
+                            active=data['active'],
+                            notes=data['notes']
+                        )
+                        session.add(new_mapping)
+                        stats['added'] += 1
+                        
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {data['row_index']}: Database error - {str(e)}")
+                    transaction.rollback()
+                    return stats
+            
+            transaction.commit()
+            return stats
+                
+        except Exception as e:
+            if transaction:
+                transaction.rollback()
+            return {'added': 0, 'updated': 0, 'errors': 1, 'error_details': [f"Database transaction error: {str(e)}"]}
+        
+        finally:
+            session.close()
+    
     def bulk_upsert_item_mappings(self, mappings_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Bulk insert or update item mappings with transaction safety and constraint validation"""
         

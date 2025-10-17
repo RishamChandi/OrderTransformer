@@ -783,24 +783,86 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
     display_csv_mapping(mapping_file, "Customer", ["Raw Customer ID", "Mapped Customer Name"], processor)
 
 def show_store_mapping_manager(processor: str, db_service: DatabaseService):
-    """Store (Xoro) mapping management with CSV support"""
+    """Store (Xoro) mapping management with database-first support"""
     
     st.subheader("🏪 Store (Xoro) Mapping")
     st.write("Maps raw store identifiers to Xoro store names")
     
+    # Action buttons
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"store_download_template_{processor}"):
+            show_store_template_download(processor)
+    
+    with col2:
+        if st.button("📤 Upload Mappings", key=f"store_upload_btn_{processor}"):
+            st.session_state[f'show_store_upload_{processor}'] = True
+    
+    with col3:
+        if st.button("🔄 Refresh Data", key=f"store_refresh_{processor}"):
+            st.rerun()
+    
+    # Show upload form if requested
+    if st.session_state.get(f'show_store_upload_{processor}', False):
+        show_store_mapping_upload_form(db_service, processor)
+    
+    st.markdown("---")
+    
+    # Try to load from database first
+    try:
+        with db_service.get_session() as session:
+            mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+            
+            if mappings:
+                display_data = []
+                for mapping in mappings:
+                    display_data.append({
+                        'ID': mapping.id,
+                        'Source': mapping.source,
+                        'Raw Store ID': mapping.raw_store_id or mapping.raw_name,
+                        'Mapped Store Name': mapping.mapped_store_name or mapping.mapped_name,
+                        'Store Type': mapping.store_type or 'distributor',
+                        'Priority': mapping.priority or 100,
+                        'Active': mapping.active if mapping.active is not None else True,
+                        'Notes': mapping.notes or ''
+                    })
+                
+                st.success(f"✅ Found {len(display_data)} store mappings")
+                
+                import pandas as pd
+                # Specify column order explicitly to ensure correct display
+                column_order = ['ID', 'Source', 'Raw Store ID', 'Mapped Store Name', 'Store Type', 'Priority', 'Active', 'Notes']
+                df = pd.DataFrame(display_data, columns=column_order)
+                
+                # Use data_editor with column config for better UI (checkbox for Active)
+                st.data_editor(
+                    df,
+                    use_container_width=True,
+                    disabled=True,  # Read-only display
+                    column_config={
+                        "ID": st.column_config.NumberColumn("ID"),
+                        "Source": st.column_config.TextColumn("Source"),
+                        "Raw Store ID": st.column_config.TextColumn("Raw Store ID"),
+                        "Mapped Store Name": st.column_config.TextColumn("Mapped Store Name"),
+                        "Store Type": st.column_config.TextColumn("Store Type"),
+                        "Priority": st.column_config.NumberColumn("Priority"),
+                        "Active": st.column_config.CheckboxColumn("Active"),
+                        "Notes": st.column_config.TextColumn("Notes")
+                    },
+                    key=f"store_display_{processor}"
+                )
+                return
+            else:
+                st.info(f"ℹ️ No store mappings found in database for {processor}")
+                st.write("Try deleting some filters or uploading mappings.")
+    except Exception as e:
+        st.error(f"Error loading from database: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+    
+    # Fallback to CSV if database is empty
     mapping_file = f"mappings/{processor}/xoro_store_mapping.csv"
-    
-    # Upload section
-    with st.expander("📤 Upload Store Mapping File"):
-        uploaded_file = st.file_uploader(
-            "Upload CSV file", 
-            type=['csv'], 
-            key=f"store_upload_{processor}"
-        )
-        if uploaded_file and st.button("Save Store Mapping", key=f"save_store_{processor}"):
-            save_uploaded_mapping(uploaded_file, mapping_file)
-    
-    # Display and edit current mappings
     display_csv_mapping(mapping_file, "Store", ["Raw Store ID", "Xoro Store Name"], processor)
 
 def show_item_mapping_manager(processor: str, db_service: DatabaseService):
@@ -1089,6 +1151,115 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
         
         # Close upload form and refresh
         st.session_state[f'show_upload_{processor}'] = False
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Upload failed: {e}")
+
+def show_store_template_download(processor: str):
+    """Show download template for store mappings"""
+    import pandas as pd
+    
+    template_data = [{
+        'Source': processor,
+        'RawStoreID': '',
+        'MappedStoreName': '',
+        'StoreType': 'distributor',
+        'Priority': 100,
+        'Active': True,
+        'Notes': ''
+    }]
+    
+    df = pd.DataFrame(template_data)
+    csv = df.to_csv(index=False)
+    
+    st.download_button(
+        "💾 Download Store Mapping Template",
+        csv,
+        f"{processor}_store_mapping_template.csv",
+        "text/csv",
+        key=f"download_store_template_{processor}"
+    )
+
+def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
+    """Show upload form for store mappings with preview"""
+    import pandas as pd
+    
+    with st.expander("📤 Upload Store Mappings File", expanded=True):
+        st.write("Upload a CSV file with the following format:")
+        st.code("""Source,RawStoreID,MappedStoreName,StoreType,Priority,Active,Notes
+unfi_east,RSG,PSL-NJ,distributor,100,True,East DC pick up at Kent PSL
+unfi_east,RSG2_NJ,KL-Richmond,distributor,100,True,East DC pick up at Kent KL - Richmond""")
+        
+        uploaded_file = st.file_uploader(
+            "Choose CSV file",
+            type=['csv'],
+            key=f"store_file_uploader_{processor}"
+        )
+        
+        if uploaded_file:
+            try:
+                # Read the CSV file
+                df = pd.read_csv(uploaded_file)
+                
+                st.write("### File Preview (5 rows):")
+                st.dataframe(df.head(), use_container_width=True)
+                
+                # Validate required columns
+                required_columns = ['Source', 'RawStoreID', 'MappedStoreName']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"❌ Missing required columns: {missing_columns}")
+                    st.info("Required columns: Source, RawStoreID, MappedStoreName")
+                else:
+                    # Show upload options
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if st.button("✅ Upload Store Mappings", key=f"confirm_store_upload_{processor}"):
+                            upload_store_mappings_to_database(df, db_service, processor)
+                    
+                    with col2:
+                        if st.button("❌ Cancel Upload", key=f"cancel_store_upload_{processor}"):
+                            st.session_state[f'show_store_upload_{processor}'] = False
+                            st.rerun()
+                        
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+
+def upload_store_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
+    """Upload store mappings from DataFrame to database"""
+    
+    try:
+        # Convert DataFrame to list of dictionaries
+        mappings_data = []
+        for _, row in df.iterrows():
+            mapping = {
+                'source': str(row.get('Source', processor)).strip(),
+                'raw_store_id': str(row.get('RawStoreID', '')).strip(),
+                'mapped_store_name': str(row.get('MappedStoreName', '')).strip(),
+                'store_type': str(row.get('StoreType', 'distributor')).strip(),
+                'priority': row.get('Priority', 100),
+                'active': row.get('Active', True),
+                'notes': str(row.get('Notes', '')).strip() if pd.notna(row.get('Notes')) else ''
+            }
+            mappings_data.append(mapping)
+        
+        # Bulk upload to database
+        results = db_service.bulk_upsert_store_mappings(mappings_data)
+        
+        # Show results
+        if results['errors'] == 0:
+            st.success(f"✅ Successfully uploaded {results['added']} new mappings and updated {results['updated']} existing mappings")
+        else:
+            st.warning(f"⚠️ Upload completed with {results['errors']} errors. Added: {results['added']}, Updated: {results['updated']}")
+            with st.expander("❌ Error Details"):
+                for error in results['error_details']:
+                    st.write(f"• {error}")
+        
+        # Close upload form and refresh
+        st.session_state[f'show_store_upload_{processor}'] = False
         st.rerun()
         
     except Exception as e:
