@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: order-transformer
+    env: python
+    plan: starter
+    autoDeploy: true
+    buildCommand: "pip install -r requirements.txt && python render_migrate_database.py"
+    startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
+    healthCheckPath: "/healthz"
+    envVars:
+      - key: DATABASE_URL
+        sync: false

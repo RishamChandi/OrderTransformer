@@ -1,0 +1,265 @@
+Source,RawKeyType,RawKeyValue,MappedItemNumber,Vendor,MappedDescription,Priority,Active,Notes
+kehe,vendor_item,256821,7-006,KEHE,C&A Potato Gnocchi 10/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,110366,17-001-1,KEHE,C&A Basil Genovese Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110367,17-001-2,KEHE,C&A Artichoke Lemon Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,269368,17-001-4,KEHE,C&A Sun-Dried Tomato Pesto 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,334790,17-041-7,KEHE,C&A Sun-Dried Tomato Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110368,17-041-1,KEHE,C&A Artichoke Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110374,17-041-2,KEHE,C&A Red Pepper & Artichoke Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,256166,17-041-6,KEHE,C&A Olive Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110376,17-051-1,KEHE,C&A Marin. Qrtd Artichokes 6/14.5oz,100,True,Migrated from CSV
+kehe,vendor_item,110377,17-051-2,KEHE,C&A Grilled Marin. Whole Artichokes 6/14.5oz,100,True,Migrated from CSV
+kehe,vendor_item,110380,3-021,KEHE,C&A Balsamic Vinegar- High Density 6/8.5oz,100,True,Migrated from CSV
+kehe,vendor_item,110383,3-047,KEHE,C&A Balsamic Vinegar Igp 6/16.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110386,17-003-2,KEHE,C&A Puttanesca Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,110389,17-003-4,KEHE,C&A Tomato W/Cheese Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,110390,17-003-1,KEHE,C&A Tomato W/Basil Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,110391,17-003-3,KEHE,C&A Arrabbiata Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,129175,17-043-1,KEHE,C&A Tricolor Jalapenos 6/16.5oz,100,True,Migrated from CSV
+kehe,vendor_item,267772,8-100-3,KEHE,C&A Couscous 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,267774,8-100-4,KEHE,C&A Farro 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,267776,8-100-5,KEHE,C&A Instant Polenta 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,267778,8-100-6,KEHE,C&A Arborio Rice 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,295340,8-100-9,KEHE,C&A Minestrone Soup Mix 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,295339,8-100-10,KEHE,C&A Bean Soup Mix 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,319677,3-005,KEHE,C&A Grape Seed Oil 6/25.3oz,100,True,Migrated from CSV
+kehe,vendor_item,295356,7-210-71,KEHE,C&A Organic Penne Rigate #71 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295353,7-210-42,KEHE,C&A Organic Elbows #42 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295355,7-210-50,KEHE,C&A Organic Casarecce #50 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295351,7-210-66,KEHE,C&A Organic Fusilli #66 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295354,7-210-22,KEHE,C&A Organic Farfalle #22 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295347,7-210-82,KEHE,C&A Organic Spaghetti #82 20/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295348,7-210-91,KEHE,C&A Organic Linguine #91 20/16oz,100,True,Migrated from CSV
+kehe,vendor_item,320966,12-002-1,KEHE,C&A Hazelnut Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,320967,12-002-2,KEHE,C&A Chocolate Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,320968,12-002-3,KEHE,C&A Lemon Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,320969,12-002-4,KEHE,C&A Vanilla Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,399223,12-002,KEHE,C&A Wafer Roll Shipper 36/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,387166,17-001-5,KEHE,C&A Vegan Nut Free Basil Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,273317,12-042,KEHE,K&L Passport Flatbread- Everything 6/13.3oz,100,True,Migrated from CSV
+kehe,vendor_item,129178,8-200-1,KEHE,K&L Quinoa RTE Meal- Artichoke & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,129174,8-200-2,KEHE,K&L Quinoa RTE Meal- Spicy Jalapeno & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,129170,8-200-3,KEHE,K&L Quinoa RTE Meal-Mango & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,129176,8-200-4,KEHE,K&L Quinoa RTE Meal- Basil Pesto 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,308376,8-400-1,KEHE,K&L Farro RTE Meal- Grilled Vegetables 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,308378,8-400-3,KEHE,"K&L Farro RTE Meal- Artichoke, Lemon & Garlic 6/7.9oz",100,True,Migrated from CSV
+kehe,vendor_item,353455,13-001-1,KEHE,K&L Strawberry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353454,13-001-3,KEHE,K&L Apricot Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353451,13-001-9,KEHE,K&L Fig Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353453,13-001-4,KEHE,K&L Sour Cherry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353452,13-001-10,KEHE,K&L Lingonberry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373816,13-003-1,KEHE,K&L Strawberry & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373818,13-003-3,KEHE,K&L Apricot & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373822,13-003-4,KEHE,K&L Fig & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373823,13-003-5,KEHE,K&L Sour Cherry & Honey Sweetened Preserve 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,334671,8-440,KEHE,K&L Farro RTE Meal Shipper 48/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,334681,8-220,KEHE,K&L Quinoa RTE Meal Shipper 48/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,380892,8-291,KEHE,K&L RTE Bi-Color (Red & White) Quinoa 2Pk 6/10.6oz,100,True,Migrated from CSV
+kehe,vendor_item,380746,8-700-1,KEHE,K&L Tuna Meal Mastercase- 4 Bean Medley 6/8/6oz,100,True,Migrated from CSV
+kehe,vendor_item,380747,8-700-2,KEHE,K&L Tuna Meal Mastercase- Quinoa & Chickpea 6/8/6oz,100,True,Migrated from CSV
+kehe,vendor_item,398971,12-006-1,KEHE,K&L Dark Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2313478,12-006-2,KEHE,K&L Milk Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2313604,12-006-3,KEHE,K&L Assorted (Milk/Dark/White) Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,380885,8-901,KEHE,K&L RTH Basmati Rice 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380875,8-902,KEHE,K&L RTH Golden Vegetable Rice 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380872,8-903,KEHE,K&L RTH Seven Grain Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380887,8-904,KEHE,K&L RTH Spanish Style Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380878,8-905,KEHE,K&L RTH Vegetable Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380864,8-906,KEHE,K&L RTE Tabbouleh Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380894,8-907,KEHE,K&L RTE Riced Cauliflower 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2509069,12-300-2,KEHE,K&L Sweet Nests - Almond & Dark Chocolate 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2509054,12-300-3,KEHE,K&L Sweet Nests - Cashew & Date 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2509070,12-300-1,KEHE,K&L Sweet Nests - Pistachio & Date 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2302575,17-202,KEHE,K&L Hearts Of Palm Pasta Primavera 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2302579,17-203,KEHE,K&L Hearts Of Palm Veggie Stir-Fry 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2411605,17-204,KEHE,K&L RTE Riced Broccoli 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2302580,17-201,KEHE,K&L Hearts Of Palm Linguine Pasta 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207885,8-500,KEHE,K&L Org Pulled Jackfruit- Lightly Seasoned 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207887,8-501,KEHE,K&L Org Pulled Jackfruit- Sweet BBQ 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207888,8-502,KEHE,K&L Org Jackfruit Chunky Chili 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207890,8-503,KEHE,K&L Org Jackfruit Hearty Stew 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422115,12-600-3,KEHE,K&L Shipper - Assorted (3 Variety) Choc covered Almond stuffed Dates 54/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2422119,12-600-1,KEHE,K&L Shipper - Dark Choc Almond Stuffed Dates 54/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2422137,8-920-1,KEHE,K&L Shipper - Organic Riced Cauliflower 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422128,8-920-2,KEHE,K&L Shipper - Riced Cauliflower & Broccoli 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422131,8-500-1,KEHE,K&L Shipper- RTH Org Jackfruit Assorted 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422133,17-200-1,KEHE,K&L Shipper - RTH Hearts of Palm Pasta & Rice 45/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422500,8-900-1,KEHE,K&L Shipper - RTH Grain Pouches (3 Variety) 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422504,8-900-2,KEHE,K&L Shipper - RTH Grain Pouches (6 Variety) 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2509071,12-310-1,KEHE,K&L Shipper - Sweet Nests (3 Variety) 36/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,00256821,7-006,KEHE,C&A Potato Gnocchi 10/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,00110366,17-001-1,KEHE,C&A Basil Genovese Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00110367,17-001-2,KEHE,C&A Artichoke Lemon Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00269368,17-001-4,KEHE,C&A Sun-Dried Tomato Pesto 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00334790,17-041-7,KEHE,C&A Sun-Dried Tomato Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00110368,17-041-1,KEHE,C&A Artichoke Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00110374,17-041-2,KEHE,C&A Red Pepper & Artichoke Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00256166,17-041-6,KEHE,C&A Olive Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00110376,17-051-1,KEHE,C&A Marin. Qrtd Artichokes 6/14.5oz,100,True,Migrated from CSV
+kehe,vendor_item,00110377,17-051-2,KEHE,C&A Grilled Marin. Whole Artichokes 6/14.5oz,100,True,Migrated from CSV
+kehe,vendor_item,00110380,3-021,KEHE,C&A Balsamic Vinegar- High Density 6/8.5oz,100,True,Migrated from CSV
+kehe,vendor_item,00110383,3-047,KEHE,C&A Balsamic Vinegar Igp 6/16.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00110386,17-003-2,KEHE,C&A Puttanesca Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,00110389,17-003-4,KEHE,C&A Tomato W/Cheese Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,00110390,17-003-1,KEHE,C&A Tomato W/Basil Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,00110391,17-003-3,KEHE,C&A Arrabbiata Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,00129175,17-043-1,KEHE,C&A Tricolor Jalapenos 6/16.5oz,100,True,Migrated from CSV
+kehe,vendor_item,00267772,8-100-3,KEHE,C&A Couscous 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00267774,8-100-4,KEHE,C&A Farro 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00267776,8-100-5,KEHE,C&A Instant Polenta 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00267778,8-100-6,KEHE,C&A Arborio Rice 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00295340,8-100-9,KEHE,C&A Minestrone Soup Mix 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00295339,8-100-10,KEHE,C&A Bean Soup Mix 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00319677,3-005,KEHE,C&A Grape Seed Oil 6/25.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00295356,7-210-71,KEHE,C&A Organic Penne Rigate #71 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00295353,7-210-42,KEHE,C&A Organic Elbows #42 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00295355,7-210-50,KEHE,C&A Organic Casarecce #50 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00295351,7-210-66,KEHE,C&A Organic Fusilli #66 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00295354,7-210-22,KEHE,C&A Organic Farfalle #22 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00295347,7-210-82,KEHE,C&A Organic Spaghetti #82 20/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00295348,7-210-91,KEHE,C&A Organic Linguine #91 20/16oz,100,True,Migrated from CSV
+kehe,vendor_item,00320966,12-002-1,KEHE,C&A Hazelnut Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,00320967,12-002-2,KEHE,C&A Chocolate Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,00320968,12-002-3,KEHE,C&A Lemon Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,00320969,12-002-4,KEHE,C&A Vanilla Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,00399223,12-002,KEHE,C&A Wafer Roll Shipper 36/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,00387166,17-001-5,KEHE,C&A Vegan Nut Free Basil Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00273317,12-042,KEHE,K&L Passport Flatbread- Everything 6/13.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00129178,8-200-1,KEHE,K&L Quinoa RTE Meal- Artichoke & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00129174,8-200-2,KEHE,K&L Quinoa RTE Meal- Spicy Jalapeno & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00129170,8-200-3,KEHE,K&L Quinoa RTE Meal-Mango & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00129176,8-200-4,KEHE,K&L Quinoa RTE Meal- Basil Pesto 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00308376,8-400-1,KEHE,K&L Farro RTE Meal- Grilled Vegetables 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00308378,8-400-3,KEHE,"K&L Farro RTE Meal- Artichoke, Lemon & Garlic 6/7.9oz",100,True,Migrated from CSV
+kehe,vendor_item,00353455,13-001-1,KEHE,K&L Strawberry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00353454,13-001-3,KEHE,K&L Apricot Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00353451,13-001-9,KEHE,K&L Fig Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00353453,13-001-4,KEHE,K&L Sour Cherry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00353452,13-001-10,KEHE,K&L Lingonberry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00373816,13-003-1,KEHE,K&L Strawberry & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00373818,13-003-3,KEHE,K&L Apricot & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00373822,13-003-4,KEHE,K&L Fig & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00373823,13-003-5,KEHE,K&L Sour Cherry & Honey Sweetened Preserve 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,00334671,8-440,KEHE,K&L Farro RTE Meal Shipper 48/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00334681,8-220,KEHE,K&L Quinoa RTE Meal Shipper 48/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,00380892,8-291,KEHE,K&L RTE Bi-Color (Red & White) Quinoa 2Pk 6/10.6oz,100,True,Migrated from CSV
+kehe,vendor_item,00380746,8-700-1,KEHE,K&L Tuna Meal Mastercase- 4 Bean Medley 6/8/6oz,100,True,Migrated from CSV
+kehe,vendor_item,00380747,8-700-2,KEHE,K&L Tuna Meal Mastercase- Quinoa & Chickpea 6/8/6oz,100,True,Migrated from CSV
+kehe,vendor_item,00398971,12-006-1,KEHE,K&L Dark Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02313478,12-006-2,KEHE,K&L Milk Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02313604,12-006-3,KEHE,K&L Assorted (Milk/Dark/White) Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,00380885,8-901,KEHE,K&L RTH Basmati Rice 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,00380875,8-902,KEHE,K&L RTH Golden Vegetable Rice 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,00380872,8-903,KEHE,K&L RTH Seven Grain Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,00380887,8-904,KEHE,K&L RTH Spanish Style Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,00380878,8-905,KEHE,K&L RTH Vegetable Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,00380864,8-906,KEHE,K&L RTE Tabbouleh Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,00380894,8-907,KEHE,K&L RTE Riced Cauliflower 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02509069,12-300-2,KEHE,K&L Sweet Nests - Almond & Dark Chocolate 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02509054,12-300-3,KEHE,K&L Sweet Nests - Cashew & Date 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02509070,12-300-1,KEHE,K&L Sweet Nests - Pistachio & Date 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02302575,17-202,KEHE,K&L Hearts Of Palm Pasta Primavera 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02302579,17-203,KEHE,K&L Hearts Of Palm Veggie Stir-Fry 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02411605,17-204,KEHE,K&L RTE Riced Broccoli 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02302580,17-201,KEHE,K&L Hearts Of Palm Linguine Pasta 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02207885,8-500,KEHE,K&L Org Pulled Jackfruit- Lightly Seasoned 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02207887,8-501,KEHE,K&L Org Pulled Jackfruit- Sweet BBQ 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02207888,8-502,KEHE,K&L Org Jackfruit Chunky Chili 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02207890,8-503,KEHE,K&L Org Jackfruit Hearty Stew 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02422115,12-600-3,KEHE,K&L Shipper - Assorted (3 Variety) Choc covered Almond stuffed Dates 54/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02422119,12-600-1,KEHE,K&L Shipper - Dark Choc Almond Stuffed Dates 54/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,02422137,8-920-1,KEHE,K&L Shipper - Organic Riced Cauliflower 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02422128,8-920-2,KEHE,K&L Shipper - Riced Cauliflower & Broccoli 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02422131,8-500-1,KEHE,K&L Shipper- RTH Org Jackfruit Assorted 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02422133,17-200-1,KEHE,K&L Shipper - RTH Hearts of Palm Pasta & Rice 45/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02422500,8-900-1,KEHE,K&L Shipper - RTH Grain Pouches (3 Variety) 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02422504,8-900-2,KEHE,K&L Shipper - RTH Grain Pouches (6 Variety) 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,02509071,12-310-1,KEHE,K&L Shipper - Sweet Nests (3 Variety) 36/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,256821.0,7-006,KEHE,C&A Potato Gnocchi 10/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,110366.0,17-001-1,KEHE,C&A Basil Genovese Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110367.0,17-001-2,KEHE,C&A Artichoke Lemon Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,269368.0,17-001-4,KEHE,C&A Sun-Dried Tomato Pesto 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,334790.0,17-041-7,KEHE,C&A Sun-Dried Tomato Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110368.0,17-041-1,KEHE,C&A Artichoke Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110374.0,17-041-2,KEHE,C&A Red Pepper & Artichoke Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,256166.0,17-041-6,KEHE,C&A Olive Bruschetta 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110376.0,17-051-1,KEHE,C&A Marin. Qrtd Artichokes 6/14.5oz,100,True,Migrated from CSV
+kehe,vendor_item,110377.0,17-051-2,KEHE,C&A Grilled Marin. Whole Artichokes 6/14.5oz,100,True,Migrated from CSV
+kehe,vendor_item,110380.0,3-021,KEHE,C&A Balsamic Vinegar- High Density 6/8.5oz,100,True,Migrated from CSV
+kehe,vendor_item,110383.0,3-047,KEHE,C&A Balsamic Vinegar Igp 6/16.9oz,100,True,Migrated from CSV
+kehe,vendor_item,110386.0,17-003-2,KEHE,C&A Puttanesca Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,110389.0,17-003-4,KEHE,C&A Tomato W/Cheese Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,110390.0,17-003-1,KEHE,C&A Tomato W/Basil Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,110391.0,17-003-3,KEHE,C&A Arrabbiata Pasta Sauce 6/16.8oz,100,True,Migrated from CSV
+kehe,vendor_item,129175.0,17-043-1,KEHE,C&A Tricolor Jalapenos 6/16.5oz,100,True,Migrated from CSV
+kehe,vendor_item,267772.0,8-100-3,KEHE,C&A Couscous 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,267774.0,8-100-4,KEHE,C&A Farro 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,267776.0,8-100-5,KEHE,C&A Instant Polenta 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,267778.0,8-100-6,KEHE,C&A Arborio Rice 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,295340.0,8-100-9,KEHE,C&A Minestrone Soup Mix 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,295339.0,8-100-10,KEHE,C&A Bean Soup Mix 8/17.6oz,100,True,Migrated from CSV
+kehe,vendor_item,319677.0,3-005,KEHE,C&A Grape Seed Oil 6/25.3oz,100,True,Migrated from CSV
+kehe,vendor_item,295356.0,7-210-71,KEHE,C&A Organic Penne Rigate #71 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295353.0,7-210-42,KEHE,C&A Organic Elbows #42 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295355.0,7-210-50,KEHE,C&A Organic Casarecce #50 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295351.0,7-210-66,KEHE,C&A Organic Fusilli #66 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295354.0,7-210-22,KEHE,C&A Organic Farfalle #22 12/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295347.0,7-210-82,KEHE,C&A Organic Spaghetti #82 20/16oz,100,True,Migrated from CSV
+kehe,vendor_item,295348.0,7-210-91,KEHE,C&A Organic Linguine #91 20/16oz,100,True,Migrated from CSV
+kehe,vendor_item,320966.0,12-002-1,KEHE,C&A Hazelnut Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,320967.0,12-002-2,KEHE,C&A Chocolate Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,320968.0,12-002-3,KEHE,C&A Lemon Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,320969.0,12-002-4,KEHE,C&A Vanilla Rolled Wafer 6/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,399223.0,12-002,KEHE,C&A Wafer Roll Shipper 36/14.1oz,100,True,Migrated from CSV
+kehe,vendor_item,387166.0,17-001-5,KEHE,C&A Vegan Nut Free Basil Pesto Sauce 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,273317.0,12-042,KEHE,K&L Passport Flatbread- Everything 6/13.3oz,100,True,Migrated from CSV
+kehe,vendor_item,129178.0,8-200-1,KEHE,K&L Quinoa RTE Meal- Artichoke & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,129174.0,8-200-2,KEHE,K&L Quinoa RTE Meal- Spicy Jalapeno & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,129170.0,8-200-3,KEHE,K&L Quinoa RTE Meal-Mango & Roasted Peppers 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,129176.0,8-200-4,KEHE,K&L Quinoa RTE Meal- Basil Pesto 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,308376.0,8-400-1,KEHE,K&L Farro RTE Meal- Grilled Vegetables 6/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,308378.0,8-400-3,KEHE,"K&L Farro RTE Meal- Artichoke, Lemon & Garlic 6/7.9oz",100,True,Migrated from CSV
+kehe,vendor_item,353455.0,13-001-1,KEHE,K&L Strawberry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353454.0,13-001-3,KEHE,K&L Apricot Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353451.0,13-001-9,KEHE,K&L Fig Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353453.0,13-001-4,KEHE,K&L Sour Cherry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,353452.0,13-001-10,KEHE,K&L Lingonberry Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373816.0,13-003-1,KEHE,K&L Strawberry & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373818.0,13-003-3,KEHE,K&L Apricot & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373822.0,13-003-4,KEHE,K&L Fig & Honey Sweetened Preserves 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,373823.0,13-003-5,KEHE,K&L Sour Cherry & Honey Sweetened Preserve 6/12.3oz,100,True,Migrated from CSV
+kehe,vendor_item,334671.0,8-440,KEHE,K&L Farro RTE Meal Shipper 48/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,334681.0,8-220,KEHE,K&L Quinoa RTE Meal Shipper 48/7.9oz,100,True,Migrated from CSV
+kehe,vendor_item,380892.0,8-291,KEHE,K&L RTE Bi-Color (Red & White) Quinoa 2Pk 6/10.6oz,100,True,Migrated from CSV
+kehe,vendor_item,380746.0,8-700-1,KEHE,K&L Tuna Meal Mastercase- 4 Bean Medley 6/8/6oz,100,True,Migrated from CSV
+kehe,vendor_item,380747.0,8-700-2,KEHE,K&L Tuna Meal Mastercase- Quinoa & Chickpea 6/8/6oz,100,True,Migrated from CSV
+kehe,vendor_item,398971.0,12-006-1,KEHE,K&L Dark Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2313478.0,12-006-2,KEHE,K&L Milk Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2313604.0,12-006-3,KEHE,K&L Assorted (Milk/Dark/White) Choc Almond Stuffed Dates 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,380885.0,8-901,KEHE,K&L RTH Basmati Rice 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380875.0,8-902,KEHE,K&L RTH Golden Vegetable Rice 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380872.0,8-903,KEHE,K&L RTH Seven Grain Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380887.0,8-904,KEHE,K&L RTH Spanish Style Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380878.0,8-905,KEHE,K&L RTH Vegetable Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380864.0,8-906,KEHE,K&L RTE Tabbouleh Quinoa Medley 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,380894.0,8-907,KEHE,K&L RTE Riced Cauliflower 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2509069.0,12-300-2,KEHE,K&L Sweet Nests - Almond & Dark Chocolate 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2509054.0,12-300-3,KEHE,K&L Sweet Nests - Cashew & Date 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2509070.0,12-300-1,KEHE,K&L Sweet Nests - Pistachio & Date 8/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2302575.0,17-202,KEHE,K&L Hearts Of Palm Pasta Primavera 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2302579.0,17-203,KEHE,K&L Hearts Of Palm Veggie Stir-Fry 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2411605.0,17-204,KEHE,K&L RTE Riced Broccoli 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2302580.0,17-201,KEHE,K&L Hearts Of Palm Linguine Pasta 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207885.0,8-500,KEHE,K&L Org Pulled Jackfruit- Lightly Seasoned 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207887.0,8-501,KEHE,K&L Org Pulled Jackfruit- Sweet BBQ 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207888.0,8-502,KEHE,K&L Org Jackfruit Chunky Chili 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2207890.0,8-503,KEHE,K&L Org Jackfruit Hearty Stew 6/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422115.0,12-600-3,KEHE,K&L Shipper - Assorted (3 Variety) Choc covered Almond stuffed Dates 54/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2422119.0,12-600-1,KEHE,K&L Shipper - Dark Choc Almond Stuffed Dates 54/3.5oz,100,True,Migrated from CSV
+kehe,vendor_item,2422137.0,8-920-1,KEHE,K&L Shipper - Organic Riced Cauliflower 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422128.0,8-920-2,KEHE,K&L Shipper - Riced Cauliflower & Broccoli 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422131.0,8-500-1,KEHE,K&L Shipper- RTH Org Jackfruit Assorted 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422133.0,17-200-1,KEHE,K&L Shipper - RTH Hearts of Palm Pasta & Rice 45/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422500.0,8-900-1,KEHE,K&L Shipper - RTH Grain Pouches (3 Variety) 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2422504.0,8-900-2,KEHE,K&L Shipper - RTH Grain Pouches (6 Variety) 54/8oz,100,True,Migrated from CSV
+kehe,vendor_item,2509071.0,12-310-1,KEHE,K&L Shipper - Sweet Nests (3 Variety) 36/3.5oz,100,True,Migrated from CSV

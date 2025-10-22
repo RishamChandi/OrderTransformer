@@ -1,0 +1,5 @@
+[33m1521749[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Update documentation with deployment instructions
+[33m304b1d1[m Improve mapping management with enhanced data migration tools
+[33mb48459f[m Fix issues with editing and deleting mappings in the order transformation platform
+[33m6492683[m Improve UNFI East store mapping upload system and UI
+[33m19f89bc[m Prioritize database for store mappings and improve upload functionality
