@@ -725,7 +725,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                                 "Active": st.column_config.CheckboxColumn("Active"),
                                 "Notes": st.column_config.TextColumn("Notes")
                             },
-                            key=f"data_editor_{processor}"
+                            key=f"data_editor_customer_{processor}"
                         )
                         
                         # Save changes button
@@ -1372,7 +1372,7 @@ def show_data_editor_mappings(mappings: list, db_service: DatabaseService, proce
             use_container_width=True,
             num_rows="fixed",
             hide_index=True,
-            key=f"data_editor_{processor}"
+            key=f"data_editor_item_{processor}"
         )
         
         # Show action buttons
