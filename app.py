@@ -655,6 +655,10 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     if refresh_data:
                         st.rerun()
                     
+                    if upload_mappings:
+                        st.session_state[f'show_customer_upload_{processor}'] = True
+                        st.rerun()
+                    
                     if download_template:
                         import pandas as pd
                         template_data = [{
@@ -779,8 +783,76 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
         if uploaded_file and st.button("Save Customer Mapping", key=f"save_customer_{processor}"):
             save_uploaded_mapping(uploaded_file, mapping_file)
     
+    # Show customer upload form if requested
+    if st.session_state.get(f'show_customer_upload_{processor}', False):
+        show_customer_mapping_upload_form(db_service, processor)
+    
     # Display and edit current mappings
     display_csv_mapping(mapping_file, "Customer", ["Raw Customer ID", "Mapped Customer Name"], processor)
+
+def show_customer_mapping_upload_form(db_service: DatabaseService, processor: str):
+    """Show upload form for customer mappings with preview"""
+    import pandas as pd
+    
+    with st.expander("📤 Upload Customer Mappings", expanded=True):
+        st.write("Upload a CSV file with customer mapping data")
+        
+        uploaded_file = st.file_uploader(
+            "Choose CSV file",
+            type=['csv'],
+            key=f"customer_file_uploader_{processor}"
+        )
+        
+        if uploaded_file:
+            try:
+                # Read and preview the uploaded file
+                df = pd.read_csv(uploaded_file)
+                st.write("**File Preview:**")
+                st.dataframe(df.head())
+                
+                # Show upload buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Upload Customer Mappings", key=f"confirm_customer_upload_{processor}"):
+                        upload_customer_mappings_to_database(df, db_service, processor)
+                        st.session_state[f'show_customer_upload_{processor}'] = False
+                        st.rerun()
+                
+                with col2:
+                    if st.button("❌ Cancel Upload", key=f"cancel_customer_upload_{processor}"):
+                        st.session_state[f'show_customer_upload_{processor}'] = False
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+
+def upload_customer_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
+    """Upload customer mappings to database"""
+    try:
+        mappings_data = []
+        
+        for _, row in df.iterrows():
+            mappings_data.append({
+                'source': processor,
+                'raw_name': str(row.get('Raw Customer ID', '')).strip(),
+                'mapped_name': str(row.get('Mapped Customer Name', '')).strip(),
+                'store_type': str(row.get('Customer Type', 'distributor')).strip(),
+                'priority': int(row.get('Priority', 100)),
+                'active': bool(row.get('Active', True)),
+                'notes': str(row.get('Notes', '')).strip()
+            })
+        
+        result = db_service.bulk_upsert_store_mappings(mappings_data)
+        
+        if result['success']:
+            st.success(f"✅ Successfully uploaded {result['inserted']} new customer mappings")
+            if result['updated'] > 0:
+                st.info(f"Updated {result['updated']} existing mappings")
+        else:
+            st.error(f"❌ Upload failed: {result['error']}")
+            
+    except Exception as e:
+        st.error(f"❌ Upload failed: {e}")
 
 def show_store_mapping_manager(processor: str, db_service: DatabaseService):
     """Store (Xoro) mapping management with database-first support"""

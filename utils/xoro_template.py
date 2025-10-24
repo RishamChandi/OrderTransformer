@@ -70,33 +70,16 @@ class XoroTemplate:
         customer_name = str(order.get('customer_name', ''))
         first_name, last_name = self._split_customer_name(customer_name)
         
-        # Handle store name mapping based on source
-        if source_name.lower().replace(' ', '_') == 'unfi_west' or source_name.lower() == 'unfi west':
-            # UNFI West: always use hardcoded store values
-            sale_store_name = 'KL - Richmond'
-            store_name = 'KL - Richmond'
-            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
-        elif source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
-            # UNFI East: use store mapping from parser (vendor-to-store mapping)
-            sale_store_name = order.get('sale_store_name', 'PSS-NJ')  # Use mapped store or default
-            store_name = order.get('store_name', 'PSS-NJ')            # Use mapped store or default
-            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
-        elif source_name.lower().replace(' ', '_') == 'whole_foods' or source_name.lower() == 'whole foods':
-            # Whole Foods: always use "IDI - Richmond" for store names, but customer name comes from store mapping
-            sale_store_name = 'IDI - Richmond'
-            store_name = 'IDI - Richmond'
-            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
-        elif source_name.lower().replace(' ', '_') == 'kehe' or 'kehe' in source_name.lower():
-            # KEHE: use store mapping from parser for store names, customer name is separate from store
-            sale_store_name = order.get('store_name', 'KL - Richmond')  # Use mapped store from parser
-            store_name = order.get('store_name', 'KL - Richmond')      # Use mapped store from parser  
-            final_customer_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'IDI - Richmond'
-            print(f"DEBUG: KEHE Template - store_name: '{order.get('store_name', 'KL - Richmond')}', customer_name: '{customer_name}'")
-        else:
-            # Other sources: use mapped customer name
-            sale_store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
-            store_name = customer_name if customer_name and customer_name != 'UNKNOWN' else 'UNKNOWN'
-            final_customer_name = customer_name
+        # Use parser-provided mapped values from database
+        sale_store_name = order.get('store_name')
+        store_name = order.get('store_name')
+        final_customer_name = order.get('customer_name', 'UNKNOWN')
+        
+        # Validate required fields - fail if no mapping found
+        if not sale_store_name or sale_store_name == 'UNKNOWN':
+            raise ValueError(f"No store mapping found for {source_name} order {order.get('order_number')}")
+        if not final_customer_name or final_customer_name == 'UNKNOWN':
+            raise ValueError(f"No customer mapping found for {source_name} order {order.get('order_number')}")
         
         # Create Xoro order
         xoro_order = {

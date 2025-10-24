@@ -15,7 +15,6 @@ class UNFIEastParser(BaseParser):
         super().__init__()
         self.source_name = "UNFI East"
         self.mapping_utils = mapping_utils
-        self.iow_customer_mapping = self._load_iow_customer_mapping()
     
     def parse(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """Parse UNFI East PDF order file"""
@@ -73,70 +72,6 @@ class UNFIEastParser(BaseParser):
             except:
                 raise ValueError(f"Could not extract text from PDF: {str(e)}")
     
-    def _load_iow_customer_mapping(self) -> Dict[str, str]:
-        """Load IOW customer mapping from Excel file with case-insensitive keys"""
-        try:
-            import pandas as pd
-            import os
-            
-            # Try to load the IOW mapping file (use the correct customer mapping file)
-            mapping_file = 'attached_assets/UNFI EAST STORE TO CUSTOMER MAPPING_1753461773530.xlsx'
-            if os.path.exists(mapping_file):
-                df = pd.read_excel(mapping_file)
-                mapping = {}
-                for _, row in df.iterrows():
-                    unfi_code = str(row['UNFI East ']).strip().upper()  # Normalize to uppercase
-                    company_name = str(row['CompanyName']).strip()
-                    mapping[unfi_code] = company_name
-                
-                # Add any missing mappings that we've discovered from PDFs (all uppercase keys)
-                if 'SS' not in mapping:
-                    mapping['SS'] = 'UNFI EAST SARASOTA FL'  # SS appears to be Sarasota based on Ship To data
-                if 'HH' not in mapping:
-                    mapping['HH'] = 'UNFI EAST HOWELL NJ'  # HH from PO4531367 - Montgomery/Howell
-                if 'GG' not in mapping:
-                    mapping['GG'] = 'UNFI EAST GREENWOOD IN'  # GG appears to be Greenwood based on warehouse data
-                if 'JJ' not in mapping:
-                    mapping['JJ'] = 'UNFI EAST HOWELL NJ'  # JJ appears to be Howell based on warehouse data
-                if 'MM' not in mapping:
-                    mapping['MM'] = 'UNFI EAST YORK PA'  # MM appears to be York/Manchester based on warehouse data
-                
-                print(f"✅ Loaded {len(mapping)} IOW customer mappings from Excel file")
-                return mapping
-            else:
-                print("⚠️ IOW customer mapping file not found, using fallback mapping")
-                # Fallback mapping based on known values plus missing codes (all uppercase keys)
-                return {
-                    'IOW': 'UNFI EAST IOWA CITY',
-                    'RCH': 'UNFI EAST - RICHBURG', 
-                    'HOW': 'UNFI EAST - HOWELL',
-                    'CHE': 'UNFI EAST CHESTERFIELD',
-                    'YOR': 'UNFI EAST YORK PA',
-                    'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
-                    'HH': 'UNFI EAST HOWELL NJ',  # Added missing HH mapping (Montgomery/Howell)
-                    'SAR': 'UNFI EAST SARASOTA FL',
-                    'SRQ': 'UNFI EAST SARASOTA FL',
-                    'GG': 'UNFI EAST GREENWOOD IN',  # Added missing GG mapping
-                    'JJ': 'UNFI EAST HOWELL NJ',  # Added missing JJ mapping (Howell)
-                    'MM': 'UNFI EAST YORK PA'  # Added missing MM mapping (York/Manchester)
-                }
-                
-        except Exception as e:
-            print(f"⚠️ Error loading IOW mapping: {e}, using fallback")
-            return {
-                'IOW': 'UNFI EAST IOWA CITY',
-                'RCH': 'UNFI EAST - RICHBURG', 
-                'HOW': 'UNFI EAST - HOWELL',
-                'CHE': 'UNFI EAST CHESTERFIELD',
-                'YOR': 'UNFI EAST YORK PA',
-                'SS': 'UNFI EAST SARASOTA FL',  # Added missing SS mapping
-                'HH': 'UNFI EAST HOWELL NJ',  # Added missing HH mapping (Montgomery/Howell)
-                'SAR': 'UNFI EAST SARASOTA FL',
-                'SRQ': 'UNFI EAST SARASOTA FL',
-                'GG': 'UNFI EAST GREENWOOD IN',  # Added missing GG mapping
-                'JJ': 'UNFI EAST HOWELL NJ',  # Added missing JJ mapping (Howell)
-                'MM': 'UNFI EAST YORK PA'  # Added missing MM mapping (York/Manchester)
-            }
     
     def _extract_order_header(self, text_content: str, filename: str) -> Dict[str, Any]:
         """Extract order header information from PDF text"""
@@ -203,11 +138,11 @@ class UNFIEastParser(BaseParser):
         else:
             print(f"DEBUG: Could not find Internal Ref Number pattern in PDF")
         
-        # Apply IOW-based mapping using the Excel file data (case-insensitive)
+        # Apply IOW-based mapping using database lookup
         if iow_location:
-            # Check mapping with uppercase version for case-insensitive matching
-            mapped_customer = self.iow_customer_mapping.get(iow_location.upper())
-            if mapped_customer:
+            # Use database mapping for IOW location
+            mapped_customer = self.mapping_utils.get_store_mapping(iow_location.upper(), 'unfi_east')
+            if mapped_customer and mapped_customer != 'UNKNOWN':
                 order_info['customer_name'] = mapped_customer
                 order_info['raw_customer_name'] = iow_location
                 print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
@@ -230,10 +165,12 @@ class UNFIEastParser(BaseParser):
                     'Greenwood': 'GG'  # Add Greenwood mapping
                 }
                 iow_code = warehouse_to_iow.get(warehouse_location, '')
-                if iow_code and iow_code in self.iow_customer_mapping:
-                    order_info['customer_name'] = self.iow_customer_mapping[iow_code]
-                    order_info['raw_customer_name'] = f"{warehouse_location} ({iow_code})"
-                    print(f"DEBUG: Mapped {warehouse_location} ({iow_code}) -> {order_info['customer_name']}")
+                if iow_code:
+                    mapped_customer = self.mapping_utils.get_store_mapping(iow_code, 'unfi_east')
+                    if mapped_customer and mapped_customer != 'UNKNOWN':
+                        order_info['customer_name'] = mapped_customer
+                        order_info['raw_customer_name'] = f"{warehouse_location} ({iow_code})"
+                        print(f"DEBUG: Mapped {warehouse_location} ({iow_code}) -> {order_info['customer_name']}")
         
         # Fallback 1: Look for warehouse info in "Ship To:" section like "Manchester", "Howell Warehouse", etc.
         if order_info['customer_name'] == 'UNKNOWN':

@@ -174,9 +174,9 @@ class WholeFoodsParser(BaseParser):
             # Use mapping_utils to get the mapped customer name 
             mapped_customer = self.mapping_utils.get_store_mapping(str(store_number).strip(), 'wholefoods')
             if not mapped_customer or mapped_customer == 'UNKNOWN':
-                mapped_customer = "IDI - Richmond"  # Default fallback for Whole Foods
+                raise ValueError(f"No store mapping found for Whole Foods store {store_number}")
         else:
-            mapped_customer = "IDI - Richmond"  # Default fallback
+            raise ValueError("No store number found in Whole Foods order")
         
         # Map item number and description using bulk-fetched dictionary first, then CSV fallback
         mapped_item = None
