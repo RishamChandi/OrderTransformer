@@ -148,6 +148,7 @@ class UNFIEastParser(BaseParser):
                 print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
             else:
                 print(f"DEBUG: IOW code {iow_location} not found in mapping -> UNKNOWN")
+        else:
             # Fallback: Look for warehouse location in Ship To section
             warehouse_location = ""
             ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
@@ -338,10 +339,18 @@ class UNFIEastParser(BaseParser):
                     mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
                     print(f"DEBUG: Item mapping lookup: {prod_number} -> {mapped_item}")
                     
+                    # Apply description mapping if available
+                    mapped_description = self.mapping_utils.get_item_mapping(description, 'unfi_east')
+                    if mapped_description and mapped_description != description:
+                        final_description = mapped_description
+                        print(f"DEBUG: Description mapping: {description} -> {mapped_description}")
+                    else:
+                        final_description = description
+                    
                     item = {
                         'item_number': mapped_item,
                         'raw_item_number': prod_number,
-                        'item_description': description,
+                        'item_description': final_description,
                         'quantity': qty,
                         'unit_price': unit_cost,
                         'total_price': extension
@@ -426,10 +435,18 @@ class UNFIEastParser(BaseParser):
                                         unit_cost = float(match.group(3)) if len(match.groups()) >= 3 else 0.0
                                         total_cost = float(match.group(4).replace(',', '')) if len(match.groups()) >= 4 else 0.0
                                     
+                                    # Apply description mapping if available
+                                    mapped_description = self.mapping_utils.get_item_mapping(description, 'unfi_east')
+                                    if mapped_description and mapped_description != description:
+                                        final_description = mapped_description
+                                        print(f"DEBUG: Description mapping: {description} -> {mapped_description}")
+                                    else:
+                                        final_description = description
+                                    
                                     item = {
                                         'item_number': mapped_item,
                                         'raw_item_number': prod_num,
-                                        'item_description': description,
+                                        'item_description': final_description,
                                         'quantity': qty,
                                         'unit_price': unit_cost,
                                         'total_price': total_cost
@@ -479,10 +496,19 @@ class UNFIEastParser(BaseParser):
                         mapped_item = self.mapping_utils.get_item_mapping(prod_num, 'unfi_east')
                         print(f"DEBUG: Manual extraction - {prod_num} -> {mapped_item}")
                         
+                        # Apply description mapping if available
+                        raw_description = f'KTCHLV Item {prod_num}'
+                        mapped_description = self.mapping_utils.get_item_mapping(raw_description, 'unfi_east')
+                        if mapped_description and mapped_description != raw_description:
+                            final_description = mapped_description
+                            print(f"DEBUG: Description mapping: {raw_description} -> {mapped_description}")
+                        else:
+                            final_description = raw_description
+                        
                         item = {
                             'item_number': mapped_item,
                             'raw_item_number': prod_num,
-                            'item_description': f'KTCHLV Item {prod_num}',
+                            'item_description': final_description,
                             'quantity': int(qty),
                             'unit_price': float(unit_cost),
                             'total_price': float(total.replace(',', ''))
@@ -510,10 +536,18 @@ class UNFIEastParser(BaseParser):
                         mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_east')
                         print(f"DEBUG: Fallback item mapping lookup: {prod_number} -> {mapped_item}")
                         
+                        # Apply description mapping if available
+                        mapped_description = self.mapping_utils.get_item_mapping(description, 'unfi_east')
+                        if mapped_description and mapped_description != description:
+                            final_description = mapped_description
+                            print(f"DEBUG: Fallback description mapping: {description} -> {mapped_description}")
+                        else:
+                            final_description = description
+                        
                         item = {
                             'item_number': mapped_item,
                             'raw_item_number': prod_number,
-                            'item_description': description,
+                            'item_description': final_description,
                             'quantity': qty,
                             'unit_price': unit_cost,
                             'total_price': extension
