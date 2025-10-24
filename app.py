@@ -610,11 +610,70 @@ def show_processor_mapping_management(processor: str, db_service: DatabaseServic
     with tab3:
         show_item_mapping_manager(processor, db_service)
 
+def show_enhanced_mapping_interface(processor: str, db_service: DatabaseService, mapping_type: str):
+    """Enhanced mapping management interface with all features"""
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"{mapping_type}_download_template_{processor}"):
+            download_mapping_template(processor, mapping_type)
+    
+    with col2:
+        if st.button("📊 Download Current", key=f"{mapping_type}_download_current_{processor}"):
+            download_current_mappings(db_service, processor, mapping_type)
+    
+    with col3:
+        if st.button("📤 Upload Mapping", key=f"{mapping_type}_upload_{processor}"):
+            st.session_state[f'show_{mapping_type}_upload_{processor}'] = True
+            st.rerun()
+    
+    with col4:
+        if st.button("🗑️ Delete Mapping", key=f"{mapping_type}_delete_{processor}"):
+            st.session_state[f'show_{mapping_type}_delete_{processor}'] = True
+            st.rerun()
+    
+    with col5:
+        if st.button("➕ Add New", key=f"{mapping_type}_add_new_{processor}"):
+            st.session_state[f'show_{mapping_type}_add_{processor}'] = True
+            st.rerun()
+    
+    with col6:
+        if st.button("📝 Bulk Editor", key=f"{mapping_type}_bulk_editor_{processor}"):
+            st.session_state[f'show_{mapping_type}_bulk_{processor}'] = True
+            st.rerun()
+    
+    with col7:
+        if st.button("📋 Row by Row", key=f"{mapping_type}_row_by_row_{processor}"):
+            st.session_state[f'show_{mapping_type}_row_by_row_{processor}'] = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Show appropriate interface based on selection
+    if st.session_state.get(f'show_{mapping_type}_upload_{processor}', False):
+        show_upload_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_delete_{processor}', False):
+        show_delete_mapping_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_add_{processor}', False):
+        show_add_new_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_bulk_{processor}', False):
+        show_bulk_editor_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_row_by_row_{processor}', False):
+        show_row_by_row_interface(db_service, processor, mapping_type)
+    else:
+        # Default view - show current mappings
+        show_current_mappings_view(db_service, processor, mapping_type)
+
 def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
-    """Customer mapping management with database-first loading (matches production)"""
+    """Enhanced Customer mapping management with comprehensive features"""
     
     st.subheader("👥 Customer Mapping")
     st.write("Maps raw customer identifiers to Xoro customer names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "customer")
     
     # For KEHE and UNFI West, load from database first
     if processor in ['kehe', 'unfi_west']:
@@ -862,10 +921,13 @@ def upload_customer_mappings_to_database(df: pd.DataFrame, db_service: DatabaseS
         st.error(f"❌ Upload failed: {e}")
 
 def show_store_mapping_manager(processor: str, db_service: DatabaseService):
-    """Store (Xoro) mapping management with database-first support"""
+    """Enhanced Store (Xoro) mapping management with comprehensive features"""
     
     st.subheader("🏪 Store (Xoro) Mapping")
     st.write("Maps raw store identifiers to Xoro store names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "store")
     
     # Action buttons
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -984,10 +1046,13 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
     display_csv_mapping(mapping_file, "Store", ["Raw Store ID", "Xoro Store Name"], processor)
 
 def show_item_mapping_manager(processor: str, db_service: DatabaseService):
-    """Enhanced Item Mapping Management with Standard Template System"""
+    """Enhanced Item Mapping Management with comprehensive features"""
     
-    st.subheader("📦 Item Mapping Template System")
-    st.write("Database-backed priority mapping with multiple key types (vendor_item, UPC, EAN, GTIN, SKU)")
+    st.subheader("📦 Item Mapping")
+    st.write("Maps raw item identifiers to Xoro item numbers and descriptions")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "item")
     
     # Enhanced UI with filters and controls
     col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
@@ -2715,6 +2780,572 @@ def show_kehe_item_mappings():
             
     except Exception as e:
         st.error(f"❌ Error loading KEHE item mappings: {e}")
+
+# Enhanced Mapping Management Functions
+
+def download_mapping_template(processor: str, mapping_type: str):
+    """Download CSV template for mapping type"""
+    import pandas as pd
+    
+    if mapping_type == "customer":
+        template_data = {
+            'Source': [processor],
+            'Raw Customer ID': ['EXAMPLE_CUSTOMER_ID'],
+            'Mapped Customer Name': ['EXAMPLE_MAPPED_NAME'],
+            'Customer Type': ['distributor'],
+            'Priority': [100],
+            'Active': [True],
+            'Notes': ['Example mapping']
+        }
+        filename = f"{processor}_customer_mapping_template.csv"
+    elif mapping_type == "store":
+        template_data = {
+            'Source': [processor],
+            'Raw Store ID': ['EXAMPLE_STORE_ID'],
+            'Mapped Store Name': ['EXAMPLE_MAPPED_STORE'],
+            'Store Type': ['distributor'],
+            'Priority': [100],
+            'Active': [True],
+            'Notes': ['Example store mapping']
+        }
+        filename = f"{processor}_store_mapping_template.csv"
+    elif mapping_type == "item":
+        template_data = {
+            'Source': [processor],
+            'Raw Item': ['EXAMPLE_ITEM_ID'],
+            'Mapped Item': ['EXAMPLE_MAPPED_ITEM'],
+            'Item Description': ['Example item description'],
+            'Priority': [100],
+            'Active': [True],
+            'Notes': ['Example item mapping']
+        }
+        filename = f"{processor}_item_mapping_template.csv"
+    
+    df = pd.DataFrame(template_data)
+    csv = df.to_csv(index=False)
+    
+    st.download_button(
+        "💾 Download Template",
+        csv,
+        filename,
+        "text/csv",
+        key=f"download_template_{mapping_type}_{processor}"
+    )
+
+def download_current_mappings(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Download current mappings from database"""
+    import pandas as pd
+    
+    try:
+        with db_service.get_session() as session:
+            if mapping_type == "customer":
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                data = []
+                for m in mappings:
+                    data.append({
+                        'Source': m.source,
+                        'Raw Customer ID': m.raw_name,
+                        'Mapped Customer Name': m.mapped_name,
+                        'Customer Type': m.store_type,
+                        'Priority': m.priority,
+                        'Active': m.active,
+                        'Notes': m.notes or ''
+                    })
+            elif mapping_type == "store":
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                data = []
+                for m in mappings:
+                    data.append({
+                        'Source': m.source,
+                        'Raw Store ID': m.raw_name,
+                        'Mapped Store Name': m.mapped_name,
+                        'Store Type': m.store_type,
+                        'Priority': m.priority,
+                        'Active': m.active,
+                        'Notes': m.notes or ''
+                    })
+            elif mapping_type == "item":
+                mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                data = []
+                for m in mappings:
+                    data.append({
+                        'Source': m.source,
+                        'Raw Item': m.raw_item,
+                        'Mapped Item': m.mapped_item,
+                        'Item Description': getattr(m, 'item_description', ''),
+                        'Priority': getattr(m, 'priority', 100),
+                        'Active': getattr(m, 'active', True),
+                        'Notes': getattr(m, 'notes', '')
+                    })
+            
+            if data:
+                df = pd.DataFrame(data)
+                csv = df.to_csv(index=False)
+                filename = f"{processor}_{mapping_type}_mappings_{pd.Timestamp.now().strftime('%Y%m%d')}.csv"
+                
+                st.download_button(
+                    "💾 Download Current Mappings",
+                    csv,
+                    filename,
+                    "text/csv",
+                    key=f"download_current_{mapping_type}_{processor}"
+                )
+                st.success(f"✅ Ready to download {len(data)} {mapping_type} mappings")
+            else:
+                st.warning(f"⚠️ No {mapping_type} mappings found")
+                
+    except Exception as e:
+        st.error(f"❌ Download failed: {e}")
+
+def show_upload_mapping_form(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show upload form for mappings"""
+    import pandas as pd
+    
+    with st.expander("📤 Upload Mapping File", expanded=True):
+        st.write(f"Upload a CSV file with {mapping_type} mapping data:")
+        
+        # Show template format
+        if mapping_type == "customer":
+            st.code("""Source,Raw Customer ID,Mapped Customer Name,Customer Type,Priority,Active,Notes
+kehe,CUST001,Example Customer,distributor,100,True,Example mapping""")
+        elif mapping_type == "store":
+            st.code("""Source,Raw Store ID,Mapped Store Name,Store Type,Priority,Active,Notes
+kehe,STORE001,Example Store,distributor,100,True,Example store mapping""")
+        elif mapping_type == "item":
+            st.code("""Source,Raw Item,Mapped Item,Item Description,Priority,Active,Notes
+kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
+        
+        uploaded_file = st.file_uploader(
+            "Choose CSV file",
+            type=['csv'],
+            key=f"upload_{mapping_type}_{processor}"
+        )
+        
+        if uploaded_file:
+            try:
+                df = pd.read_csv(uploaded_file)
+                st.write("**File Preview:**")
+                st.dataframe(df.head())
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Upload Mappings", key=f"confirm_upload_{mapping_type}_{processor}"):
+                        upload_mappings_to_database(df, db_service, processor, mapping_type)
+                        st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
+                        st.rerun()
+                
+                with col2:
+                    if st.button("❌ Cancel", key=f"cancel_upload_{mapping_type}_{processor}"):
+                        st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
+
+def show_delete_mapping_interface(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show delete mapping interface"""
+    with st.expander("🗑️ Delete Mappings", expanded=True):
+        st.warning("⚠️ Select mappings to delete")
+        
+        # Load current mappings
+        try:
+            with db_service.get_session() as session:
+                if mapping_type == "customer":
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                elif mapping_type == "store":
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                elif mapping_type == "item":
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                
+                if mappings:
+                    # Create selection interface
+                    mapping_data = []
+                    for m in mappings:
+                        if mapping_type in ["customer", "store"]:
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Name': m.raw_name,
+                                'Mapped Name': m.mapped_name,
+                                'Type': m.store_type,
+                                'Active': m.active
+                            })
+                        else:  # item
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Item': m.raw_item,
+                                'Mapped Item': m.mapped_item,
+                                'Active': getattr(m, 'active', True)
+                            })
+                    
+                    df = pd.DataFrame(mapping_data)
+                    selected_rows = st.dataframe(df, use_container_width=True)
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("🗑️ Delete Selected", key=f"delete_selected_{mapping_type}_{processor}"):
+                            st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
+                            st.rerun()
+                    
+                    with col2:
+                        if st.button("❌ Cancel", key=f"cancel_delete_{mapping_type}_{processor}"):
+                            st.session_state[f'show_{mapping_type}_delete_{processor}'] = False
+                            st.rerun()
+                else:
+                    st.info(f"No {mapping_type} mappings found")
+                    
+        except Exception as e:
+            st.error(f"❌ Error loading mappings: {e}")
+
+def show_add_new_mapping_form(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show form to add new mapping"""
+    with st.expander("➕ Add New Mapping", expanded=True):
+        st.write(f"Add a new {mapping_type} mapping:")
+        
+        with st.form(f"add_{mapping_type}_form_{processor}"):
+            if mapping_type == "customer":
+                raw_name = st.text_input("Raw Customer ID", key=f"raw_customer_{processor}")
+                mapped_name = st.text_input("Mapped Customer Name", key=f"mapped_customer_{processor}")
+                customer_type = st.selectbox("Customer Type", ["distributor", "retailer", "wholesaler"], key=f"customer_type_{processor}")
+            elif mapping_type == "store":
+                raw_name = st.text_input("Raw Store ID", key=f"raw_store_{processor}")
+                mapped_name = st.text_input("Mapped Store Name", key=f"mapped_store_{processor}")
+                store_type = st.selectbox("Store Type", ["distributor", "retailer", "wholesaler"], key=f"store_type_{processor}")
+            elif mapping_type == "item":
+                raw_item = st.text_input("Raw Item", key=f"raw_item_{processor}")
+                mapped_item = st.text_input("Mapped Item", key=f"mapped_item_{processor}")
+                item_description = st.text_input("Item Description", key=f"item_description_{processor}")
+            
+            priority = st.number_input("Priority", min_value=0, max_value=1000, value=100, key=f"priority_{mapping_type}_{processor}")
+            active = st.checkbox("Active", value=True, key=f"active_{mapping_type}_{processor}")
+            notes = st.text_area("Notes", key=f"notes_{mapping_type}_{processor}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.form_submit_button("✅ Add Mapping"):
+                    add_new_mapping_to_database(db_service, processor, mapping_type, locals())
+                    st.session_state[f'show_{mapping_type}_add_{processor}'] = False
+                    st.rerun()
+            
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    st.session_state[f'show_{mapping_type}_add_{processor}'] = False
+                    st.rerun()
+
+def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show bulk editor interface"""
+    with st.expander("📝 Bulk Editor", expanded=True):
+        st.write(f"Edit multiple {mapping_type} mappings at once:")
+        
+        # Load current mappings
+        try:
+            with db_service.get_session() as session:
+                if mapping_type in ["customer", "store"]:
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                else:
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                
+                if mappings:
+                    # Create editable dataframe
+                    mapping_data = []
+                    for m in mappings:
+                        if mapping_type in ["customer", "store"]:
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Name': m.raw_name,
+                                'Mapped Name': m.mapped_name,
+                                'Type': m.store_type,
+                                'Priority': m.priority,
+                                'Active': m.active,
+                                'Notes': m.notes or ''
+                            })
+                        else:  # item
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Item': m.raw_item,
+                                'Mapped Item': m.mapped_item,
+                                'Description': getattr(m, 'item_description', ''),
+                                'Priority': getattr(m, 'priority', 100),
+                                'Active': getattr(m, 'active', True),
+                                'Notes': getattr(m, 'notes', '')
+                            })
+                    
+                    df = pd.DataFrame(mapping_data)
+                    edited_df = st.data_editor(
+                        df,
+                        use_container_width=True,
+                        num_rows="dynamic",
+                        key=f"bulk_editor_{mapping_type}_{processor}"
+                    )
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("💾 Save Changes", key=f"save_bulk_{mapping_type}_{processor}"):
+                            save_bulk_changes(edited_df, db_service, processor, mapping_type)
+                            st.rerun()
+                    
+                    with col2:
+                        if st.button("❌ Cancel", key=f"cancel_bulk_{mapping_type}_{processor}"):
+                            st.session_state[f'show_{mapping_type}_bulk_{processor}'] = False
+                            st.rerun()
+                else:
+                    st.info(f"No {mapping_type} mappings found")
+                    
+        except Exception as e:
+            st.error(f"❌ Error loading mappings: {e}")
+
+def show_row_by_row_interface(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show row by row interface"""
+    with st.expander("📋 Row by Row Editor", expanded=True):
+        st.write(f"Edit {mapping_type} mappings one by one:")
+        
+        # Load current mappings with pagination
+        try:
+            with db_service.get_session() as session:
+                if mapping_type in ["customer", "store"]:
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                else:
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                
+                if mappings:
+                    # Pagination
+                    items_per_page = 10
+                    total_items = len(mappings)
+                    total_pages = (total_items + items_per_page - 1) // items_per_page
+                    
+                    if total_pages > 1:
+                        page = st.selectbox("Page", range(1, total_pages + 1), key=f"page_{mapping_type}_{processor}") - 1
+                    else:
+                        page = 0
+                    
+                    start_idx = page * items_per_page
+                    end_idx = min(start_idx + items_per_page, total_items)
+                    page_mappings = mappings[start_idx:end_idx]
+                    
+                    # Show each mapping with edit form
+                    for i, mapping in enumerate(page_mappings):
+                        with st.container():
+                            st.write(f"**{mapping_type.title()} Mapping {start_idx + i + 1}**")
+                            
+                            with st.form(f"edit_{mapping_type}_{mapping.id}_{processor}"):
+                                if mapping_type in ["customer", "store"]:
+                                    raw_name = st.text_input("Raw Name", value=mapping.raw_name, key=f"raw_{mapping.id}_{processor}")
+                                    mapped_name = st.text_input("Mapped Name", value=mapping.mapped_name, key=f"mapped_{mapping.id}_{processor}")
+                                    mapping_type_val = st.text_input("Type", value=mapping.store_type, key=f"type_{mapping.id}_{processor}")
+                                else:  # item
+                                    raw_item = st.text_input("Raw Item", value=mapping.raw_item, key=f"raw_{mapping.id}_{processor}")
+                                    mapped_item = st.text_input("Mapped Item", value=mapping.mapped_item, key=f"mapped_{mapping.id}_{processor}")
+                                    description = st.text_input("Description", value=getattr(mapping, 'item_description', ''), key=f"desc_{mapping.id}_{processor}")
+                                
+                                priority = st.number_input("Priority", value=mapping.priority, key=f"priority_{mapping.id}_{processor}")
+                                active = st.checkbox("Active", value=mapping.active, key=f"active_{mapping.id}_{processor}")
+                                notes = st.text_area("Notes", value=mapping.notes or '', key=f"notes_{mapping.id}_{processor}")
+                                
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    if st.form_submit_button("💾 Save"):
+                                        save_row_changes(mapping, locals(), db_service, processor, mapping_type)
+                                        st.rerun()
+                                
+                                with col2:
+                                    if st.form_submit_button("🗑️ Delete"):
+                                        delete_single_mapping(mapping, db_service, processor, mapping_type)
+                                        st.rerun()
+                                
+                                with col3:
+                                    if st.form_submit_button("❌ Cancel"):
+                                        st.rerun()
+                            
+                            st.markdown("---")
+                else:
+                    st.info(f"No {mapping_type} mappings found")
+                    
+        except Exception as e:
+            st.error(f"❌ Error loading mappings: {e}")
+
+def show_current_mappings_view(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show current mappings in read-only view"""
+    try:
+        with db_service.get_session() as session:
+            if mapping_type in ["customer", "store"]:
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+            else:
+                mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+            
+            if mappings:
+                st.success(f"✅ Found {len(mappings)} {mapping_type} mappings")
+                
+                # Display mappings
+                mapping_data = []
+                for m in mappings:
+                    if mapping_type in ["customer", "store"]:
+                        mapping_data.append({
+                            'ID': m.id,
+                            'Raw Name': m.raw_name,
+                            'Mapped Name': m.mapped_name,
+                            'Type': m.store_type,
+                            'Priority': m.priority,
+                            'Active': m.active,
+                            'Notes': m.notes or ''
+                        })
+                    else:  # item
+                        mapping_data.append({
+                            'ID': m.id,
+                            'Raw Item': m.raw_item,
+                            'Mapped Item': m.mapped_item,
+                            'Description': getattr(m, 'item_description', ''),
+                            'Priority': getattr(m, 'priority', 100),
+                            'Active': getattr(m, 'active', True),
+                            'Notes': getattr(m, 'notes', '')
+                        })
+                
+                df = pd.DataFrame(mapping_data)
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info(f"No {mapping_type} mappings found")
+                
+    except Exception as e:
+        st.error(f"❌ Error loading mappings: {e}")
+
+# Helper functions for the enhanced interface
+def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str, mapping_type: str):
+    """Upload mappings to database"""
+    try:
+        mappings_data = []
+        for _, row in df.iterrows():
+            if mapping_type in ["customer", "store"]:
+                mappings_data.append({
+                    'source': processor,
+                    'raw_name': str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '')).strip(),
+                    'mapped_name': str(row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '')).strip(),
+                    'store_type': str(row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', 'distributor')).strip(),
+                    'priority': int(row.get('Priority', 100)),
+                    'active': bool(row.get('Active', True)),
+                    'notes': str(row.get('Notes', '')).strip()
+                })
+            else:  # item
+                mappings_data.append({
+                    'source': processor,
+                    'raw_item': str(row.get('Raw Item', '')).strip(),
+                    'mapped_item': str(row.get('Mapped Item', '')).strip(),
+                    'item_description': str(row.get('Item Description', '')).strip(),
+                    'priority': int(row.get('Priority', 100)),
+                    'active': bool(row.get('Active', True)),
+                    'notes': str(row.get('Notes', '')).strip()
+                })
+        
+        if mapping_type in ["customer", "store"]:
+            result = db_service.bulk_upsert_store_mappings(mappings_data)
+        else:
+            result = db_service.bulk_upsert_item_mappings(mappings_data)
+        
+        if result['success']:
+            st.success(f"✅ Successfully uploaded {result['inserted']} new {mapping_type} mappings")
+            if result['updated'] > 0:
+                st.info(f"Updated {result['updated']} existing mappings")
+        else:
+            st.error(f"❌ Upload failed: {result['error']}")
+            
+    except Exception as e:
+        st.error(f"❌ Upload failed: {e}")
+
+def add_new_mapping_to_database(db_service: DatabaseService, processor: str, mapping_type: str, form_data: dict):
+    """Add new mapping to database"""
+    try:
+        if mapping_type in ["customer", "store"]:
+            mapping_data = {
+                'source': processor,
+                'raw_name': form_data['raw_name'],
+                'mapped_name': form_data['mapped_name'],
+                'store_type': form_data.get('customer_type' if mapping_type == 'customer' else 'store_type', 'distributor'),
+                'priority': form_data['priority'],
+                'active': form_data['active'],
+                'notes': form_data['notes']
+            }
+            result = db_service.bulk_upsert_store_mappings([mapping_data])
+        else:  # item
+            mapping_data = {
+                'source': processor,
+                'raw_item': form_data['raw_item'],
+                'mapped_item': form_data['mapped_item'],
+                'item_description': form_data['item_description'],
+                'priority': form_data['priority'],
+                'active': form_data['active'],
+                'notes': form_data['notes']
+            }
+            result = db_service.bulk_upsert_item_mappings([mapping_data])
+        
+        if result['success']:
+            st.success(f"✅ Successfully added new {mapping_type} mapping")
+        else:
+            st.error(f"❌ Failed to add mapping: {result['error']}")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to add mapping: {e}")
+
+def save_bulk_changes(edited_df: pd.DataFrame, db_service: DatabaseService, processor: str, mapping_type: str):
+    """Save bulk changes to database"""
+    try:
+        with db_service.get_session() as session:
+            for idx, row in edited_df.iterrows():
+                if pd.notna(row['ID']):
+                    if mapping_type in ["customer", "store"]:
+                        mapping = session.query(db_service.StoreMapping).filter_by(id=int(row['ID'])).first()
+                        if mapping:
+                            mapping.raw_name = str(row['Raw Name'])
+                            mapping.mapped_name = str(row['Mapped Name'])
+                            mapping.store_type = str(row['Type'])
+                            mapping.priority = int(row['Priority'])
+                            mapping.active = bool(row['Active'])
+                            mapping.notes = str(row['Notes'])
+                    else:  # item
+                        mapping = session.query(db_service.ItemMapping).filter_by(id=int(row['ID'])).first()
+                        if mapping:
+                            mapping.raw_item = str(row['Raw Item'])
+                            mapping.mapped_item = str(row['Mapped Item'])
+                            mapping.item_description = str(row['Description'])
+                            mapping.priority = int(row['Priority'])
+                            mapping.active = bool(row['Active'])
+                            mapping.notes = str(row['Notes'])
+            session.commit()
+            st.success("✅ Bulk changes saved successfully!")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to save bulk changes: {e}")
+
+def save_row_changes(mapping, form_data: dict, db_service: DatabaseService, processor: str, mapping_type: str):
+    """Save changes to a single mapping row"""
+    try:
+        with db_service.get_session() as session:
+            if mapping_type in ["customer", "store"]:
+                mapping.raw_name = form_data['raw_name']
+                mapping.mapped_name = form_data['mapped_name']
+                mapping.store_type = form_data['mapping_type_val']
+                mapping.priority = form_data['priority']
+                mapping.active = form_data['active']
+                mapping.notes = form_data['notes']
+            else:  # item
+                mapping.raw_item = form_data['raw_item']
+                mapping.mapped_item = form_data['mapped_item']
+                mapping.item_description = form_data['description']
+                mapping.priority = form_data['priority']
+                mapping.active = form_data['active']
+                mapping.notes = form_data['notes']
+            session.commit()
+            st.success("✅ Mapping updated successfully!")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to update mapping: {e}")
+
+def delete_single_mapping(mapping, db_service: DatabaseService, processor: str, mapping_type: str):
+    """Delete a single mapping"""
+    try:
+        with db_service.get_session() as session:
+            session.delete(mapping)
+            session.commit()
+            st.success("✅ Mapping deleted successfully!")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to delete mapping: {e}")
 
 if __name__ == "__main__":
     main()
