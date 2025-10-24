@@ -642,14 +642,16 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     st.success(f"✅ Found {len(display_data)} customer mappings")
                     
                     # Action buttons row
-                    col1, col2, col3, col4 = st.columns(4)
+                    col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
                         download_template = st.button("📥 Download Template", key=f"customer_download_template_{processor}")
                     with col2:
-                        export_current = st.button("📤 Export Current", key=f"customer_export_current_{processor}")
+                        export_current = st.button("📊 Export Current", key=f"customer_export_current_{processor}")
                     with col3:
-                        upload_mappings = st.button("📂 Upload Mappings", key=f"customer_upload_btn_{processor}")
+                        upload_mappings = st.button("📤 Upload Mappings", key=f"customer_upload_btn_{processor}")
                     with col4:
+                        st.write("")  # Placeholder for consistency
+                    with col5:
                         refresh_data = st.button("🔄 Refresh Data", key=f"customer_refresh_{processor}")
                     
                     if refresh_data:
@@ -752,6 +754,11 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to save changes: {e}")
+                        
+                        # Delete Selected button
+                        if st.button("🗑️ Delete Selected", key=f"delete_selected_customer_{processor}"):
+                            st.session_state[f'show_delete_confirm_customer_{processor}'] = True
+                            st.rerun()
                     else:
                         # Row-by-row mode (simple table view)
                         st.write("### Current Customer Mappings")
@@ -861,17 +868,23 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
     st.write("Maps raw store identifiers to Xoro store names")
     
     # Action buttons
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         if st.button("📥 Download Template", key=f"store_download_template_{processor}"):
             show_store_template_download(processor)
     
     with col2:
+        if st.button("📊 Export Current", key=f"store_export_current_{processor}"):
+            export_current_store_mappings(db_service, processor)
+    
+    with col3:
         if st.button("📤 Upload Mappings", key=f"store_upload_btn_{processor}"):
             st.session_state[f'show_store_upload_{processor}'] = True
     
-    with col3:
+    with col4:
+        st.write("")  # Placeholder for consistency
+    with col5:
         if st.button("🔄 Refresh Data", key=f"store_refresh_{processor}"):
             st.rerun()
     
@@ -908,22 +921,55 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
                 df = pd.DataFrame(display_data, columns=column_order)
                 
                 # Use data_editor with column config for better UI (checkbox for Active)
-                st.data_editor(
+                edited_df = st.data_editor(
                     df,
                     use_container_width=True,
-                    disabled=True,  # Read-only display
+                    num_rows="dynamic",
                     column_config={
-                        "ID": st.column_config.NumberColumn("ID"),
-                        "Source": st.column_config.TextColumn("Source"),
-                        "Raw Store ID": st.column_config.TextColumn("Raw Store ID"),
-                        "Mapped Store Name": st.column_config.TextColumn("Mapped Store Name"),
+                        "ID": st.column_config.NumberColumn("ID", disabled=True),
+                        "Source": st.column_config.TextColumn("Source", disabled=True),
+                        "Raw Store ID": st.column_config.TextColumn("Raw Store ID", required=True),
+                        "Mapped Store Name": st.column_config.TextColumn("Mapped Store Name", required=True),
                         "Store Type": st.column_config.TextColumn("Store Type"),
-                        "Priority": st.column_config.NumberColumn("Priority"),
+                        "Priority": st.column_config.NumberColumn("Priority", min_value=0, max_value=1000),
                         "Active": st.column_config.CheckboxColumn("Active"),
                         "Notes": st.column_config.TextColumn("Notes")
                     },
-                    key=f"store_display_{processor}"
+                    key=f"store_data_editor_{processor}"
                 )
+                
+                # Action buttons for store mapping
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("💾 Save Changes", key=f"save_store_changes_{processor}"):
+                        try:
+                            # Update each mapping in database
+                            with db_service.get_session() as session:
+                                for idx, row in edited_df.iterrows():
+                                    if pd.notna(row['ID']):
+                                        mapping = session.query(db_service.StoreMapping).filter_by(id=int(row['ID'])).first()
+                                        if mapping:
+                                            mapping.raw_name = str(row['Raw Store ID'])
+                                            mapping.mapped_name = str(row['Mapped Store Name'])
+                                            mapping.store_type = str(row['Store Type']) if pd.notna(row['Store Type']) else 'distributor'
+                                            mapping.priority = int(row['Priority']) if pd.notna(row['Priority']) else 100
+                                            mapping.active = bool(row['Active']) if pd.notna(row['Active']) else True
+                                            mapping.notes = str(row['Notes']) if pd.notna(row['Notes']) else ''
+                                session.commit()
+                            st.success("✅ Store mapping changes saved successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to save store mapping changes: {e}")
+                
+                with col2:
+                    if st.button("🗑️ Delete Selected", key=f"delete_selected_store_{processor}"):
+                        st.session_state[f'show_delete_confirm_store_{processor}'] = True
+                        st.rerun()
+                
+                # Show delete confirmation if requested
+                if st.session_state.get(f'show_delete_confirm_store_{processor}', False):
+                    show_store_delete_confirmation(edited_df, db_service, processor)
+                
                 return
             else:
                 st.info(f"ℹ️ No store mappings found in database for {processor}")
@@ -1252,6 +1298,68 @@ def show_store_template_download(processor: str):
         "text/csv",
         key=f"download_store_template_{processor}"
     )
+
+def export_current_store_mappings(db_service: DatabaseService, processor: str):
+    """Export store mappings from database to CSV"""
+    try:
+        import pandas as pd
+        with db_service.get_session() as session:
+            mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+            data = []
+            for m in mappings:
+                data.append({
+                    'Raw Store ID': m.raw_name,
+                    'Mapped Store Name': m.mapped_name,
+                    'Store Type': m.store_type,
+                    'Priority': m.priority,
+                    'Active': m.active,
+                    'Notes': m.notes or ''
+                })
+            df = pd.DataFrame(data)
+            csv = df.to_csv(index=False)
+            st.download_button(
+                "💾 Save Store Mappings CSV",
+                csv,
+                f"{processor}_store_mappings_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+                "text/csv",
+                key=f"store_export_download_{processor}"
+            )
+    except Exception as e:
+        st.error(f"❌ Export failed: {e}")
+
+def show_store_delete_confirmation(edited_df: pd.DataFrame, db_service: DatabaseService, processor: str):
+    """Show delete confirmation dialog for store mappings"""
+    
+    with st.expander("🗑️ Confirm Delete Store Mappings", expanded=True):
+        st.warning("⚠️ Are you sure you want to delete the selected store mappings?")
+        
+        # Show which mappings will be deleted
+        st.write("**Mappings to be deleted:**")
+        st.dataframe(edited_df, use_container_width=True)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Confirm Delete", key=f"confirm_store_delete_{processor}"):
+                try:
+                    # Delete selected mappings from database
+                    with db_service.get_session() as session:
+                        for idx, row in edited_df.iterrows():
+                            if pd.notna(row['ID']):
+                                mapping = session.query(db_service.StoreMapping).filter_by(id=int(row['ID'])).first()
+                                if mapping:
+                                    session.delete(mapping)
+                        session.commit()
+                    
+                    st.success("✅ Store mappings deleted successfully!")
+                    st.session_state[f'show_delete_confirm_store_{processor}'] = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Delete failed: {e}")
+        
+        with col2:
+            if st.button("❌ Cancel Delete", key=f"cancel_store_delete_{processor}"):
+                st.session_state[f'show_delete_confirm_store_{processor}'] = False
+                st.rerun()
 
 def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
     """Show upload form for store mappings with preview"""
