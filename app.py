@@ -700,7 +700,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     display_mode = st.radio(
                         "Choose display mode",
                         ["📊 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
-                        key=f"display_mode_{processor}",
+                        key=f"display_mode_customer_{processor}",
                         horizontal=True
                     )
                     
@@ -974,7 +974,7 @@ def show_item_mapping_manager(processor: str, db_service: DatabaseService):
                 "Display Mode:",
                 ["📋 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
                 horizontal=True,
-                key=f"display_mode_{processor}"
+                key=f"display_mode_item_{processor}"
             )
             
             if display_mode == "📋 Data Editor (Bulk Edit)":
