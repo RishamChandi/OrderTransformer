@@ -674,51 +674,255 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
     
     # Enhanced mapping management interface
     show_enhanced_mapping_interface(processor, db_service, "customer")
+
+def show_store_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Store (Xoro) mapping management with comprehensive features"""
     
-    # For KEHE and UNFI West, load from database first
-    if processor in ['kehe', 'unfi_west']:
-        try:
-            with db_service.get_session() as session:
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
-                
-                if mappings:
-                    # Load ALL rows (no de-duplication) to match production behavior
-                    display_data = []
-                    
-                    for mapping in mappings:
-                        display_data.append({
-                            'ID': mapping.id,
-                            'Source': mapping.source,
-                            'Raw Customer ID': mapping.raw_name,
-                            'Mapped Customer Name': mapping.mapped_name,
-                            'Customer Type': mapping.store_type or 'distributor',
-                            'Priority': mapping.priority or 100,
-                            'Active': mapping.active if mapping.active is not None else True,
-                            'Notes': mapping.notes or ''
-                        })
-                    
-                    # Display count
-                    st.success(f"✅ Found {len(display_data)} customer mappings")
-                    
-                    # Action buttons row
-                    col1, col2, col3, col4, col5 = st.columns(5)
-                    with col1:
-                        download_template = st.button("📥 Download Template", key=f"customer_download_template_{processor}")
-                    with col2:
-                        export_current = st.button("📊 Export Current", key=f"customer_export_current_{processor}")
-                    with col3:
-                        upload_mappings = st.button("📤 Upload Mappings", key=f"customer_upload_btn_{processor}")
-                    with col4:
-                        st.write("")  # Placeholder for consistency
-                    with col5:
-                        refresh_data = st.button("🔄 Refresh Data", key=f"customer_refresh_{processor}")
-                    
-                    if refresh_data:
-                        st.rerun()
-                    
-                    if upload_mappings:
-                        st.session_state[f'show_customer_upload_{processor}'] = True
-                        st.rerun()
+    st.subheader("🏪 Store (Xoro) Mapping")
+    st.write("Maps raw store identifiers to Xoro store names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "store")
+
+def show_item_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Item Mapping Management with comprehensive features"""
+    
+    st.subheader("📦 Item Mapping")
+    st.write("Maps raw item identifiers to Xoro item numbers and descriptions")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "item")
+
+def show_enhanced_mapping_interface(processor: str, db_service: DatabaseService, mapping_type: str):
+    """Enhanced mapping management interface with all features"""
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"{mapping_type}_download_template_{processor}"):
+            download_mapping_template(processor, mapping_type)
+    
+    with col2:
+        if st.button("📊 Download Current", key=f"{mapping_type}_download_current_{processor}"):
+            download_current_mappings(db_service, processor, mapping_type)
+    
+    with col3:
+        if st.button("📤 Upload Mapping", key=f"{mapping_type}_upload_{processor}"):
+            st.session_state[f'show_{mapping_type}_upload_{processor}'] = True
+            st.rerun()
+    
+    with col4:
+        if st.button("🗑️ Delete Mapping", key=f"{mapping_type}_delete_{processor}"):
+            st.session_state[f'show_{mapping_type}_delete_{processor}'] = True
+            st.rerun()
+    
+    with col5:
+        if st.button("➕ Add New", key=f"{mapping_type}_add_new_{processor}"):
+            st.session_state[f'show_{mapping_type}_add_{processor}'] = True
+            st.rerun()
+    
+    with col6:
+        if st.button("📝 Bulk Editor", key=f"{mapping_type}_bulk_editor_{processor}"):
+            st.session_state[f'show_{mapping_type}_bulk_{processor}'] = True
+            st.rerun()
+    
+    with col7:
+        if st.button("📋 Row by Row", key=f"{mapping_type}_row_by_row_{processor}"):
+            st.session_state[f'show_{mapping_type}_row_by_row_{processor}'] = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Show appropriate interface based on selection
+    if st.session_state.get(f'show_{mapping_type}_upload_{processor}', False):
+        show_upload_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_delete_{processor}', False):
+        show_delete_mapping_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_add_{processor}', False):
+        show_add_new_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_bulk_{processor}', False):
+        show_bulk_editor_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_row_by_row_{processor}', False):
+        show_row_by_row_interface(db_service, processor, mapping_type)
+    else:
+        # Default view - show current mappings
+        show_current_mappings_view(db_service, processor, mapping_type)
+
+def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Customer mapping management with comprehensive features"""
+    
+    st.subheader("👥 Customer Mapping")
+    st.write("Maps raw customer identifiers to Xoro customer names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "customer")
+
+def show_store_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Store (Xoro) mapping management with comprehensive features"""
+    
+    st.subheader("🏪 Store (Xoro) Mapping")
+    st.write("Maps raw store identifiers to Xoro store names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "store")
+
+def show_item_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Item Mapping Management with comprehensive features"""
+    
+    st.subheader("📦 Item Mapping")
+    st.write("Maps raw item identifiers to Xoro item numbers and descriptions")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "item")
+
+def show_enhanced_mapping_interface(processor: str, db_service: DatabaseService, mapping_type: str):
+    """Enhanced mapping management interface with all features"""
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"{mapping_type}_download_template_{processor}"):
+            download_mapping_template(processor, mapping_type)
+    
+    with col2:
+        if st.button("📊 Download Current", key=f"{mapping_type}_download_current_{processor}"):
+            download_current_mappings(db_service, processor, mapping_type)
+    
+    with col3:
+        if st.button("📤 Upload Mapping", key=f"{mapping_type}_upload_{processor}"):
+            st.session_state[f'show_{mapping_type}_upload_{processor}'] = True
+            st.rerun()
+    
+    with col4:
+        if st.button("🗑️ Delete Mapping", key=f"{mapping_type}_delete_{processor}"):
+            st.session_state[f'show_{mapping_type}_delete_{processor}'] = True
+            st.rerun()
+    
+    with col5:
+        if st.button("➕ Add New", key=f"{mapping_type}_add_new_{processor}"):
+            st.session_state[f'show_{mapping_type}_add_{processor}'] = True
+            st.rerun()
+    
+    with col6:
+        if st.button("📝 Bulk Editor", key=f"{mapping_type}_bulk_editor_{processor}"):
+            st.session_state[f'show_{mapping_type}_bulk_{processor}'] = True
+            st.rerun()
+    
+    with col7:
+        if st.button("📋 Row by Row", key=f"{mapping_type}_row_by_row_{processor}"):
+            st.session_state[f'show_{mapping_type}_row_by_row_{processor}'] = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Show appropriate interface based on selection
+    if st.session_state.get(f'show_{mapping_type}_upload_{processor}', False):
+        show_upload_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_delete_{processor}', False):
+        show_delete_mapping_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_add_{processor}', False):
+        show_add_new_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_bulk_{processor}', False):
+        show_bulk_editor_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_row_by_row_{processor}', False):
+        show_row_by_row_interface(db_service, processor, mapping_type)
+    else:
+        # Default view - show current mappings
+        show_current_mappings_view(db_service, processor, mapping_type)
+
+def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Customer mapping management with comprehensive features"""
+    
+    st.subheader("👥 Customer Mapping")
+    st.write("Maps raw customer identifiers to Xoro customer names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "customer")
+
+def show_store_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Store (Xoro) mapping management with comprehensive features"""
+    
+    st.subheader("🏪 Store (Xoro) Mapping")
+    st.write("Maps raw store identifiers to Xoro store names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "store")
+
+def show_item_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Item Mapping Management with comprehensive features"""
+    
+    st.subheader("📦 Item Mapping")
+    st.write("Maps raw item identifiers to Xoro item numbers and descriptions")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "item")
+
+def show_enhanced_mapping_interface(processor: str, db_service: DatabaseService, mapping_type: str):
+    """Enhanced mapping management interface with all features"""
+    
+    # Action buttons row
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    
+    with col1:
+        if st.button("📥 Download Template", key=f"{mapping_type}_download_template_{processor}"):
+            download_mapping_template(processor, mapping_type)
+    
+    with col2:
+        if st.button("📊 Download Current", key=f"{mapping_type}_download_current_{processor}"):
+            download_current_mappings(db_service, processor, mapping_type)
+    
+    with col3:
+        if st.button("📤 Upload Mapping", key=f"{mapping_type}_upload_{processor}"):
+            st.session_state[f'show_{mapping_type}_upload_{processor}'] = True
+            st.rerun()
+    
+    with col4:
+        if st.button("🗑️ Delete Mapping", key=f"{mapping_type}_delete_{processor}"):
+            st.session_state[f'show_{mapping_type}_delete_{processor}'] = True
+            st.rerun()
+    
+    with col5:
+        if st.button("➕ Add New", key=f"{mapping_type}_add_new_{processor}"):
+            st.session_state[f'show_{mapping_type}_add_{processor}'] = True
+            st.rerun()
+    
+    with col6:
+        if st.button("📝 Bulk Editor", key=f"{mapping_type}_bulk_editor_{processor}"):
+            st.session_state[f'show_{mapping_type}_bulk_{processor}'] = True
+            st.rerun()
+    
+    with col7:
+        if st.button("📋 Row by Row", key=f"{mapping_type}_row_by_row_{processor}"):
+            st.session_state[f'show_{mapping_type}_row_by_row_{processor}'] = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Show appropriate interface based on selection
+    if st.session_state.get(f'show_{mapping_type}_upload_{processor}', False):
+        show_upload_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_delete_{processor}', False):
+        show_delete_mapping_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_add_{processor}', False):
+        show_add_new_mapping_form(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_bulk_{processor}', False):
+        show_bulk_editor_interface(db_service, processor, mapping_type)
+    elif st.session_state.get(f'show_{mapping_type}_row_by_row_{processor}', False):
+        show_row_by_row_interface(db_service, processor, mapping_type)
+    else:
+        # Default view - show current mappings
+        show_current_mappings_view(db_service, processor, mapping_type)
+
+def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
+    """Enhanced Customer mapping management with comprehensive features"""
+    
+    st.subheader("👥 Customer Mapping")
+    st.write("Maps raw customer identifiers to Xoro customer names")
+    
+    # Enhanced mapping management interface
+    show_enhanced_mapping_interface(processor, db_service, "customer")
                     
                     if download_template:
                         import pandas as pd
