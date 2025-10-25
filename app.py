@@ -130,16 +130,132 @@ def main():
             st.error(f"Critical initialization error: {e}")
             st.stop()
     
-    # Modern header with better styling
+    # Fixed sleek header with dynamic screen usage
     st.markdown("""
-    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;">
-        <h1 style="color: white; margin: 0; text-align: center;">🔄 Order Transformer</h1>
-        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Convert sales orders into standardized Xoro CSV format</p>
+    <style>
+    .fixed-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border-bottom: 3px solid rgba(255,255,255,0.2);
+    }
+    
+    .header-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    
+    .header-title {
+        color: white;
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .header-subtitle {
+        color: rgba(255,255,255,0.9);
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 400;
+    }
+    
+    .header-stats {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        color: white;
+        font-size: 0.9rem;
+    }
+    
+    .stat-item {
+        background: rgba(255,255,255,0.1);
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+    }
+    
+    .main-content {
+        margin-top: 120px;
+        padding: 0 1rem;
+    }
+    
+    .sidebar {
+        width: 280px !important;
+        min-width: 280px;
+    }
+    
+    .main-container {
+        display: flex;
+        gap: 1rem;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+    
+    .content-area {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    @media (max-width: 1200px) {
+        .header-content {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .header-stats {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .fixed-header {
+            padding: 0.8rem 1rem;
+        }
+        
+        .header-title {
+            font-size: 1.5rem;
+        }
+        
+        .main-content {
+            margin-top: 100px;
+        }
+    }
+    </style>
+    
+    <div class="fixed-header">
+        <div class="header-content">
+            <div>
+                <h1 class="header-title">🔄 Order Transformer</h1>
+                <p class="header-subtitle">Convert sales orders into standardized Xoro CSV format</p>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item">📊 Multi-Client</div>
+                <div class="stat-item">🔄 Real-time</div>
+                <div class="stat-item">📈 Analytics</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     # Initialize database service
     db_service = DatabaseService()
+    
+    # Main content wrapper for better space utilization
+    st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
     # Sidebar navigation system
     with st.sidebar:
@@ -248,10 +364,87 @@ def main():
         manage_mappings_page(db_service, selected_source)
 
 def process_orders_page(db_service: DatabaseService, selected_source: str = "all", selected_source_name: str = "All Sources"):
-    """Main order processing page"""
+    """Main order processing page with optimized screen usage"""
+    
+    # Enhanced container for better space utilization
+    st.markdown("""
+    <style>
+    .main-content-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        margin-top: 1rem;
+    }
+    
+    .feature-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+    
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .card-icon {
+        font-size: 2.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .card-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin: 0;
+    }
+    
+    .card-description {
+        color: #6c757d;
+        font-size: 1rem;
+        line-height: 1.6;
+        margin: 0;
+    }
+    
+    @media (min-width: 1200px) {
+        .content-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @media (min-width: 1600px) {
+        .content-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Enhanced content container
+    st.markdown('<div class="main-content-container">', unsafe_allow_html=True)
     
     if selected_source != "all":
-        # Source-specific processing page
+        # Source-specific processing page with enhanced layout
         source_names = {
             "wholefoods": "Whole Foods",
             "unfi_west": "UNFI West", 
@@ -261,21 +454,99 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         }
         clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🌐 ", "")
         
+        # Enhanced header for specific source
         st.markdown(f"""
-        <div style="background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 5px solid #667eea;">
-            <h2 style="margin: 0; color: #667eea;">📝 Process {clean_selected_name} Orders</h2>
-            <p style="margin: 0.5rem 0 0 0; color: #666;">Ready to process {clean_selected_name} files</p>
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🎯</div>
+                <div>
+                    <h2 class="card-title">Process {clean_selected_name} Orders</h2>
+                    <p class="card-description">Ready to process {clean_selected_name} files with advanced parsing</p>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
         
         selected_order_source = source_names[selected_source]
     else:
+        # All sources overview with enhanced layout
         st.markdown("""
-        <div style="background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 5px solid #667eea;">
-            <h2 style="margin: 0; color: #667eea;">📝 Process Orders</h2>
-            <p style="margin: 0.5rem 0 0 0; color: #666;">Choose your order source and upload files</p>
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🌐</div>
+                <div>
+                    <h2 class="card-title">All Sources Overview</h2>
+                    <p class="card-description">Choose your order source and upload files for processing</p>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Enhanced overview cards with better spacing
+        st.markdown('<div class="content-grid">', unsafe_allow_html=True)
+        
+        # Source cards
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🛒</div>
+                <div>
+                    <h3 class="card-title">Whole Foods</h3>
+                    <p class="card-description">HTML order processing with advanced parsing</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">📦</div>
+                <div>
+                    <h3 class="card-title">UNFI West</h3>
+                    <p class="card-description">HTML order processing with mapping integration</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🏭</div>
+                <div>
+                    <h3 class="card-title">UNFI East</h3>
+                    <p class="card-description">PDF order processing with OCR capabilities</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">📋</div>
+                <div>
+                    <h3 class="card-title">KEHE - SPS</h3>
+                    <p class="card-description">CSV order processing with data validation</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🏬</div>
+                <div>
+                    <h3 class="card-title">TK Maxx</h3>
+                    <p class="card-description">Multi-format order processing (CSV/Excel)</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Initialize mapping utils
         mapping_utils = MappingUtils()
@@ -351,28 +622,28 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
     
     if uploaded_files:
         # Show uploaded files with better styling
-        st.markdown("#### ✅ Files Ready for Processing")
-        
+            st.markdown("#### ✅ Files Ready for Processing")
+            
         for i, file in enumerate(uploaded_files):
-            file_size = len(file.getvalue()) / 1024  # KB
-            st.markdown(f"""
-            <div style="background-color: #e8f5e8; padding: 0.5rem 1rem; border-radius: 5px; margin: 0.2rem 0; border-left: 3px solid #28a745;">
-                📁 <strong>{file.name}</strong> ({file_size:.1f} KB)
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Process files button with better styling
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🚀 Process Orders", type="primary", use_container_width=True):
-                if clean_source_name == "All Sources":
-                    st.error("⚠️ Please select a specific source before processing files. Auto-detection is not yet supported.")
-                elif clean_source_name in order_sources:
+                file_size = len(file.getvalue()) / 1024  # KB
+                st.markdown(f"""
+                <div style="background-color: #e8f5e8; padding: 0.5rem 1rem; border-radius: 5px; margin: 0.2rem 0; border-left: 3px solid #28a745;">
+                    📁 <strong>{file.name}</strong> ({file_size:.1f} KB)
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Process files button with better styling
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("🚀 Process Orders", type="primary", use_container_width=True):
+                    if clean_source_name == "All Sources":
+                        st.error("⚠️ Please select a specific source before processing files. Auto-detection is not yet supported.")
+                    elif clean_source_name in order_sources:
                     process_orders(uploaded_files, order_sources[clean_source_name], clean_source_name, db_service)
-                else:
-                    st.error(f"⚠️ Unknown source: {clean_source_name}. Please select a valid source.")
+                    else:
+                        st.error(f"⚠️ Unknown source: {clean_source_name}. Please select a valid source.")
 
 def process_orders(uploaded_files, parser, source_name, db_service: DatabaseService):
     """Process uploaded files and convert to Xoro format"""
@@ -427,33 +698,33 @@ def process_orders(uploaded_files, parser, source_name, db_service: DatabaseServ
     
     # Display results
     if all_converted_data:
-        st.subheader("Conversion Results")
-        
-        # Create DataFrame for preview
-        df_converted = pd.DataFrame(all_converted_data)
-        
-        # Display summary
-        unique_orders = df_converted['ThirdPartyRefNo'].nunique()
-        st.write(f"**Total Orders Processed:** {unique_orders}")
-        st.write(f"**Unique Customers:** {df_converted['CustomerName'].nunique()}")
-        st.write(f"**Total Line Items:** {len(df_converted)}")
-        
+            st.subheader("Conversion Results")
+            
+            # Create DataFrame for preview
+            df_converted = pd.DataFrame(all_converted_data)
+            
+            # Display summary
+            unique_orders = df_converted['ThirdPartyRefNo'].nunique()
+            st.write(f"**Total Orders Processed:** {unique_orders}")
+            st.write(f"**Unique Customers:** {df_converted['CustomerName'].nunique()}")
+            st.write(f"**Total Line Items:** {len(df_converted)}")
+            
         # Preview data
-        st.subheader("Data Preview")
+            st.subheader("Data Preview")
         st.dataframe(df_converted.head(10))
-        
-        # Download button
-        csv_data = df_converted.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Xoro CSV",
-            data=csv_data,
-            file_name=f"xoro_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            type="primary"
-        )
-        
+            
+            # Download button
+            csv_data = df_converted.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Xoro CSV",
+                data=csv_data,
+                file_name=f"xoro_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                type="primary"
+            )
+            
         # Show detailed data in expander
-        with st.expander("View Full Converted Data"):
+            with st.expander("View Full Converted Data"):
             st.dataframe(df_converted)
     
     # Display errors if any
@@ -550,14 +821,26 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
             
     except Exception as e:
         st.error(f"Error loading processed orders: {str(e)}")
+    
+    # Close main content container
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def manage_mappings_page(db_service: DatabaseService, selected_source: str = "all"):
-    """Enhanced mapping management page with file upload/download"""
+    """Enhanced mapping management page with optimized screen usage"""
     
+    # Enhanced content container
+    st.markdown('<div class="main-content-container">', unsafe_allow_html=True)
+    
+    # Enhanced header for mapping management
     st.markdown("""
-    <div style="background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
-        <h1 style="color: white; margin: 0; text-align: center;">⚙️ Mapping Management Center</h1>
-        <p style="color: white; margin: 0.5rem 0 0 0; text-align: center; opacity: 0.9;">Complete mapping management by order processor</p>
+    <div class="feature-card">
+        <div class="card-header">
+            <div class="card-icon">⚙️</div>
+            <div>
+                <h2 class="card-title">Mapping Management Center</h2>
+                <p class="card-description">Complete mapping management by order processor with advanced features</p>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -576,6 +859,9 @@ def manage_mappings_page(db_service: DatabaseService, selected_source: str = "al
     
     if selected_processor:
         show_processor_mapping_management(selected_processor, db_service)
+    
+    # Close main content container
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def show_processor_mapping_management(processor: str, db_service: DatabaseService):
     """Complete mapping management for a specific processor"""
@@ -966,7 +1252,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     
                     # Display mode selector
                     st.write("### Display Mode:")
-                    display_mode = st.radio(
+            display_mode = st.radio(
                         "Choose display mode",
                         ["📊 Data Editor (Bulk Edit)", "📝 Row-by-Row (Individual Edit)"],
                         key=f"display_mode_customer_{processor}",
@@ -1022,7 +1308,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                         if st.button("🗑️ Delete Selected", key=f"delete_selected_customer_{processor}"):
                             st.session_state[f'show_delete_confirm_customer_{processor}'] = True
                             st.rerun()
-                    else:
+            else:
                         # Row-by-row mode (simple table view)
                         st.write("### Current Customer Mappings")
                         import pandas as pd
@@ -1033,7 +1319,7 @@ def show_customer_mapping_manager(processor: str, db_service: DatabaseService):
                     st.info(f"Showing {len(display_data)} of {len(display_data)} mappings")
                     
                     return
-                else:
+        else:
                     st.info(f"No customer mappings found in database for {processor}")
         except Exception as e:
             st.error(f"Error loading from database: {e}")
@@ -1081,19 +1367,19 @@ def show_customer_mapping_upload_form(db_service: DatabaseService, processor: st
                 st.dataframe(df.head())
                 
                 # Show upload buttons
-                col1, col2 = st.columns(2)
-                with col1:
+            col1, col2 = st.columns(2)
+            with col1:
                     if st.button("✅ Upload Customer Mappings", key=f"confirm_customer_upload_{processor}"):
                         upload_customer_mappings_to_database(df, db_service, processor)
                         st.session_state[f'show_customer_upload_{processor}'] = False
                         st.rerun()
                 
-                with col2:
+            with col2:
                     if st.button("❌ Cancel Upload", key=f"cancel_customer_upload_{processor}"):
                         st.session_state[f'show_customer_upload_{processor}'] = False
-                        st.rerun()
-                        
-            except Exception as e:
+                    st.rerun()
+    
+    except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
 
 def upload_customer_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
@@ -1206,7 +1492,7 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
                 
                 # Action buttons for store mapping
                 col1, col2 = st.columns(2)
-                with col1:
+            with col1:
                     if st.button("💾 Save Changes", key=f"save_store_changes_{processor}"):
                         try:
                             # Update each mapping in database
@@ -1227,11 +1513,11 @@ def show_store_mapping_manager(processor: str, db_service: DatabaseService):
                         except Exception as e:
                             st.error(f"Failed to save store mapping changes: {e}")
                 
-                with col2:
+            with col2:
                     if st.button("🗑️ Delete Selected", key=f"delete_selected_store_{processor}"):
                         st.session_state[f'show_delete_confirm_store_{processor}'] = True
-                        st.rerun()
-                
+                    st.rerun()
+    
                 # Show delete confirmation if requested
                 if st.session_state.get(f'show_delete_confirm_store_{processor}', False):
                     show_store_delete_confirmation(edited_df, db_service, processor)
@@ -1482,24 +1768,24 @@ def show_mapping_upload_form(db_service: DatabaseService, processor: str):
                 st.dataframe(df.head(10), use_container_width=True)
                 
                 # Validate required columns
-                required_columns = ['Source', 'RawKeyType', 'RawKeyValue', 'MappedItemNumber']
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                
-                if missing_columns:
-                    st.error(f"❌ Missing required columns: {missing_columns}")
-                    st.info("Required columns: Source, RawKeyType, RawKeyValue, MappedItemNumber")
-                else:
-                    # Show upload options
-                    col1, col2 = st.columns(2)
+                    required_columns = ['Source', 'RawKeyType', 'RawKeyValue', 'MappedItemNumber']
+                    missing_columns = [col for col in required_columns if col not in df.columns]
                     
-                    with col1:
-                        if st.button("✅ Upload Mappings", key=f"confirm_upload_{processor}"):
-                            upload_mappings_to_database(df, db_service, processor)
-                    
-                    with col2:
-                        if st.button("❌ Cancel Upload", key=f"cancel_upload_{processor}"):
-                            st.session_state[f'show_upload_{processor}'] = False
-                            st.rerun()
+                    if missing_columns:
+                        st.error(f"❌ Missing required columns: {missing_columns}")
+                        st.info("Required columns: Source, RawKeyType, RawKeyValue, MappedItemNumber")
+                            else:
+                                # Show upload options
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    if st.button("✅ Upload Mappings", key=f"confirm_upload_{processor}"):
+                                        upload_mappings_to_database(df, db_service, processor)
+                                
+                                with col2:
+                                    if st.button("❌ Cancel Upload", key=f"cancel_upload_{processor}"):
+                                        st.session_state[f'show_upload_{processor}'] = False
+                                        st.rerun()
                         
             except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
@@ -1508,15 +1794,15 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
     """Upload mappings from DataFrame to database"""
     
     try:
-        # Convert DataFrame to list of dictionaries
-        mappings_data = []
-        for _, row in df.iterrows():
+                        # Convert DataFrame to list of dictionaries
+                        mappings_data = []
+                        for _, row in df.iterrows():
             mapping = {
                 'source': str(row.get('Source', '')).strip(),
                 'raw_item': str(row.get('RawKeyValue', '')).strip(),
                 'mapped_item': str(row.get('MappedItemNumber', '')).strip(),
                 'key_type': str(row.get('RawKeyType', 'vendor_item')).strip(),
-                'priority': int(row.get('Priority', 100)),
+                                'priority': int(row.get('Priority', 100)),
                 'active': bool(row.get('Active', True)),
                 'vendor': str(row.get('Vendor', '')).strip() if pd.notna(row.get('Vendor')) else None,
                 'mapped_description': str(row.get('MappedDescription', '')).strip() if pd.notna(row.get('MappedDescription')) else None,
@@ -1526,11 +1812,11 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
         
         # Bulk upload to database
         results = db_service.bulk_upsert_item_mappings(mappings_data)
-        
-        # Show results
+                        
+                        # Show results
         if results['errors'] == 0:
             st.success(f"✅ Successfully uploaded {results['added']} new mappings and updated {results['updated']} existing mappings")
-        else:
+                        else:
             st.warning(f"⚠️ Upload completed with {results['errors']} errors. Added: {results['added']}, Updated: {results['updated']}")
             with st.expander("❌ Error Details"):
                 for error in results['error_details']:
@@ -1538,9 +1824,9 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
         
         # Close upload form and refresh
         st.session_state[f'show_upload_{processor}'] = False
-        st.rerun()
-        
-    except Exception as e:
+                        st.rerun()
+                        
+            except Exception as e:
         st.error(f"❌ Upload failed: {e}")
 
 def show_store_template_download(processor: str):
@@ -1606,8 +1892,8 @@ def show_store_delete_confirmation(edited_df: pd.DataFrame, db_service: Database
         st.write("**Mappings to be deleted:**")
         st.dataframe(edited_df, use_container_width=True)
         
-        col1, col2 = st.columns(2)
-        with col1:
+            col1, col2 = st.columns(2)
+            with col1:
             if st.button("🗑️ Confirm Delete", key=f"confirm_store_delete_{processor}"):
                 try:
                     # Delete selected mappings from database
@@ -1621,14 +1907,14 @@ def show_store_delete_confirmation(edited_df: pd.DataFrame, db_service: Database
                     
                     st.success("✅ Store mappings deleted successfully!")
                     st.session_state[f'show_delete_confirm_store_{processor}'] = False
-                    st.rerun()
+                                st.rerun()
                 except Exception as e:
                     st.error(f"❌ Delete failed: {e}")
-        
-        with col2:
+                    
+                    with col2:
             if st.button("❌ Cancel Delete", key=f"cancel_store_delete_{processor}"):
                 st.session_state[f'show_delete_confirm_store_{processor}'] = False
-                st.rerun()
+                            st.rerun()
 
 def show_store_mapping_upload_form(db_service: DatabaseService, processor: str):
     """Show upload form for store mappings with preview"""
@@ -1663,18 +1949,18 @@ unfi_east,RSG2_NJ,KL-Richmond,distributor,100,True,East DC pick up at Kent KL - 
                     st.info("Required columns: Source, RawStoreID, MappedStoreName")
                 else:
                     # Show upload options
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
+            col1, col2 = st.columns(2)
+            
+            with col1:
                         if st.button("✅ Upload Store Mappings", key=f"confirm_store_upload_{processor}"):
                             upload_store_mappings_to_database(df, db_service, processor)
-                    
-                    with col2:
+                
+            with col2:
                         if st.button("❌ Cancel Upload", key=f"cancel_store_upload_{processor}"):
                             st.session_state[f'show_store_upload_{processor}'] = False
-                            st.rerun()
+                        st.rerun()
                         
-            except Exception as e:
+                    except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
 
 def upload_store_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str):
@@ -2333,8 +2619,8 @@ def delete_mapping_row(file_path: str, row_index: int, mapping_type: str, proces
             
             # Also delete from CSV file for backward compatibility
             if success:
-                df = df.drop(index=row_index).reset_index(drop=True)
-                df.to_csv(file_path, index=False)
+            df = df.drop(index=row_index).reset_index(drop=True)
+            df.to_csv(file_path, index=False)
                 st.success(f"✅ Deleted {mapping_type.lower()} mapping: {raw_id}")
                 st.rerun()
             else:
@@ -2342,7 +2628,7 @@ def delete_mapping_row(file_path: str, row_index: int, mapping_type: str, proces
                 # Still delete from CSV even if not in database
                 df = df.drop(index=row_index).reset_index(drop=True)
                 df.to_csv(file_path, index=False)
-                st.rerun()
+            st.rerun()
         else:
             st.error("❌ Invalid row index for deletion")
             
@@ -3550,6 +3836,9 @@ def delete_single_mapping(mapping, db_service: DatabaseService, processor: str, 
             
     except Exception as e:
         st.error(f"❌ Failed to delete mapping: {e}")
+
+    # Close main content wrapper
+    st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
