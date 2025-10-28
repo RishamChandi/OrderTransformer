@@ -994,31 +994,16 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                # Try to query CustomerMapping table first, fall back to StoreMapping if it doesn't exist
-                try:
-                    mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
-                except Exception:
-                    # Fall back to StoreMapping table with store_type = "customer"
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                # Use StoreMapping table for customer mappings with store_type = "customer"
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 data = []
                 for m in mappings:
-                    # Handle both CustomerMapping and StoreMapping field names
-                    if hasattr(m, 'raw_customer_id'):
-                        # CustomerMapping table
-                        raw_id = m.raw_customer_id
-                        mapped_name = m.mapped_customer_name
-                        customer_type = m.customer_type
-                    else:
-                        # StoreMapping table fallback
-                        raw_id = m.raw_name
-                        mapped_name = m.mapped_name
-                        customer_type = m.store_type
-                    
+                    # Use StoreMapping field names for customer mappings
                     data.append({
                         'Source': m.source,
-                        'Raw Customer ID': raw_id,
-                        'Mapped Customer Name': mapped_name,
-                        'Customer Type': customer_type,
+                        'Raw Customer ID': m.raw_name,
+                        'Mapped Customer Name': m.mapped_name,
+                        'Customer Type': m.store_type,
                         'Priority': m.priority,
                         'Active': m.active,
                         'Notes': m.notes or ''
@@ -1190,11 +1175,15 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    # Try to query CustomerMapping table first, fall back to StoreMapping if it doesn't exist
+                    # Check if CustomerMapping table exists, use fallback if not
                     try:
+                        # Try to query the CustomerMapping table to see if it exists
+                        with db_service.get_session() as test_session:
+                            test_session.query(db_service.CustomerMapping).first()
+                        # If we get here, the table exists, use CustomerMapping
                         mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
                     except Exception:
-                        # Fall back to StoreMapping table with store_type = "customer"
+                        # CustomerMapping table doesn't exist, use StoreMapping fallback
                         mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
                     # Store mappings: filter by store_type that indicates store entities  
@@ -1238,11 +1227,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col2:
                             if mapping_type == "customer":
-                                # Handle both CustomerMapping and StoreMapping field names
-                                if hasattr(m, 'raw_customer_id'):
-                                    st.write(f"**{m.raw_customer_id}**")
-                                else:
-                                    st.write(f"**{m.raw_name}**")
+                                # Use StoreMapping field names for customer mappings
+                                st.write(f"**{m.raw_name}**")
                             elif mapping_type == "store":
                                 st.write(f"**{m.raw_store_id}**")
                             else:  # item
@@ -1250,11 +1236,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col3:
                             if mapping_type == "customer":
-                                # Handle both CustomerMapping and StoreMapping field names
-                                if hasattr(m, 'mapped_customer_name'):
-                                    st.write(f"{m.mapped_customer_name}")
-                                else:
-                                    st.write(f"{m.mapped_name}")
+                                # Use StoreMapping field names for customer mappings
+                                st.write(f"{m.mapped_name}")
                             elif mapping_type == "store":
                                 st.write(f"{m.mapped_store_name}")
                             else:  # item
@@ -1262,11 +1245,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col4:
                             if mapping_type == "customer":
-                                # Handle both CustomerMapping and StoreMapping field names
-                                if hasattr(m, 'customer_type'):
-                                    st.write(f"{m.customer_type}")
-                                else:
-                                    st.write(f"{m.store_type}")
+                                # Use StoreMapping field names for customer mappings
+                                st.write(f"{m.store_type}")
                             elif mapping_type == "store":
                                 st.write(f"{m.store_type}")
                             else:  # item
@@ -1753,16 +1733,12 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         
         if mapping_type in ["customer", "store"]:
             if mapping_type == "customer":
-                # Try to use CustomerMapping table, fall back to StoreMapping if it doesn't exist
-                try:
-                    result = db_service.bulk_upsert_customer_mappings(mappings_data)
-                except Exception as e:
-                    # Fall back to StoreMapping table with customer_type = "customer"
-                    for data in mappings_data:
-                        data['raw_name'] = data.pop('raw_customer_id')
-                        data['mapped_name'] = data.pop('mapped_customer_name')
-                        data['store_type'] = data.pop('customer_type', 'customer')
-                    result = db_service.bulk_upsert_store_mappings(mappings_data)
+                # Force use of StoreMapping table for customer mappings until CustomerMapping table is created
+                for data in mappings_data:
+                    data['raw_name'] = data.pop('raw_customer_id')
+                    data['mapped_name'] = data.pop('mapped_customer_name')
+                    data['store_type'] = data.pop('customer_type', 'customer')
+                result = db_service.bulk_upsert_store_mappings(mappings_data)
             else:
                 result = db_service.bulk_upsert_store_mappings(mappings_data)
         else:
