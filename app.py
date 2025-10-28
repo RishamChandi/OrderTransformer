@@ -139,144 +139,50 @@ def main():
             st.error(f"Critical initialization error: {e}")
             st.stop()
     
-    # Fixed sleek header with dynamic screen usage
+    # Modern responsive header (not fixed)
     st.markdown("""
     <style>
-    .fixed-header {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 1000;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        border-bottom: 3px solid rgba(255,255,255,0.2);
-    }
-    
-    .header-content {
-        max-width: 1400px;
-        margin: 0 auto;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-    }
-    
-    .header-title {
-        color: white;
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 700;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .header-subtitle {
-        color: rgba(255,255,255,0.9);
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 400;
-    }
-    
-    .header-stats {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        color: white;
-        font-size: 0.9rem;
-    }
-    
-    .stat-item {
-        background: rgba(255,255,255,0.1);
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        backdrop-filter: blur(10px);
-    }
-    
-    .main-content {
-        margin-top: 120px;
-        padding: 0 1rem;
-    }
-    
-    /* Fix sidebar to start below header */
-    .sidebar {
-        width: 280px !important;
-        min-width: 280px;
-        padding-top: 120px !important;
-    }
-    
-    /* Target Streamlit sidebar container */
-    [data-testid="stSidebar"] {
-        padding-top: 120px !important;
-    }
-    
-    /* Target sidebar content area */
-    [data-testid="stSidebar"] > div {
-        padding-top: 120px !important;
-    }
-    
-    /* Alternative approach - adjust the main content area */
-    .main .block-container {
-        padding-top: 120px !important;
-    }
-    
-    /* Ensure the entire app content starts below header */
-    .stApp > div:first-child {
-        padding-top: 120px !important;
-    }
-    
-    .main-container {
-        display: flex;
-        gap: 1rem;
-        max-width: 1600px;
-        margin: 0 auto;
-    }
-    
-    .content-area {
-        flex: 1;
-        min-width: 0;
-    }
-    
-    @media (max-width: 1200px) {
-        .header-content {
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .header-stats {
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-    }
-    
     @media (max-width: 768px) {
-        .fixed-header {
-            padding: 0.8rem 1rem;
+        .header-responsive {
+            padding: 1rem !important;
         }
-        
-        .header-title {
-            font-size: 1.5rem;
+        .header-responsive h1 {
+            font-size: 2rem !important;
         }
-        
-        .main-content {
-            margin-top: 100px;
+        .header-responsive .stats-container {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+    }
+    @media (max-width: 480px) {
+        .header-responsive h1 {
+            font-size: 1.5rem !important;
+        }
+        .header-responsive .stats-container {
+            flex-wrap: wrap !important;
         }
     }
     </style>
-    
-    <div class="fixed-header">
-        <div class="header-content">
+    <div class="header-responsive" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 15px; margin-bottom: 2rem; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
             <div>
-                <h1 class="header-title">🔄 Order Transformer</h1>
-                <p class="header-subtitle">Convert sales orders into standardized Xoro CSV format</p>
+                <h1 style="color: white; margin: 0; font-size: 2.5rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 0.5rem;">
+                    🔄 Order Transformer
+                </h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0; font-size: 1.1rem; font-weight: 400;">
+                    Convert sales orders into standardized Xoro CSV format
+                </p>
             </div>
-            <div class="header-stats">
-                <div class="stat-item">📊 Multi-Client</div>
-                <div class="stat-item">🔄 Real-time</div>
-                <div class="stat-item">📈 Analytics</div>
+            <div class="stats-container" style="display: flex; gap: 1rem; align-items: center; color: white; font-size: 0.9rem;">
+                <div style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 25px; backdrop-filter: blur(10px);">
+                    📊 Multi-Client
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 25px; backdrop-filter: blur(10px);">
+                    🔄 Real-time
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 25px; backdrop-filter: blur(10px);">
+                    📈 Analytics
+                </div>
             </div>
         </div>
     </div>
@@ -284,9 +190,6 @@ def main():
     
     # Initialize database service
     db_service = DatabaseService()
-    
-    # Main content wrapper for better space utilization
-    st.markdown('<div class="main-content">', unsafe_allow_html=True)
     
     # Sidebar navigation system
     with st.sidebar:
@@ -1187,33 +1090,74 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
                 if mappings:
-                    # Create selection interface
-                    mapping_data = []
-                    for m in mappings:
-                        if mapping_type in ["customer", "store"]:
-                            mapping_data.append({
-                                'ID': m.id,
-                                'Raw Name': m.raw_name,
-                                'Mapped Name': m.mapped_name,
-                                'Type': m.store_type,
-                                'Active': m.active
-                            })
-                        else:  # item
-                            mapping_data.append({
-                                'ID': m.id,
-                                'Raw Item': m.raw_item,
-                                'Mapped Item': m.mapped_item,
-                                'Active': getattr(m, 'active', True)
-                            })
+                    # Initialize session state for selected mappings if not exists
+                    if f'selected_mappings_{mapping_type}_{processor}' not in st.session_state:
+                        st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = []
                     
-                    df = pd.DataFrame(mapping_data)
-                    selected_rows = st.dataframe(df, use_container_width=True)
+                    # Create selection interface with checkboxes
+                    st.write("**Select mappings to delete:**")
+                    
+                    # Add select all/none buttons
+                    col_select_all, col_select_none, col_space = st.columns([1, 1, 4])
+                    with col_select_all:
+                        if st.button("Select All", key=f"select_all_{mapping_type}_{processor}"):
+                            st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = [m.id for m in mappings]
+                            st.rerun()
+                    with col_select_none:
+                        if st.button("Select None", key=f"select_none_{mapping_type}_{processor}"):
+                            st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = []
+                            st.rerun()
+                    
+                    # Display mappings with checkboxes
+                    selected_count = 0
+                    for i, m in enumerate(mappings):
+                        col1, col2, col3, col4, col5 = st.columns([1, 3, 3, 2, 1])
+                        
+                        with col1:
+                            is_selected = m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']
+                            if st.checkbox("", value=is_selected, key=f"select_{mapping_type}_{processor}_{m.id}"):
+                                if m.id not in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
+                                    st.session_state[f'selected_mappings_{mapping_type}_{processor}'].append(m.id)
+                                    st.rerun()
+                            else:
+                                if m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
+                                    st.session_state[f'selected_mappings_{mapping_type}_{processor}'].remove(m.id)
+                                    st.rerun()
+                        
+                        with col2:
+                            if mapping_type in ["customer", "store"]:
+                                st.write(f"**{m.raw_name}**")
+                            else:  # item
+                                st.write(f"**{m.raw_item}**")
+                        
+                        with col3:
+                            if mapping_type in ["customer", "store"]:
+                                st.write(f"{m.mapped_name}")
+                            else:  # item
+                                st.write(f"{m.mapped_item}")
+                        
+                        with col4:
+                            if mapping_type in ["customer", "store"]:
+                                st.write(f"{m.store_type}")
+                            else:  # item
+                                st.write("Item")
+                        
+                        with col5:
+                            status = "✅" if getattr(m, 'active', True) else "❌"
+                            st.write(status)
+                        
+                        if m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
+                            selected_count += 1
+                    
+                    st.write(f"**Selected: {selected_count} mapping(s)**")
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("🗑️ Delete Selected", key=f"delete_selected_{mapping_type}_{processor}"):
-                            st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
-                            st.rerun()
+                        delete_disabled = len(st.session_state[f'selected_mappings_{mapping_type}_{processor}']) == 0
+                        if st.button("🗑️ Delete Selected", key=f"delete_selected_{mapping_type}_{processor}", disabled=delete_disabled):
+                            if st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
+                                st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
+                                st.rerun()
                     
                     with col2:
                         if st.button("❌ Cancel", key=f"cancel_delete_{mapping_type}_{processor}"):
@@ -1224,6 +1168,75 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                     
         except Exception as e:
             st.error(f"❌ Error loading mappings: {e}")
+
+    # Handle delete confirmation
+    if st.session_state.get(f'confirm_delete_{mapping_type}_{processor}', False):
+        show_delete_confirmation(db_service, processor, mapping_type)
+
+def show_delete_confirmation(db_service: DatabaseService, processor: str, mapping_type: str):
+    """Show delete confirmation dialog"""
+    selected_ids = st.session_state.get(f'selected_mappings_{mapping_type}_{processor}', [])
+    
+    if not selected_ids:
+        st.error("No mappings selected for deletion")
+        st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = False
+        return
+    
+    st.warning(f"⚠️ Are you sure you want to delete {len(selected_ids)} mapping(s)?")
+    
+    # Show what will be deleted
+    try:
+        with db_service.get_session() as session:
+            if mapping_type == "item":
+                mappings = session.query(db_service.ItemMapping).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
+            else:
+                mappings = session.query(db_service.StoreMapping).filter(db_service.StoreMapping.id.in_(selected_ids)).all()
+            
+            st.write("**Mappings to be deleted:**")
+            for m in mappings:
+                if mapping_type == "item":
+                    st.write(f"- {m.raw_item} → {m.mapped_item}")
+                else:
+                    st.write(f"- {m.raw_name} → {m.mapped_name}")
+    
+    except Exception as e:
+        st.error(f"❌ Error loading mapping details: {e}")
+        return
+    
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        if st.button("✅ Confirm Delete", key=f"confirm_delete_yes_{mapping_type}_{processor}", type="primary"):
+            delete_selected_mappings(db_service, processor, mapping_type, selected_ids)
+            st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = False
+            st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = []
+            st.rerun()
+    
+    with col2:
+        if st.button("❌ Cancel", key=f"confirm_delete_no_{mapping_type}_{processor}"):
+            st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = False
+            st.rerun()
+
+def delete_selected_mappings(db_service: DatabaseService, processor: str, mapping_type: str, selected_ids: list):
+    """Delete selected mappings from database"""
+    try:
+        with db_service.get_session() as session:
+            deleted_count = 0
+            for mapping_id in selected_ids:
+                if mapping_type == "item":
+                    mapping = session.query(db_service.ItemMapping).filter_by(id=mapping_id).first()
+                else:
+                    mapping = session.query(db_service.StoreMapping).filter_by(id=mapping_id).first()
+                
+                if mapping:
+                    session.delete(mapping)
+                    deleted_count += 1
+            
+            session.commit()
+            st.success(f"✅ Successfully deleted {deleted_count} mapping(s)!")
+            
+    except Exception as e:
+        st.error(f"❌ Failed to delete mappings: {e}")
 
 def show_add_new_mapping_form(db_service: DatabaseService, processor: str, mapping_type: str):
     """Show form to add new mapping"""
@@ -1576,8 +1589,6 @@ def delete_single_mapping(mapping, db_service: DatabaseService, processor: str, 
     except Exception as e:
         st.error(f"❌ Failed to delete mapping: {e}")
 
-    # Close main content wrapper
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # Health check endpoint for Render
 @st.cache_data
