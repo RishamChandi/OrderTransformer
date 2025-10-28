@@ -1781,12 +1781,6 @@ def show_enhanced_mapping_interface(processor: str, db_service: DatabaseService,
     else:
         # Default view - show current mappings
         show_current_mappings_view(db_service, processor, mapping_type)
-                            },
-                            key=f"data_editor_customer_{processor}"
-                        )
-                        
-                        # Save changes button
-                        if st.button("💾 Save Changes", key=f"save_changes_{processor}"):
                             try:
                                 # Update each mapping in database
                                 with db_service.get_session() as session:
