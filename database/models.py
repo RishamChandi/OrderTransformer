@@ -55,22 +55,35 @@ class ConversionHistory(Base):
     success = Column(Boolean, default=True)
     error_message = Column(Text)
     
+class CustomerMapping(Base):
+    """Model for storing customer name mappings"""
+    __tablename__ = 'customer_mappings'
+    
+    id = Column(Integer, primary_key=True)
+    source = Column(String(50), nullable=False)
+    raw_customer_id = Column(String(200), nullable=False)
+    mapped_customer_name = Column(String(200), nullable=False)
+    customer_type = Column(String(50), default='store')
+    active = Column(Boolean, default=True)
+    priority = Column(Integer, default=100)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class StoreMapping(Base):
-    """Model for storing store/customer name mappings"""
+    """Model for storing store name mappings"""
     __tablename__ = 'store_mappings'
     
     id = Column(Integer, primary_key=True)
     source = Column(String(50), nullable=False)
-    raw_name = Column(String(200), nullable=False)
-    mapped_name = Column(String(200), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    raw_store_id = Column(String(200))
-    mapped_store_name = Column(String(200))
-    store_type = Column(String(50))
+    raw_store_id = Column(String(200), nullable=False)
+    mapped_store_name = Column(String(200), nullable=False)
+    store_type = Column(String(50), default='retail')
     active = Column(Boolean, default=True)
     priority = Column(Integer, default=100)
     notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
 class ItemMapping(Base):
     """Model for storing item number mappings with enhanced template support"""

@@ -15,7 +15,7 @@ def parse_boolean(value: Any) -> bool:
     if isinstance(value, str):
         return value.lower() in ('true', '1', 'yes', 'on')
     return bool(value)
-from .models import ProcessedOrder, OrderLineItem, ConversionHistory, StoreMapping, ItemMapping
+from .models import ProcessedOrder, OrderLineItem, ConversionHistory, StoreMapping, ItemMapping, CustomerMapping
 from .connection import get_session
 
 class DatabaseService:
@@ -28,6 +28,7 @@ class DatabaseService:
     # Model references for direct access
     StoreMapping = StoreMapping
     ItemMapping = ItemMapping
+    CustomerMapping = CustomerMapping
     
     def save_processed_orders(self, orders_data: List[Dict[str, Any]], source: str, filename: str) -> bool:
         """Save processed orders to database"""
@@ -460,6 +461,97 @@ class DatabaseService:
                             raw_store_id=data['raw_store_id'],
                             mapped_store_name=data['mapped_store_name'],
                             store_type=data['store_type'],
+                            priority=data['priority'],
+                            active=data['active'],
+                            notes=data['notes']
+                        )
+                        session.add(new_mapping)
+                        stats['added'] += 1
+                        
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {data['row_index']}: Database error - {str(e)}")
+                    transaction.rollback()
+                    return stats
+            
+            transaction.commit()
+            return stats
+                
+        except Exception as e:
+            if transaction:
+                transaction.rollback()
+            return {'added': 0, 'updated': 0, 'errors': 1, 'error_details': [f"Database transaction error: {str(e)}"]}
+        
+        finally:
+            session.close()
+    
+    def bulk_upsert_customer_mappings(self, mappings_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Bulk insert or update customer mappings with transaction safety"""
+        
+        session = get_session().__enter__()
+        transaction = None
+        
+        try:
+            transaction = session.begin()
+            stats = {'added': 0, 'updated': 0, 'errors': 0, 'error_details': []}
+            
+            validated_data = []
+            for idx, mapping_data in enumerate(mappings_data):
+                try:
+                    source = mapping_data.get('source', '').strip()
+                    raw_customer_id = mapping_data.get('raw_customer_id', '').strip()
+                    mapped_customer_name = mapping_data.get('mapped_customer_name', '').strip()
+                    
+                    if not source or not raw_customer_id or not mapped_customer_name:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing required fields")
+                        continue
+                    
+                    active = parse_boolean(mapping_data.get('active', True))
+                    
+                    try:
+                        priority = int(mapping_data.get('priority', 100))
+                    except (ValueError, TypeError):
+                        priority = 100
+                    
+                    validated_data.append({
+                        'source': source,
+                        'raw_customer_id': raw_customer_id,
+                        'mapped_customer_name': mapped_customer_name,
+                        'customer_type': mapping_data.get('customer_type', 'store'),
+                        'priority': priority,
+                        'active': active,
+                        'notes': mapping_data.get('notes', ''),
+                        'row_index': idx
+                    })
+                    
+                except Exception as e:
+                    stats['errors'] += 1
+                    stats['error_details'].append(f"Row {idx + 1}: Validation error - {str(e)}")
+                    continue
+            
+            # Process validated data
+            for data in validated_data:
+                try:
+                    existing = session.query(CustomerMapping).filter_by(
+                        source=data['source'],
+                        raw_customer_id=data['raw_customer_id']
+                    ).first()
+                    
+                    if existing:
+                        existing.mapped_customer_name = data['mapped_customer_name']
+                        existing.customer_type = data['customer_type']
+                        existing.priority = data['priority']
+                        existing.active = data['active']
+                        existing.notes = data['notes']
+                        existing.updated_at = datetime.utcnow()
+                        stats['updated'] += 1
+                    else:
+                        new_mapping = CustomerMapping(
+                            source=data['source'],
+                            raw_customer_id=data['raw_customer_id'],
+                            mapped_customer_name=data['mapped_customer_name'],
+                            customer_type=data['customer_type'],
                             priority=data['priority'],
                             active=data['active'],
                             notes=data['notes']

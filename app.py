@@ -991,26 +991,26 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
                 data = []
                 for m in mappings:
                     data.append({
                         'Source': m.source,
-                        'Raw Customer ID': m.raw_name,
-                        'Mapped Customer Name': m.mapped_name,
-                        'Customer Type': m.store_type,
+                        'Raw Customer ID': m.raw_customer_id,
+                        'Mapped Customer Name': m.mapped_customer_name,
+                        'Customer Type': m.customer_type,
                         'Priority': m.priority,
                         'Active': m.active,
                         'Notes': m.notes or ''
                     })
             elif mapping_type == "store":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
                 data = []
                 for m in mappings:
                     data.append({
                         'Source': m.source,
-                        'Raw Store ID': m.raw_name,
-                        'Mapped Store Name': m.mapped_name,
+                        'Raw Store ID': m.raw_store_id,
+                        'Mapped Store Name': m.mapped_store_name,
                         'Store Type': m.store_type,
                         'Priority': m.priority,
                         'Active': m.active,
@@ -1024,7 +1024,7 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Source': m.source,
                         'Raw Item': m.raw_item,
                         'Mapped Item': m.mapped_item,
-                        'Item Description': getattr(m, 'item_description', ''),
+                        'Item Description': getattr(m, 'mapped_description', ''),
                         'Priority': getattr(m, 'priority', 100),
                         'Active': getattr(m, 'active', True),
                         'Notes': getattr(m, 'notes', '')
@@ -1171,10 +1171,10 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
             with db_service.get_session() as session:
                 if mapping_type == "customer":
                     # Customer mappings: filter by store_type that indicates customer entities
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])).all()
                 elif mapping_type == "store":
                     # Store mappings: filter by store_type that indicates store entities  
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
                 elif mapping_type == "item":
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1213,19 +1213,25 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                                 st.session_state[f'selected_mappings_{mapping_type}_{processor}'].remove(m.id)
                         
                         with col2:
-                            if mapping_type in ["customer", "store"]:
-                                st.write(f"**{m.raw_name}**")
+                            if mapping_type == "customer":
+                                st.write(f"**{m.raw_customer_id}**")
+                            elif mapping_type == "store":
+                                st.write(f"**{m.raw_store_id}**")
                             else:  # item
                                 st.write(f"**{m.raw_item}**")
                         
                         with col3:
-                            if mapping_type in ["customer", "store"]:
-                                st.write(f"{m.mapped_name}")
+                            if mapping_type == "customer":
+                                st.write(f"{m.mapped_customer_name}")
+                            elif mapping_type == "store":
+                                st.write(f"{m.mapped_store_name}")
                             else:  # item
                                 st.write(f"{m.mapped_item}")
                         
                         with col4:
-                            if mapping_type in ["customer", "store"]:
+                            if mapping_type == "customer":
+                                st.write(f"{m.customer_type}")
+                            elif mapping_type == "store":
                                 st.write(f"{m.store_type}")
                             else:  # item
                                 st.write("Item")
@@ -1376,9 +1382,9 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])).all()
                 elif mapping_type == "store":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
                 else:
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1386,12 +1392,22 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                     # Create editable dataframe
                     mapping_data = []
                     for m in mappings:
-                        if mapping_type in ["customer", "store"]:
+                        if mapping_type == "customer":
                             mapping_data.append({
                                 'ID': m.id,
-                                'Raw Name': m.raw_name,
-                                'Mapped Name': m.mapped_name,
-                                'Type': m.store_type,
+                                'Raw Customer ID': m.raw_customer_id,
+                                'Mapped Customer Name': m.mapped_customer_name,
+                                'Customer Type': m.customer_type,
+                                'Priority': m.priority,
+                                'Active': m.active,
+                                'Notes': m.notes or ''
+                            })
+                        elif mapping_type == "store":
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Store ID': m.raw_store_id,
+                                'Mapped Store Name': m.mapped_store_name,
+                                'Store Type': m.store_type,
                                 'Priority': m.priority,
                                 'Active': m.active,
                                 'Notes': m.notes or ''
@@ -1401,7 +1417,7 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                                 'ID': m.id,
                                 'Raw Item': m.raw_item,
                                 'Mapped Item': m.mapped_item,
-                                'Description': getattr(m, 'item_description', ''),
+                                'Description': getattr(m, 'mapped_description', ''),
                                 'Priority': getattr(m, 'priority', 100),
                                 'Active': getattr(m, 'active', True),
                                 'Notes': getattr(m, 'notes', '')
@@ -1440,9 +1456,9 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])).all()
                 elif mapping_type == "store":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
                 else:
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1474,7 +1490,7 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
                                 else:  # item
                                     raw_item = st.text_input("Raw Item", value=mapping.raw_item, key=f"raw_{mapping.id}_{processor}")
                                     mapped_item = st.text_input("Mapped Item", value=mapping.mapped_item, key=f"mapped_{mapping.id}_{processor}")
-                                    description = st.text_input("Description", value=getattr(mapping, 'item_description', ''), key=f"desc_{mapping.id}_{processor}")
+                                    description = st.text_input("Description", value=getattr(mapping, 'mapped_description', ''), key=f"desc_{mapping.id}_{processor}")
                                 
                                 priority = st.number_input("Priority", value=mapping.priority, key=f"priority_{mapping.id}_{processor}")
                                 active = st.checkbox("Active", value=mapping.active, key=f"active_{mapping.id}_{processor}")
@@ -1507,9 +1523,15 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                # Customer mappings: filter by store_type values that indicate customer entities
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(
+                    db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])
+                ).all()
             elif mapping_type == "store":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
+                # Store mappings: filter by store_type values that indicate store entities  
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(
+                    db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])
+                ).all()
             else:
                 mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
             
@@ -1534,7 +1556,7 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                             'ID': m.id,
                             'Raw Item': m.raw_item,
                             'Mapped Item': m.mapped_item,
-                            'Description': getattr(m, 'item_description', ''),
+                            'Description': getattr(m, 'mapped_description', ''),
                             'Priority': getattr(m, 'priority', 100),
                             'Active': getattr(m, 'active', True),
                             'Notes': getattr(m, 'notes', '')
@@ -1572,10 +1594,17 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                               row.get('Name', '') or
                               '').strip()
                 
-                store_type = str(row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
-                             row.get('CustomerType' if mapping_type == 'customer' else 'StoreType', '') or
-                             row.get('Type', 'distributor') or
-                             'distributor').strip()
+                # Ensure distinct store_type values for customer vs store mappings
+                if mapping_type == 'customer':
+                    store_type = str(row.get('Customer Type', '') or
+                                 row.get('CustomerType', '') or
+                                 row.get('Type', 'customer') or
+                                 'customer').strip()
+                else:  # store
+                    store_type = str(row.get('Store Type', '') or
+                                 row.get('StoreType', '') or
+                                 row.get('Type', 'store') or
+                                 'store').strip()
                 
                 # Handle priority - try different column names
                 priority = 100
@@ -1608,15 +1637,26 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     skipped_rows.append(f"Row {index + 1}: Missing raw_name or mapped_name")
                     continue
                 
-                mappings_data.append({
-                    'source': processor,
-                    'raw_name': raw_name,
-                    'mapped_name': mapped_name,
-                    'store_type': store_type,
-                    'priority': priority,
-                    'active': active,
-                    'notes': notes
-                })
+                if mapping_type == "customer":
+                    mappings_data.append({
+                        'source': processor,
+                        'raw_customer_id': raw_name,
+                        'mapped_customer_name': mapped_name,
+                        'customer_type': store_type,
+                        'priority': priority,
+                        'active': active,
+                        'notes': notes
+                    })
+                else:  # store
+                    mappings_data.append({
+                        'source': processor,
+                        'raw_store_id': raw_name,
+                        'mapped_store_name': mapped_name,
+                        'store_type': store_type,
+                        'priority': priority,
+                        'active': active,
+                        'notes': notes
+                    })
             else:  # item
                 # Handle different column name formats
                 raw_item = str(row.get('Raw Item', '') or 
@@ -1669,23 +1709,26 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     'source': processor,
                     'raw_item': raw_item,
                     'mapped_item': mapped_item,
-                    'item_description': item_description,
+                    'mapped_description': item_description,
                     'priority': priority,
                     'active': active,
                     'notes': notes
                 })
         
         if mapping_type in ["customer", "store"]:
-            result = db_service.bulk_upsert_store_mappings(mappings_data)
+            if mapping_type == "customer":
+                result = db_service.bulk_upsert_customer_mappings(mappings_data)
+            else:
+                result = db_service.bulk_upsert_store_mappings(mappings_data)
         else:
             result = db_service.bulk_upsert_item_mappings(mappings_data)
         
         # Return result with additional info
         return {
-            'success': result['success'],
-            'inserted': result.get('inserted', 0),
+            'success': result.get('errors', 0) == 0,  # Success if no errors
+            'inserted': result.get('added', 0),
             'updated': result.get('updated', 0),
-            'error': result.get('error', ''),
+            'error': '; '.join(result.get('error_details', [])) if result.get('error_details') else '',
             'skipped_rows': skipped_rows,
             'total_processed': len(mappings_data)
         }
@@ -1725,10 +1768,17 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                               row.get('Name', '') or
                               '').strip()
                 
-                store_type = str(row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
-                             row.get('CustomerType' if mapping_type == 'customer' else 'StoreType', '') or
-                             row.get('Type', 'distributor') or
-                             'distributor').strip()
+                # Ensure distinct store_type values for customer vs store mappings
+                if mapping_type == 'customer':
+                    store_type = str(row.get('Customer Type', '') or
+                                 row.get('CustomerType', '') or
+                                 row.get('Type', 'customer') or
+                                 'customer').strip()
+                else:  # store
+                    store_type = str(row.get('Store Type', '') or
+                                 row.get('StoreType', '') or
+                                 row.get('Type', 'store') or
+                                 'store').strip()
                 
                 # Handle priority - try different column names
                 priority = 100
@@ -1761,15 +1811,26 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                     skipped_rows.append(f"Row {index + 1}: Missing raw_name or mapped_name")
                     continue
                 
-                mappings_data.append({
-                    'source': processor,
-                    'raw_name': raw_name,
-                    'mapped_name': mapped_name,
-                    'store_type': store_type,
-                    'priority': priority,
-                    'active': active,
-                    'notes': notes
-                })
+                if mapping_type == "customer":
+                    mappings_data.append({
+                        'source': processor,
+                        'raw_customer_id': raw_name,
+                        'mapped_customer_name': mapped_name,
+                        'customer_type': store_type,
+                        'priority': priority,
+                        'active': active,
+                        'notes': notes
+                    })
+                else:  # store
+                    mappings_data.append({
+                        'source': processor,
+                        'raw_store_id': raw_name,
+                        'mapped_store_name': mapped_name,
+                        'store_type': store_type,
+                        'priority': priority,
+                        'active': active,
+                        'notes': notes
+                    })
             else:  # item
                 # Handle different column name formats
                 raw_item = str(row.get('Raw Item', '') or 
@@ -1822,7 +1883,7 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                     'source': processor,
                     'raw_item': raw_item,
                     'mapped_item': mapped_item,
-                    'item_description': item_description,
+                    'mapped_description': item_description,
                     'priority': priority,
                     'active': active,
                     'notes': notes
@@ -1868,7 +1929,7 @@ def add_new_mapping_to_database(db_service: DatabaseService, processor: str, map
                 'source': processor,
                 'raw_item': form_data['raw_item'],
                 'mapped_item': form_data['mapped_item'],
-                'item_description': form_data['item_description'],
+                'mapped_description': form_data['description'],
                 'priority': form_data['priority'],
                 'active': form_data['active'],
                 'notes': form_data['notes']
@@ -1927,7 +1988,7 @@ def save_row_changes(mapping, form_data: dict, db_service: DatabaseService, proc
             else:  # item
                 mapping.raw_item = form_data['raw_item']
                 mapping.mapped_item = form_data['mapped_item']
-                mapping.item_description = form_data['description']
+                mapping.mapped_description = form_data['description']
                 mapping.priority = form_data['priority']
                 mapping.active = form_data['active']
                 mapping.notes = form_data['notes']
