@@ -871,6 +871,26 @@ def show_enhanced_mapping_interface(processor: str, db_service: DatabaseService,
     
     st.markdown("---")
     
+    # Show upload result if available
+    if st.session_state.get(f'upload_result_{mapping_type}_{processor}'):
+        upload_result = st.session_state[f'upload_result_{mapping_type}_{processor}']
+        
+        if upload_result['success']:
+            st.success(f"✅ Successfully uploaded {upload_result['inserted']} new {mapping_type} mappings")
+            if upload_result['updated'] > 0:
+                st.info(f"Updated {upload_result['updated']} existing mappings")
+            if upload_result['skipped_rows']:
+                st.warning(f"Skipped {len(upload_result['skipped_rows'])} rows due to missing required data:")
+                for skip_reason in upload_result['skipped_rows'][:5]:  # Show first 5 skipped rows
+                    st.write(f"- {skip_reason}")
+                if len(upload_result['skipped_rows']) > 5:
+                    st.write(f"- ... and {len(upload_result['skipped_rows']) - 5} more")
+        else:
+            st.error(f"❌ Upload failed: {upload_result['error']}")
+        
+        # Clear the result from session state
+        del st.session_state[f'upload_result_{mapping_type}_{processor}']
+    
     # Show appropriate interface based on selection
     if st.session_state.get(f'show_{mapping_type}_upload_{processor}', False):
         show_upload_mapping_form(db_service, processor, mapping_type)
@@ -1068,11 +1088,11 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                     expected_columns = ['RawKeyValue', 'MappedItemNumber', 'MappedDescription']
                     st.info("**Expected columns for item mapping:** RawKeyValue, MappedItemNumber, MappedDescription")
                 elif mapping_type == "customer":
-                    expected_columns = ['Raw Customer ID', 'Mapped Customer Name', 'Customer Type']
-                    st.info("**Expected columns for customer mapping:** Raw Customer ID, Mapped Customer Name, Customer Type")
+                    expected_columns = ['Raw Customer ID', 'RawCustomerID', 'Mapped Customer Name', 'MappedCustomerName', 'Customer Type', 'CustomerType']
+                    st.info("**Expected columns for customer mapping:** Raw Customer ID (or RawCustomerID), Mapped Customer Name (or MappedCustomerName), Customer Type (or CustomerType)")
                 elif mapping_type == "store":
-                    expected_columns = ['Raw Store ID', 'Mapped Store Name', 'Store Type']
-                    st.info("**Expected columns for store mapping:** Raw Store ID, Mapped Store Name, Store Type")
+                    expected_columns = ['Raw Store ID', 'RawStoreID', 'Mapped Store Name', 'MappedStoreName', 'Store Type', 'StoreType']
+                    st.info("**Expected columns for store mapping:** Raw Store ID (or RawStoreID), Mapped Store Name (or MappedStoreName), Store Type (or StoreType)")
                 
                 missing_columns = [col for col in expected_columns if col not in df.columns]
                 if missing_columns:
@@ -1084,7 +1104,9 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                     if st.button("✅ Upload Mappings", key=f"confirm_upload_{mapping_type}_{processor}"):
                         with st.spinner("Uploading mappings..."):
                             try:
-                                upload_mappings_to_database(df, db_service, processor, mapping_type)
+                                # Store upload result in session state instead of showing immediately
+                                upload_result = upload_mappings_to_database_silent(df, db_service, processor, mapping_type)
+                                st.session_state[f'upload_result_{mapping_type}_{processor}'] = upload_result
                                 st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
                                 st.rerun()
                             except Exception as e:
@@ -1479,6 +1501,157 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
         st.error(f"❌ Error loading mappings: {e}")
 
 # Helper functions for the enhanced interface
+def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseService, processor: str, mapping_type: str):
+    """Upload mappings to database and return result without showing messages"""
+    try:
+        mappings_data = []
+        skipped_rows = []
+        
+        for index, row in df.iterrows():
+            if mapping_type in ["customer", "store"]:
+                # Handle different column name formats for customer/store mappings
+                raw_name = (row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
+                           row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
+                           row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
+                           row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
+                           row.get('Raw ID', '') or
+                           '').strip()
+                
+                mapped_name = (row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
+                              row.get('MappedCustomerName' if mapping_type == 'customer' else 'MappedStoreName', '') or
+                              row.get('Customer Name' if mapping_type == 'customer' else 'Store Name', '') or
+                              row.get('Mapped Name', '') or
+                              row.get('Name', '') or
+                              '').strip()
+                
+                store_type = (row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
+                             row.get('CustomerType' if mapping_type == 'customer' else 'StoreType', '') or
+                             row.get('Type', 'distributor') or
+                             'distributor').strip()
+                
+                # Handle priority - try different column names
+                priority = 100
+                for col in ['Priority', 'priority']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            priority = int(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle active status - try different column names
+                active = True
+                for col in ['Active', 'active', 'Active Status']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            active = bool(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle notes - try different column names
+                notes = (row.get('Notes', '') or 
+                        row.get('notes', '') or 
+                        row.get('Note', '') or 
+                        '').strip()
+                
+                # Skip rows with empty required fields
+                if not raw_name or not mapped_name:
+                    skipped_rows.append(f"Row {index + 1}: Missing raw_name or mapped_name")
+                    continue
+                
+                mappings_data.append({
+                    'source': processor,
+                    'raw_name': raw_name,
+                    'mapped_name': mapped_name,
+                    'store_type': store_type,
+                    'priority': priority,
+                    'active': active,
+                    'notes': notes
+                })
+            else:  # item
+                # Handle different column name formats
+                raw_item = (row.get('Raw Item', '') or 
+                           row.get('RawKeyValue', '') or 
+                           row.get('Raw Item Number', '') or 
+                           '').strip()
+                
+                mapped_item = (row.get('Mapped Item', '') or 
+                              row.get('MappedItemNumber', '') or 
+                              row.get('Mapped Item Number', '') or 
+                              '').strip()
+                
+                item_description = (row.get('Item Description', '') or 
+                                   row.get('MappedDescription', '') or 
+                                   row.get('Description', '') or 
+                                   '').strip()
+                
+                # Handle priority - try different column names
+                priority = 100
+                for col in ['Priority', 'priority']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            priority = int(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle active status - try different column names
+                active = True
+                for col in ['Active', 'active', 'Active Status']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            active = bool(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle notes - try different column names
+                notes = (row.get('Notes', '') or 
+                        row.get('notes', '') or 
+                        row.get('Note', '') or 
+                        '').strip()
+                
+                # Skip rows with empty required fields
+                if not raw_item or not mapped_item:
+                    skipped_rows.append(f"Row {index + 1}: Missing raw_item or mapped_item")
+                    continue
+                
+                mappings_data.append({
+                    'source': processor,
+                    'raw_item': raw_item,
+                    'mapped_item': mapped_item,
+                    'item_description': item_description,
+                    'priority': priority,
+                    'active': active,
+                    'notes': notes
+                })
+        
+        if mapping_type in ["customer", "store"]:
+            result = db_service.bulk_upsert_store_mappings(mappings_data)
+        else:
+            result = db_service.bulk_upsert_item_mappings(mappings_data)
+        
+        # Return result with additional info
+        return {
+            'success': result['success'],
+            'inserted': result.get('inserted', 0),
+            'updated': result.get('updated', 0),
+            'error': result.get('error', ''),
+            'skipped_rows': skipped_rows,
+            'total_processed': len(mappings_data)
+        }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'inserted': 0,
+            'updated': 0,
+            'error': str(e),
+            'skipped_rows': [],
+            'total_processed': 0
+        }
+
 def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, processor: str, mapping_type: str):
     """Upload mappings to database"""
     try:
@@ -1491,18 +1664,21 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
             if mapping_type in ["customer", "store"]:
                 # Handle different column name formats for customer/store mappings
                 raw_name = (row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
+                           row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
                            row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
                            row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
                            row.get('Raw ID', '') or
                            '').strip()
                 
                 mapped_name = (row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
+                              row.get('MappedCustomerName' if mapping_type == 'customer' else 'MappedStoreName', '') or
                               row.get('Customer Name' if mapping_type == 'customer' else 'Store Name', '') or
                               row.get('Mapped Name', '') or
                               row.get('Name', '') or
                               '').strip()
                 
                 store_type = (row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
+                             row.get('CustomerType' if mapping_type == 'customer' else 'StoreType', '') or
                              row.get('Type', 'distributor') or
                              'distributor').strip()
                 
