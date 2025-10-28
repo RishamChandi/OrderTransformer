@@ -192,9 +192,31 @@ def main():
         padding: 0 1rem;
     }
     
+    /* Fix sidebar to start below header */
     .sidebar {
         width: 280px !important;
         min-width: 280px;
+        padding-top: 120px !important;
+    }
+    
+    /* Target Streamlit sidebar container */
+    [data-testid="stSidebar"] {
+        padding-top: 120px !important;
+    }
+    
+    /* Target sidebar content area */
+    [data-testid="stSidebar"] > div {
+        padding-top: 120px !important;
+    }
+    
+    /* Alternative approach - adjust the main content area */
+    .main .block-container {
+        padding-top: 120px !important;
+    }
+    
+    /* Ensure the entire app content starts below header */
+    .stApp > div:first-child {
+        padding-top: 120px !important;
     }
     
     .main-container {
