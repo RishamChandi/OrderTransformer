@@ -4,6 +4,15 @@ import io
 from datetime import datetime
 import os
 import sys
+
+# Configure Streamlit for better deployment
+st.set_page_config(
+    page_title="Order Transformer",
+    page_icon="🔄",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 from parsers.wholefoods_parser import WholeFoodsParser
 from parsers.unfi_west_parser import UNFIWestParser
 from parsers.unfi_east_parser import UNFIEastParser
@@ -1569,6 +1578,11 @@ def delete_single_mapping(mapping, db_service: DatabaseService, processor: str, 
 
     # Close main content wrapper
     st.markdown('</div>', unsafe_allow_html=True)
+
+# Health check endpoint for Render
+@st.cache_data
+def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
     main()
