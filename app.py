@@ -991,7 +991,7 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
                 data = []
                 for m in mappings:
                     data.append({
@@ -1004,7 +1004,7 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Notes': m.notes or ''
                     })
             elif mapping_type == "store":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
                 data = []
                 for m in mappings:
                     data.append({
@@ -1094,9 +1094,49 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                     expected_columns = ['Raw Store ID', 'RawStoreID', 'Mapped Store Name', 'MappedStoreName', 'Store Type', 'StoreType']
                     st.info("**Expected columns for store mapping:** Raw Store ID (or RawStoreID), Mapped Store Name (or MappedStoreName), Store Type (or StoreType)")
                 
-                missing_columns = [col for col in expected_columns if col not in df.columns]
+                # Check for missing columns - improved logic to handle both formats
+                missing_columns = []
+                if mapping_type == "customer":
+                    # Check if we have at least one format of each required field
+                    has_raw_id = any(col in df.columns for col in ['Raw Customer ID', 'RawCustomerID', 'Raw Customer', 'Customer ID', 'Raw ID'])
+                    has_mapped_name = any(col in df.columns for col in ['Mapped Customer Name', 'MappedCustomerName', 'Customer Name', 'Mapped Name', 'Name'])
+                    has_type = any(col in df.columns for col in ['Customer Type', 'CustomerType', 'Type'])
+                    
+                    if not has_raw_id:
+                        missing_columns.append('Raw Customer ID (or RawCustomerID)')
+                    if not has_mapped_name:
+                        missing_columns.append('Mapped Customer Name (or MappedCustomerName)')
+                    if not has_type:
+                        missing_columns.append('Customer Type (or CustomerType)')
+                        
+                elif mapping_type == "store":
+                    # Check if we have at least one format of each required field
+                    has_raw_id = any(col in df.columns for col in ['Raw Store ID', 'RawStoreID', 'Raw Store', 'Store ID', 'Raw ID'])
+                    has_mapped_name = any(col in df.columns for col in ['Mapped Store Name', 'MappedStoreName', 'Store Name', 'Mapped Name', 'Name'])
+                    has_type = any(col in df.columns for col in ['Store Type', 'StoreType', 'Type'])
+                    
+                    if not has_raw_id:
+                        missing_columns.append('Raw Store ID (or RawStoreID)')
+                    if not has_mapped_name:
+                        missing_columns.append('Mapped Store Name (or MappedStoreName)')
+                    if not has_type:
+                        missing_columns.append('Store Type (or StoreType)')
+                        
+                elif mapping_type == "item":
+                    # Check if we have at least one format of each required field
+                    has_raw_item = any(col in df.columns for col in ['Raw Item', 'RawKeyValue', 'Raw Item Number'])
+                    has_mapped_item = any(col in df.columns for col in ['Mapped Item', 'MappedItemNumber', 'Mapped Item Number'])
+                    has_description = any(col in df.columns for col in ['Item Description', 'MappedDescription', 'Description'])
+                    
+                    if not has_raw_item:
+                        missing_columns.append('Raw Item (or RawKeyValue)')
+                    if not has_mapped_item:
+                        missing_columns.append('Mapped Item (or MappedItemNumber)')
+                    if not has_description:
+                        missing_columns.append('Item Description (or MappedDescription)')
+                
                 if missing_columns:
-                    st.warning(f"⚠️ Missing expected columns: {missing_columns}")
+                    st.warning(f"⚠️ Missing required columns: {missing_columns}")
                     st.info("The upload will attempt to map available columns to the required fields.")
                 
                 col1, col2 = st.columns(2)
@@ -1130,9 +1170,11 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                    # Customer mappings: filter by store_type that indicates customer entities
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
                 elif mapping_type == "store":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                    # Store mappings: filter by store_type that indicates store entities  
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
                 elif mapping_type == "item":
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1333,8 +1375,10 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
         # Load current mappings
         try:
             with db_service.get_session() as session:
-                if mapping_type in ["customer", "store"]:
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                if mapping_type == "customer":
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                elif mapping_type == "store":
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
                 else:
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1395,8 +1439,10 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
         # Load current mappings with pagination
         try:
             with db_service.get_session() as session:
-                if mapping_type in ["customer", "store"]:
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+                if mapping_type == "customer":
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                elif mapping_type == "store":
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
                 else:
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1460,8 +1506,10 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
     """Show current mappings in read-only view"""
     try:
         with db_service.get_session() as session:
-            if mapping_type in ["customer", "store"]:
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).all()
+            if mapping_type == "customer":
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+            elif mapping_type == "store":
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type != "store").all()
             else:
                 mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
             
@@ -1510,21 +1558,21 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         for index, row in df.iterrows():
             if mapping_type in ["customer", "store"]:
                 # Handle different column name formats for customer/store mappings
-                raw_name = (row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
+                raw_name = str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
                            row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
                            row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
                            row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
                            row.get('Raw ID', '') or
                            '').strip()
                 
-                mapped_name = (row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
+                mapped_name = str(row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
                               row.get('MappedCustomerName' if mapping_type == 'customer' else 'MappedStoreName', '') or
                               row.get('Customer Name' if mapping_type == 'customer' else 'Store Name', '') or
                               row.get('Mapped Name', '') or
                               row.get('Name', '') or
                               '').strip()
                 
-                store_type = (row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
+                store_type = str(row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
                              row.get('CustomerType' if mapping_type == 'customer' else 'StoreType', '') or
                              row.get('Type', 'distributor') or
                              'distributor').strip()
@@ -1550,7 +1598,7 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                             continue
                 
                 # Handle notes - try different column names
-                notes = (row.get('Notes', '') or 
+                notes = str(row.get('Notes', '') or 
                         row.get('notes', '') or 
                         row.get('Note', '') or 
                         '').strip()
@@ -1571,17 +1619,17 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 })
             else:  # item
                 # Handle different column name formats
-                raw_item = (row.get('Raw Item', '') or 
+                raw_item = str(row.get('Raw Item', '') or 
                            row.get('RawKeyValue', '') or 
                            row.get('Raw Item Number', '') or 
                            '').strip()
                 
-                mapped_item = (row.get('Mapped Item', '') or 
+                mapped_item = str(row.get('Mapped Item', '') or 
                               row.get('MappedItemNumber', '') or 
                               row.get('Mapped Item Number', '') or 
                               '').strip()
                 
-                item_description = (row.get('Item Description', '') or 
+                item_description = str(row.get('Item Description', '') or 
                                    row.get('MappedDescription', '') or 
                                    row.get('Description', '') or 
                                    '').strip()
@@ -1607,7 +1655,7 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                             continue
                 
                 # Handle notes - try different column names
-                notes = (row.get('Notes', '') or 
+                notes = str(row.get('Notes', '') or 
                         row.get('notes', '') or 
                         row.get('Note', '') or 
                         '').strip()
@@ -1663,21 +1711,21 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
         for index, row in df.iterrows():
             if mapping_type in ["customer", "store"]:
                 # Handle different column name formats for customer/store mappings
-                raw_name = (row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
+                raw_name = str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
                            row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
                            row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
                            row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
                            row.get('Raw ID', '') or
                            '').strip()
                 
-                mapped_name = (row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
+                mapped_name = str(row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
                               row.get('MappedCustomerName' if mapping_type == 'customer' else 'MappedStoreName', '') or
                               row.get('Customer Name' if mapping_type == 'customer' else 'Store Name', '') or
                               row.get('Mapped Name', '') or
                               row.get('Name', '') or
                               '').strip()
                 
-                store_type = (row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
+                store_type = str(row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
                              row.get('CustomerType' if mapping_type == 'customer' else 'StoreType', '') or
                              row.get('Type', 'distributor') or
                              'distributor').strip()
@@ -1703,7 +1751,7 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                             continue
                 
                 # Handle notes - try different column names
-                notes = (row.get('Notes', '') or 
+                notes = str(row.get('Notes', '') or 
                         row.get('notes', '') or 
                         row.get('Note', '') or 
                         '').strip()
@@ -1724,17 +1772,17 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                 })
             else:  # item
                 # Handle different column name formats
-                raw_item = (row.get('Raw Item', '') or 
+                raw_item = str(row.get('Raw Item', '') or 
                            row.get('RawKeyValue', '') or 
                            row.get('Raw Item Number', '') or 
                            '').strip()
                 
-                mapped_item = (row.get('Mapped Item', '') or 
+                mapped_item = str(row.get('Mapped Item', '') or 
                               row.get('MappedItemNumber', '') or 
                               row.get('Mapped Item Number', '') or 
                               '').strip()
                 
-                item_description = (row.get('Item Description', '') or 
+                item_description = str(row.get('Item Description', '') or 
                                    row.get('MappedDescription', '') or 
                                    row.get('Description', '') or 
                                    '').strip()
@@ -1760,7 +1808,7 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                             continue
                 
                 # Handle notes - try different column names
-                notes = (row.get('Notes', '') or 
+                notes = str(row.get('Notes', '') or 
                         row.get('notes', '') or 
                         row.get('Note', '') or 
                         '').strip()
