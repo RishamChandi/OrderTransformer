@@ -218,7 +218,8 @@ def main():
             "📝 Process Orders": "process",
             "📊 Order History": "history",
             "👁️ View Orders": "view",
-            "⚙️ Manage Mappings": "mappings"
+            "⚙️ Manage Mappings": "mappings",
+            "📋 Mapping Documentation": "mapping_docs"
         }
         
         selected_action_name = st.selectbox(
@@ -296,6 +297,8 @@ def main():
         processed_orders_page(db_service, selected_source)
     elif action == "mappings":
         manage_mappings_page(db_service, selected_source)
+    elif action == "mapping_docs":
+        mapping_documentation_page(db_service, selected_source)
 
 def process_orders_page(db_service: DatabaseService, selected_source: str = "all", selected_source_name: str = "All Sources"):
     """Main order processing page with optimized screen usage"""
@@ -991,14 +994,31 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
+                # Try to query CustomerMapping table first, fall back to StoreMapping if it doesn't exist
+                try:
+                    mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
+                except Exception:
+                    # Fall back to StoreMapping table with store_type = "customer"
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 data = []
                 for m in mappings:
+                    # Handle both CustomerMapping and StoreMapping field names
+                    if hasattr(m, 'raw_customer_id'):
+                        # CustomerMapping table
+                        raw_id = m.raw_customer_id
+                        mapped_name = m.mapped_customer_name
+                        customer_type = m.customer_type
+                    else:
+                        # StoreMapping table fallback
+                        raw_id = m.raw_name
+                        mapped_name = m.mapped_name
+                        customer_type = m.store_type
+                    
                     data.append({
                         'Source': m.source,
-                        'Raw Customer ID': m.raw_customer_id,
-                        'Mapped Customer Name': m.mapped_customer_name,
-                        'Customer Type': m.customer_type,
+                        'Raw Customer ID': raw_id,
+                        'Mapped Customer Name': mapped_name,
+                        'Customer Type': customer_type,
                         'Priority': m.priority,
                         'Active': m.active,
                         'Notes': m.notes or ''
@@ -1170,8 +1190,12 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    # Customer mappings: filter by store_type that indicates customer entities
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])).all()
+                    # Try to query CustomerMapping table first, fall back to StoreMapping if it doesn't exist
+                    try:
+                        mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
+                    except Exception:
+                        # Fall back to StoreMapping table with store_type = "customer"
+                        mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
                     # Store mappings: filter by store_type that indicates store entities  
                     mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
@@ -1214,7 +1238,11 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col2:
                             if mapping_type == "customer":
-                                st.write(f"**{m.raw_customer_id}**")
+                                # Handle both CustomerMapping and StoreMapping field names
+                                if hasattr(m, 'raw_customer_id'):
+                                    st.write(f"**{m.raw_customer_id}**")
+                                else:
+                                    st.write(f"**{m.raw_name}**")
                             elif mapping_type == "store":
                                 st.write(f"**{m.raw_store_id}**")
                             else:  # item
@@ -1222,7 +1250,11 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col3:
                             if mapping_type == "customer":
-                                st.write(f"{m.mapped_customer_name}")
+                                # Handle both CustomerMapping and StoreMapping field names
+                                if hasattr(m, 'mapped_customer_name'):
+                                    st.write(f"{m.mapped_customer_name}")
+                                else:
+                                    st.write(f"{m.mapped_name}")
                             elif mapping_type == "store":
                                 st.write(f"{m.mapped_store_name}")
                             else:  # item
@@ -1230,7 +1262,11 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col4:
                             if mapping_type == "customer":
-                                st.write(f"{m.customer_type}")
+                                # Handle both CustomerMapping and StoreMapping field names
+                                if hasattr(m, 'customer_type'):
+                                    st.write(f"{m.customer_type}")
+                                else:
+                                    st.write(f"{m.store_type}")
                             elif mapping_type == "store":
                                 st.write(f"{m.store_type}")
                             else:  # item
@@ -1717,7 +1753,16 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         
         if mapping_type in ["customer", "store"]:
             if mapping_type == "customer":
-                result = db_service.bulk_upsert_customer_mappings(mappings_data)
+                # Try to use CustomerMapping table, fall back to StoreMapping if it doesn't exist
+                try:
+                    result = db_service.bulk_upsert_customer_mappings(mappings_data)
+                except Exception as e:
+                    # Fall back to StoreMapping table with customer_type = "customer"
+                    for data in mappings_data:
+                        data['raw_name'] = data.pop('raw_customer_id')
+                        data['mapped_name'] = data.pop('mapped_customer_name')
+                        data['store_type'] = data.pop('customer_type', 'customer')
+                    result = db_service.bulk_upsert_store_mappings(mappings_data)
             else:
                 result = db_service.bulk_upsert_store_mappings(mappings_data)
         else:
@@ -2008,6 +2053,427 @@ def delete_single_mapping(mapping, db_service: DatabaseService, processor: str, 
             
     except Exception as e:
         st.error(f"❌ Failed to delete mapping: {e}")
+
+
+def mapping_documentation_page(db_service: DatabaseService, selected_source: str):
+    """Comprehensive mapping documentation page for each client"""
+    
+    # Client-specific mapping information
+    client_mappings = {
+        "wholefoods": {
+            "name": "Whole Foods Market",
+            "description": "Natural and organic grocery retailer with complex store hierarchy",
+            "file_format": "HTML/CSV",
+            "order_structure": "Multi-store orders with detailed item information",
+            "mapping_fields": {
+                "customer": {
+                    "source_field": "Store ID / Customer ID",
+                    "target_field": "Xoro Customer Name",
+                    "description": "Maps store locations to customer accounts",
+                    "example": "Store #10005 → WHOLE FOODS #10005 PALO ALTO"
+                },
+                "store": {
+                    "source_field": "Store Location / DC",
+                    "target_field": "Xoro Store Name", 
+                    "description": "Maps distribution centers and store locations",
+                    "example": "DC12 → KEHE AURORA CO DC12"
+                },
+                "item": {
+                    "source_field": "Vendor Item Number",
+                    "target_field": "Xoro Item Number + Description",
+                    "description": "Maps vendor SKUs to standardized item numbers with descriptions",
+                    "example": "12-046-2 → 12-046-2 (Loacker Quadratini- Chocolate)"
+                }
+            },
+            "process_flow": [
+                "Parse HTML order files for store and item data",
+                "Extract customer information from store headers",
+                "Map store IDs to customer names using customer mappings",
+                "Map distribution centers to store names using store mappings", 
+                "Map vendor item numbers to Xoro format using item mappings",
+                "Validate all mappings exist before processing",
+                "Generate standardized Xoro CSV output"
+            ],
+            "validation_points": [
+                "Verify customer mapping exists for each store ID",
+                "Check store mapping for distribution center references",
+                "Ensure item mapping covers all vendor SKUs",
+                "Validate priority and active status of mappings",
+                "Confirm description fields are populated"
+            ]
+        },
+        "kehe": {
+            "name": "KEHE SPS",
+            "description": "Specialty food distributor serving independent retailers",
+            "file_format": "CSV",
+            "order_structure": "Direct store orders with detailed product information",
+            "mapping_fields": {
+                "customer": {
+                    "source_field": "Customer Account Number",
+                    "target_field": "Xoro Customer Name",
+                    "description": "Maps KEHE customer accounts to Xoro customers",
+                    "example": "569813430012 → KEHE AURORA CO DC12"
+                },
+                "store": {
+                    "source_field": "Store Location Code",
+                    "target_field": "Xoro Store Name",
+                    "description": "Maps store location codes to retail store names",
+                    "example": "DC12 → KEHE AURORA CO DC12"
+                },
+                "item": {
+                    "source_field": "Product Code",
+                    "target_field": "Xoro Item Number",
+                    "description": "Maps KEHE product codes to standardized item numbers",
+                    "example": "12345 → 12-345-6 (Product Description)"
+                }
+            },
+            "process_flow": [
+                "Parse CSV order files for customer and product data",
+                "Extract customer account information",
+                "Map customer accounts to customer names using customer mappings",
+                "Map store codes to store names using store mappings",
+                "Map product codes to item numbers using item mappings",
+                "Validate mapping completeness and accuracy",
+                "Generate standardized Xoro CSV output"
+            ],
+            "validation_points": [
+                "Verify customer mapping exists for each account number",
+                "Check store mapping for location codes",
+                "Ensure item mapping covers all product codes",
+                "Validate customer type (distributor vs retail)",
+                "Confirm store type (retail vs wholesale)"
+            ]
+        },
+        "unfi_east": {
+            "name": "UNFI East",
+            "description": "United Natural Foods East Coast distribution",
+            "file_format": "PDF/CSV",
+            "order_structure": "Regional distribution with multi-location orders",
+            "mapping_fields": {
+                "customer": {
+                    "source_field": "Customer ID",
+                    "target_field": "Xoro Customer Name",
+                    "description": "Maps UNFI East customer IDs to customer names",
+                    "example": "CUST001 → UNFI EAST CUSTOMER"
+                },
+                "store": {
+                    "source_field": "Store Number",
+                    "target_field": "Xoro Store Name",
+                    "description": "Maps store numbers to store locations",
+                    "example": "ST001 → UNFI EAST STORE 001"
+                },
+                "item": {
+                    "source_field": "Item Code",
+                    "target_field": "Xoro Item Number",
+                    "description": "Maps UNFI item codes to standardized numbers",
+                    "example": "UNFI123 → 12-345-6 (Item Description)"
+                }
+            },
+            "process_flow": [
+                "Parse PDF/CSV files for customer and store data",
+                "Extract customer identification information",
+                "Map customer IDs to customer names using customer mappings",
+                "Map store numbers to store names using store mappings",
+                "Map item codes to item numbers using item mappings",
+                "Validate regional distribution requirements",
+                "Generate standardized Xoro CSV output"
+            ],
+            "validation_points": [
+                "Verify customer mapping exists for each customer ID",
+                "Check store mapping for store numbers",
+                "Ensure item mapping covers all item codes",
+                "Validate customer type separation (store vs distributor)",
+                "Confirm store type classification"
+            ]
+        },
+        "unfi_west": {
+            "name": "UNFI West",
+            "description": "United Natural Foods West Coast distribution",
+            "file_format": "PDF/CSV",
+            "order_structure": "Regional distribution with multi-location orders",
+            "mapping_fields": {
+                "customer": {
+                    "source_field": "Customer ID",
+                    "target_field": "Xoro Customer Name",
+                    "description": "Maps UNFI West customer IDs to customer names",
+                    "example": "CUST001 → UNFI WEST CUSTOMER"
+                },
+                "store": {
+                    "source_field": "Store Number",
+                    "target_field": "Xoro Store Name",
+                    "description": "Maps store numbers to store locations",
+                    "example": "ST001 → UNFI WEST STORE 001"
+                },
+                "item": {
+                    "source_field": "Item Code",
+                    "target_field": "Xoro Item Number",
+                    "description": "Maps UNFI item codes to standardized numbers",
+                    "example": "UNFI123 → 12-345-6 (Item Description)"
+                }
+            },
+            "process_flow": [
+                "Parse PDF/CSV files for customer and store data",
+                "Extract customer identification information",
+                "Map customer IDs to customer names using customer mappings",
+                "Map store numbers to store names using store mappings",
+                "Map item codes to item numbers using item mappings",
+                "Validate regional distribution requirements",
+                "Generate standardized Xoro CSV output"
+            ],
+            "validation_points": [
+                "Verify customer mapping exists for each customer ID",
+                "Check store mapping for store numbers",
+                "Ensure item mapping covers all item codes",
+                "Validate customer type separation (store vs distributor)",
+                "Confirm store type classification"
+            ]
+        },
+        "tkmaxx": {
+            "name": "TK Maxx",
+            "description": "Off-price retail chain with unique product sourcing",
+            "file_format": "CSV",
+            "order_structure": "Store-specific orders with fashion/retail items",
+            "mapping_fields": {
+                "customer": {
+                    "source_field": "Store ID",
+                    "target_field": "Xoro Customer Name",
+                    "description": "Maps TK Maxx store IDs to customer accounts",
+                    "example": "TK001 → TK MAXX STORE 001"
+                },
+                "store": {
+                    "source_field": "Store Location",
+                    "target_field": "Xoro Store Name",
+                    "description": "Maps store locations to store names",
+                    "example": "LOC001 → TK MAXX LOCATION 001"
+                },
+                "item": {
+                    "source_field": "SKU",
+                    "target_field": "Xoro Item Number",
+                    "description": "Maps TK Maxx SKUs to standardized item numbers",
+                    "example": "TK123 → 12-345-6 (Fashion Item Description)"
+                }
+            },
+            "process_flow": [
+                "Parse CSV order files for store and SKU data",
+                "Extract store identification information",
+                "Map store IDs to customer names using customer mappings",
+                "Map store locations to store names using store mappings",
+                "Map SKUs to item numbers using item mappings",
+                "Validate fashion/retail specific requirements",
+                "Generate standardized Xoro CSV output"
+            ],
+            "validation_points": [
+                "Verify customer mapping exists for each store ID",
+                "Check store mapping for store locations",
+                "Ensure item mapping covers all SKUs",
+                "Validate retail-specific mapping requirements",
+                "Confirm fashion item descriptions"
+            ]
+        }
+    }
+    
+    if selected_source == "all":
+        st.error("Please select a specific client to view mapping documentation.")
+        return
+    
+    client_info = client_mappings.get(selected_source, {})
+    if not client_info:
+        st.error(f"No mapping documentation available for {selected_source}")
+        return
+    
+    # Beautiful header with client branding
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 15px; margin-bottom: 2rem; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 50%; font-size: 2rem;">
+                📋
+            </div>
+            <div>
+                <h1 style="color: white; margin: 0; font-size: 2.5rem; font-weight: 700;">
+                    {client_info['name']} Mapping Documentation
+                </h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0; font-size: 1.1rem;">
+                    {client_info['description']}
+                </p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Client overview cards
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+        <div style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #667eea;">
+            <h3 style="color: #667eea; margin-top: 0;">📄 File Format</h3>
+            <p style="font-size: 1.1rem; margin-bottom: 0;"><strong>{client_info['file_format']}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #764ba2;">
+            <h3 style="color: #764ba2; margin-top: 0;">🏗️ Order Structure</h3>
+            <p style="font-size: 1rem; margin-bottom: 0;">{client_info['order_structure']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #f093fb;">
+            <h3 style="color: #f093fb; margin-top: 0;">🔄 Processing</h3>
+            <p style="font-size: 1rem; margin-bottom: 0;">Real-time mapping validation</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Mapping fields section
+    st.markdown("## 🗺️ Field Mapping Overview")
+    st.markdown("This section shows how each field from the client's order file maps to the standardized Xoro format.")
+    
+    # Create mapping cards for each type
+    mapping_types = ['customer', 'store', 'item']
+    mapping_colors = ['#667eea', '#764ba2', '#f093fb']
+    mapping_icons = ['👥', '🏪', '📦']
+    
+    for i, mapping_type in enumerate(mapping_types):
+        mapping_info = client_info['mapping_fields'][mapping_type]
+        
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {mapping_colors[i]}20 0%, {mapping_colors[i]}10 100%); padding: 2rem; border-radius: 15px; margin: 1rem 0; border-left: 5px solid {mapping_colors[i]};">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div style="background: {mapping_colors[i]}; padding: 0.5rem; border-radius: 50%; font-size: 1.5rem;">
+                    {mapping_icons[i]}
+                </div>
+                <h3 style="color: {mapping_colors[i]}; margin: 0; text-transform: capitalize;">{mapping_type.title()} Mapping</h3>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 1rem;">
+                <div style="background: white; padding: 1rem; border-radius: 8px;">
+                    <h4 style="color: #333; margin-top: 0;">📥 Source Field</h4>
+                    <p style="font-weight: bold; color: #667eea;">{mapping_info['source_field']}</p>
+                </div>
+                <div style="background: white; padding: 1rem; border-radius: 8px;">
+                    <h4 style="color: #333; margin-top: 0;">📤 Target Field</h4>
+                    <p style="font-weight: bold; color: #764ba2;">{mapping_info['target_field']}</p>
+                </div>
+            </div>
+            
+            <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <h4 style="color: #333; margin-top: 0;">📝 Description</h4>
+                <p style="margin-bottom: 0;">{mapping_info['description']}</p>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.8); padding: 1rem; border-radius: 8px; border-left: 3px solid {mapping_colors[i]};">
+                <h4 style="color: #333; margin-top: 0;">💡 Example</h4>
+                <code style="background: #f8f9fa; padding: 0.5rem; border-radius: 4px; display: block;">{mapping_info['example']}</code>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Process flow section
+    st.markdown("## 🔄 Processing Flow")
+    st.markdown("The step-by-step process of how orders are transformed using the mappings.")
+    
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #667eea20 0%, #764ba210 100%); padding: 2rem; border-radius: 15px; margin: 1rem 0;">
+        <h3 style="color: #667eea; margin-top: 0;">📋 Processing Steps</h3>
+    """, unsafe_allow_html=True)
+    
+    for i, step in enumerate(client_info['process_flow'], 1):
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 1rem; margin: 1rem 0; padding: 1rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="background: #667eea; color: white; padding: 0.5rem; border-radius: 50%; min-width: 2rem; text-align: center; font-weight: bold;">
+                {i}
+            </div>
+            <p style="margin: 0; font-size: 1rem;">{step}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Validation checkpoints section
+    st.markdown("## ✅ Validation Checkpoints")
+    st.markdown("Critical points where mapping validation occurs to ensure data integrity.")
+    
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #f093fb20 0%, #667eea10 100%); padding: 2rem; border-radius: 15px; margin: 1rem 0;">
+        <h3 style="color: #f093fb; margin-top: 0;">🔍 Validation Points</h3>
+    """, unsafe_allow_html=True)
+    
+    for i, checkpoint in enumerate(client_info['validation_points'], 1):
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 1rem; margin: 1rem 0; padding: 1rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #f093fb;">
+            <div style="background: #f093fb; color: white; padding: 0.5rem; border-radius: 50%; min-width: 2rem; text-align: center; font-weight: bold;">
+                ✓
+            </div>
+            <p style="margin: 0; font-size: 1rem;">{checkpoint}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Best practices section
+    st.markdown("## 💡 Best Practices")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #667eea;">
+            <h3 style="color: #667eea; margin-top: 0;">📊 Mapping Management</h3>
+            <ul style="margin-bottom: 0;">
+                <li>Keep mappings up-to-date with client changes</li>
+                <li>Use descriptive names for better clarity</li>
+                <li>Set appropriate priority values</li>
+                <li>Mark inactive mappings instead of deleting</li>
+                <li>Add notes for complex mapping logic</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #764ba2;">
+            <h3 style="color: #764ba2; margin-top: 0;">🔧 Troubleshooting</h3>
+            <ul style="margin-bottom: 0;">
+                <li>Check mapping completeness before processing</li>
+                <li>Validate field formats match expectations</li>
+                <li>Review skipped rows in upload results</li>
+                <li>Use bulk editor for mass updates</li>
+                <li>Test mappings with sample data first</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Footer with quick actions
+    st.markdown("---")
+    st.markdown("## 🚀 Quick Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("⚙️ Manage Mappings", use_container_width=True):
+            st.session_state['action'] = 'mappings'
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Process Orders", use_container_width=True):
+            st.session_state['action'] = 'process'
+            st.rerun()
+    
+    with col3:
+        if st.button("👁️ View Orders", use_container_width=True):
+            st.session_state['action'] = 'view'
+            st.rerun()
 
 
 # Health check endpoint for Render

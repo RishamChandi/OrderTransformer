@@ -4,10 +4,11 @@ Initialize the database schema only - no automatic mapping loading
 All mappings should be managed through the UI
 """
 
-from database.models import Base
+from database.models import Base, CustomerMapping
 from database.connection import get_database_engine
 from database.service import DatabaseService
 from database.migration import run_full_migration
+from sqlalchemy import inspect
 
 def init_database():
     """Initialize database tables only - no mapping data loading"""
@@ -18,6 +19,17 @@ def init_database():
     Base.metadata.create_all(bind=engine)
     
     print("Database tables created successfully!")
+    
+    # Check if customer_mappings table exists, create if not
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    
+    if 'customer_mappings' not in tables:
+        print("Creating customer_mappings table...")
+        CustomerMapping.__table__.create(engine, checkfirst=True)
+        print("✅ customer_mappings table created")
+    else:
+        print("✅ customer_mappings table already exists")
     
     # Run item mapping template migration
     success, message = run_full_migration()
