@@ -1059,12 +1059,37 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                 st.write("**File Preview:**")
                 st.dataframe(df.head())
                 
+                # Debug: Show available columns
+                st.write("**Available Columns:**")
+                st.write(list(df.columns))
+                
+                # Check if we have the required columns for different mapping types
+                if mapping_type == "item":
+                    expected_columns = ['RawKeyValue', 'MappedItemNumber', 'MappedDescription']
+                    st.info("**Expected columns for item mapping:** RawKeyValue, MappedItemNumber, MappedDescription")
+                elif mapping_type == "customer":
+                    expected_columns = ['Raw Customer ID', 'Mapped Customer Name', 'Customer Type']
+                    st.info("**Expected columns for customer mapping:** Raw Customer ID, Mapped Customer Name, Customer Type")
+                elif mapping_type == "store":
+                    expected_columns = ['Raw Store ID', 'Mapped Store Name', 'Store Type']
+                    st.info("**Expected columns for store mapping:** Raw Store ID, Mapped Store Name, Store Type")
+                
+                missing_columns = [col for col in expected_columns if col not in df.columns]
+                if missing_columns:
+                    st.warning(f"⚠️ Missing expected columns: {missing_columns}")
+                    st.info("The upload will attempt to map available columns to the required fields.")
+                
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("✅ Upload Mappings", key=f"confirm_upload_{mapping_type}_{processor}"):
-                        upload_mappings_to_database(df, db_service, processor, mapping_type)
-                        st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
-                        st.rerun()
+                        with st.spinner("Uploading mappings..."):
+                            try:
+                                upload_mappings_to_database(df, db_service, processor, mapping_type)
+                                st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Upload failed: {str(e)}")
+                                st.exception(e)
                 
                 with col2:
                     if st.button("❌ Cancel", key=f"cancel_upload_{mapping_type}_{processor}"):
@@ -1115,14 +1140,13 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col1:
                             is_selected = m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']
-                            if st.checkbox("", value=is_selected, key=f"select_{mapping_type}_{processor}_{m.id}"):
-                                if m.id not in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
-                                    st.session_state[f'selected_mappings_{mapping_type}_{processor}'].append(m.id)
-                                    st.rerun()
-                            else:
-                                if m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
-                                    st.session_state[f'selected_mappings_{mapping_type}_{processor}'].remove(m.id)
-                                    st.rerun()
+                            checkbox_value = st.checkbox("", value=is_selected, key=f"select_{mapping_type}_{processor}_{m.id}")
+                            
+                            # Update selection state based on checkbox change
+                            if checkbox_value and m.id not in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
+                                st.session_state[f'selected_mappings_{mapping_type}_{processor}'].append(m.id)
+                            elif not checkbox_value and m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
+                                st.session_state[f'selected_mappings_{mapping_type}_{processor}'].remove(m.id)
                         
                         with col2:
                             if mapping_type in ["customer", "store"]:
@@ -1149,7 +1173,13 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         if m.id in st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
                             selected_count += 1
                     
-                    st.write(f"**Selected: {selected_count} mapping(s)**")
+                    # Calculate current selection count
+                    current_selected = len(st.session_state[f'selected_mappings_{mapping_type}_{processor}'])
+                    st.write(f"**Selected: {current_selected} mapping(s)**")
+                    
+                    # Add refresh button to update selection count
+                    if st.button("🔄 Refresh Selection", key=f"refresh_selection_{mapping_type}_{processor}"):
+                        st.rerun()
                     
                     col1, col2 = st.columns(2)
                     with col1:
@@ -1453,26 +1483,125 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
     """Upload mappings to database"""
     try:
         mappings_data = []
-        for _, row in df.iterrows():
+        skipped_rows = []
+        
+        st.write(f"Processing {len(df)} rows...")
+        
+        for index, row in df.iterrows():
             if mapping_type in ["customer", "store"]:
+                # Handle different column name formats for customer/store mappings
+                raw_name = (row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
+                           row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
+                           row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
+                           row.get('Raw ID', '') or
+                           '').strip()
+                
+                mapped_name = (row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
+                              row.get('Customer Name' if mapping_type == 'customer' else 'Store Name', '') or
+                              row.get('Mapped Name', '') or
+                              row.get('Name', '') or
+                              '').strip()
+                
+                store_type = (row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', '') or
+                             row.get('Type', 'distributor') or
+                             'distributor').strip()
+                
+                # Handle priority - try different column names
+                priority = 100
+                for col in ['Priority', 'priority']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            priority = int(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle active status - try different column names
+                active = True
+                for col in ['Active', 'active', 'Active Status']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            active = bool(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle notes - try different column names
+                notes = (row.get('Notes', '') or 
+                        row.get('notes', '') or 
+                        row.get('Note', '') or 
+                        '').strip()
+                
+                # Skip rows with empty required fields
+                if not raw_name or not mapped_name:
+                    skipped_rows.append(f"Row {index + 1}: Missing raw_name or mapped_name")
+                    continue
+                
                 mappings_data.append({
                     'source': processor,
-                    'raw_name': str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '')).strip(),
-                    'mapped_name': str(row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '')).strip(),
-                    'store_type': str(row.get('Customer Type' if mapping_type == 'customer' else 'Store Type', 'distributor')).strip(),
-                    'priority': int(row.get('Priority', 100)),
-                    'active': bool(row.get('Active', True)),
-                    'notes': str(row.get('Notes', '')).strip()
+                    'raw_name': raw_name,
+                    'mapped_name': mapped_name,
+                    'store_type': store_type,
+                    'priority': priority,
+                    'active': active,
+                    'notes': notes
                 })
             else:  # item
+                # Handle different column name formats
+                raw_item = (row.get('Raw Item', '') or 
+                           row.get('RawKeyValue', '') or 
+                           row.get('Raw Item Number', '') or 
+                           '').strip()
+                
+                mapped_item = (row.get('Mapped Item', '') or 
+                              row.get('MappedItemNumber', '') or 
+                              row.get('Mapped Item Number', '') or 
+                              '').strip()
+                
+                item_description = (row.get('Item Description', '') or 
+                                   row.get('MappedDescription', '') or 
+                                   row.get('Description', '') or 
+                                   '').strip()
+                
+                # Handle priority - try different column names
+                priority = 100
+                for col in ['Priority', 'priority']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            priority = int(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle active status - try different column names
+                active = True
+                for col in ['Active', 'active', 'Active Status']:
+                    if col in row and pd.notna(row[col]):
+                        try:
+                            active = bool(row[col])
+                            break
+                        except (ValueError, TypeError):
+                            continue
+                
+                # Handle notes - try different column names
+                notes = (row.get('Notes', '') or 
+                        row.get('notes', '') or 
+                        row.get('Note', '') or 
+                        '').strip()
+                
+                # Skip rows with empty required fields
+                if not raw_item or not mapped_item:
+                    skipped_rows.append(f"Row {index + 1}: Missing raw_item or mapped_item")
+                    continue
+                
                 mappings_data.append({
                     'source': processor,
-                    'raw_item': str(row.get('Raw Item', '')).strip(),
-                    'mapped_item': str(row.get('Mapped Item', '')).strip(),
-                    'item_description': str(row.get('Item Description', '')).strip(),
-                    'priority': int(row.get('Priority', 100)),
-                    'active': bool(row.get('Active', True)),
-                    'notes': str(row.get('Notes', '')).strip()
+                    'raw_item': raw_item,
+                    'mapped_item': mapped_item,
+                    'item_description': item_description,
+                    'priority': priority,
+                    'active': active,
+                    'notes': notes
                 })
         
         if mapping_type in ["customer", "store"]:
@@ -1484,6 +1613,12 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
             st.success(f"✅ Successfully uploaded {result['inserted']} new {mapping_type} mappings")
             if result['updated'] > 0:
                 st.info(f"Updated {result['updated']} existing mappings")
+            if skipped_rows:
+                st.warning(f"Skipped {len(skipped_rows)} rows due to missing required data:")
+                for skip_reason in skipped_rows[:5]:  # Show first 5 skipped rows
+                    st.write(f"- {skip_reason}")
+                if len(skipped_rows) > 5:
+                    st.write(f"- ... and {len(skipped_rows) - 5} more")
         else:
             st.error(f"❌ Upload failed: {result['error']}")
             
