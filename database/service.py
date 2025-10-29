@@ -170,17 +170,17 @@ class DatabaseService:
             with get_session() as session:
                 # Check if mapping already exists
                 existing = session.query(StoreMapping)\
-                                .filter_by(source=source, raw_name=raw_name)\
+                                .filter_by(source=source, raw_store_id=raw_name)\
                                 .first()
                 
                 if existing:
-                    existing.mapped_name = mapped_name  # type: ignore
+                    existing.mapped_store_name = mapped_name  # type: ignore
                     existing.updated_at = datetime.utcnow()  # type: ignore
                 else:
                     mapping = StoreMapping(
                         source=source,
-                        raw_name=raw_name,
-                        mapped_name=mapped_name
+                        raw_store_id=raw_name,
+                        mapped_store_name=mapped_name
                     )
                     session.add(mapping)
                 
@@ -223,7 +223,7 @@ class DatabaseService:
                              .filter_by(source=source)\
                              .all()
             
-            return {str(mapping.raw_name): str(mapping.mapped_name) for mapping in mappings}
+            return {str(mapping.raw_store_id): str(mapping.mapped_store_name) for mapping in mappings}
     
     def get_item_mappings(self, source: str) -> Dict[str, str]:
         """Get all item mappings for a source"""
@@ -301,7 +301,7 @@ class DatabaseService:
         try:
             with get_session() as session:
                 mapping = session.query(StoreMapping)\
-                               .filter_by(source=source, raw_name=raw_name)\
+                               .filter_by(source=source, raw_store_id=raw_name)\
                                .first()
                 
                 if mapping:
@@ -456,8 +456,6 @@ class DatabaseService:
                     else:
                         new_mapping = StoreMapping(
                             source=data['source'],
-                            raw_name=data['raw_store_id'],
-                            mapped_name=data['mapped_store_name'],
                             raw_store_id=data['raw_store_id'],
                             mapped_store_name=data['mapped_store_name'],
                             store_type=data['store_type'],
