@@ -1734,11 +1734,17 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         if mapping_type in ["customer", "store"]:
             if mapping_type == "customer":
                 # Force use of StoreMapping table for customer mappings until CustomerMapping table is created
-                # Use the exact keys expected by bulk_upsert_store_mappings: raw_store_id, mapped_store_name
+                # Normalize keys to those expected by bulk_upsert_store_mappings
                 for data in mappings_data:
-                    data['raw_store_id'] = data.pop('raw_customer_id')
-                    data['mapped_store_name'] = data.pop('mapped_customer_name')
-                    data['store_type'] = data.pop('customer_type', 'customer')
+                    if 'raw_customer_id' in data:
+                        data['raw_store_id'] = data.pop('raw_customer_id')
+                    if 'mapped_customer_name' in data:
+                        data['mapped_store_name'] = data.pop('mapped_customer_name')
+                    # Prefer provided store_type; otherwise map from customer_type; default to 'customer'
+                    if 'customer_type' in data and 'store_type' not in data:
+                        data['store_type'] = data.pop('customer_type') or 'customer'
+                    elif 'store_type' not in data:
+                        data['store_type'] = 'customer'
                     # Remove any fields that don't exist in StoreMapping model
                     data.pop('raw_name', None)
                     data.pop('mapped_name', None)
