@@ -1732,25 +1732,45 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 })
         
         if mapping_type in ["customer", "store"]:
-            if mapping_type == "customer":
-                # Force use of StoreMapping table for customer mappings until CustomerMapping table is created
-                # Normalize keys to those expected by bulk_upsert_store_mappings
-                for data in mappings_data:
-                    if 'raw_customer_id' in data:
-                        data['raw_store_id'] = data.pop('raw_customer_id')
-                    if 'mapped_customer_name' in data:
-                        data['mapped_store_name'] = data.pop('mapped_customer_name')
-                    # Prefer provided store_type; otherwise map from customer_type; default to 'customer'
-                    if 'customer_type' in data and 'store_type' not in data:
-                        data['store_type'] = data.pop('customer_type') or 'customer'
-                    elif 'store_type' not in data:
-                        data['store_type'] = 'customer'
-                    # Remove any fields that don't exist in StoreMapping model
-                    data.pop('raw_name', None)
-                    data.pop('mapped_name', None)
-                result = db_service.bulk_upsert_store_mappings(mappings_data)
-            else:
-                result = db_service.bulk_upsert_store_mappings(mappings_data)
+                if mapping_type == "customer":
+                    # Force use of StoreMapping table for customer mappings until CustomerMapping table is created
+                    # Normalize keys to those expected by bulk_upsert_store_mappings
+                    for data in mappings_data:
+                        if 'raw_customer_id' in data:
+                            data['raw_store_id'] = data.pop('raw_customer_id')
+                        if 'mapped_customer_name' in data:
+                            data['mapped_store_name'] = data.pop('mapped_customer_name')
+                        # Prefer provided store_type; otherwise map from customer_type; default to 'customer'
+                        if 'customer_type' in data and 'store_type' not in data:
+                            data['store_type'] = data.pop('customer_type') or 'customer'
+                        elif 'store_type' not in data:
+                            data['store_type'] = 'customer'
+                        # Remove any fields that don't exist in StoreMapping model
+                        data.pop('raw_name', None)
+                        data.pop('mapped_name', None)
+                        # Ensure we have the required fields
+                        if 'raw_store_id' not in data or not data['raw_store_id']:
+                            data['raw_store_id'] = data.get('RawCustomerID', '')
+                        if 'mapped_store_name' not in data or not data['mapped_store_name']:
+                            data['mapped_store_name'] = data.get('MappedCustomerName', '')
+                    try:
+                        result = db_service.bulk_upsert_store_mappings(mappings_data)
+                    except Exception as e:
+                        if "raw_name" in str(e) or "mapped_name" in str(e):
+                            st.error("❌ Database schema issue detected. Please run the schema migration script on Render.")
+                            st.error(f"Error details: {str(e)}")
+                            return {
+                                'success': False,
+                                'inserted': 0,
+                                'updated': 0,
+                                'errors': len(mappings_data),
+                                'error_details': [f"Database schema error: {str(e)}"],
+                                'skipped_rows': []
+                            }
+                        else:
+                            raise
+                else:
+                    result = db_service.bulk_upsert_store_mappings(mappings_data)
         else:
             result = db_service.bulk_upsert_item_mappings(mappings_data)
         
