@@ -1001,8 +1001,8 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                     # Use StoreMapping field names for customer mappings
                     data.append({
                         'Source': m.source,
-                        'Raw Customer ID': m.raw_name,
-                        'Mapped Customer Name': m.mapped_name,
+                        'Raw Customer ID': m.raw_store_id or m.raw_name,
+                        'Mapped Customer Name': m.mapped_store_name or m.mapped_name,
                         'Customer Type': m.store_type,
                         'Priority': m.priority,
                         'Active': m.active,
@@ -1228,7 +1228,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         with col2:
                             if mapping_type == "customer":
                                 # Use StoreMapping field names for customer mappings
-                                st.write(f"**{m.raw_name}**")
+                                st.write(f"**{getattr(m, 'raw_store_id', None) or m.raw_name}**")
                             elif mapping_type == "store":
                                 st.write(f"**{m.raw_store_id}**")
                             else:  # item
@@ -1237,7 +1237,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         with col3:
                             if mapping_type == "customer":
                                 # Use StoreMapping field names for customer mappings
-                                st.write(f"{m.mapped_name}")
+                                st.write(f"{getattr(m, 'mapped_store_name', None) or m.mapped_name}")
                             elif mapping_type == "store":
                                 st.write(f"{m.mapped_store_name}")
                             else:  # item
@@ -1734,9 +1734,10 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         if mapping_type in ["customer", "store"]:
             if mapping_type == "customer":
                 # Force use of StoreMapping table for customer mappings until CustomerMapping table is created
+                # Use the exact keys expected by bulk_upsert_store_mappings: raw_store_id, mapped_store_name
                 for data in mappings_data:
-                    data['raw_name'] = data.pop('raw_customer_id')
-                    data['mapped_name'] = data.pop('mapped_customer_name')
+                    data['raw_store_id'] = data.pop('raw_customer_id')
+                    data['mapped_store_name'] = data.pop('mapped_customer_name')
                     data['store_type'] = data.pop('customer_type', 'customer')
                 result = db_service.bulk_upsert_store_mappings(mappings_data)
             else:
