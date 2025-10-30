@@ -176,7 +176,7 @@ def main():
             <div class="stats-container" style="display: flex; gap: 1rem; align-items: center; color: white; font-size: 0.9rem;">
                 <div style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 25px; backdrop-filter: blur(10px);">
                     📊 Multi-Client
-                </div>
+            </div>
                 <div style="background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 25px; backdrop-filter: blur(10px);">
                     🔄 Real-time
                 </div>
@@ -1152,8 +1152,8 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                                 # Store upload result in session state instead of showing immediately
                                 upload_result = upload_mappings_to_database_silent(df, db_service, processor, mapping_type)
                                 st.session_state[f'upload_result_{mapping_type}_{processor}'] = upload_result
-                                st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
-                                st.rerun()
+                        st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
+                        st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Upload failed: {str(e)}")
                                 st.exception(e)
@@ -1231,7 +1231,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                                 st.write(f"**{m.raw_store_id}**")
                             elif mapping_type == "store":
                                 st.write(f"**{m.raw_store_id}**")
-                            else:  # item
+                        else:  # item
                                 st.write(f"**{m.raw_item}**")
                         
                         with col3:
@@ -1272,8 +1272,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         delete_disabled = len(st.session_state[f'selected_mappings_{mapping_type}_{processor}']) == 0
                         if st.button("🗑️ Delete Selected", key=f"delete_selected_{mapping_type}_{processor}", disabled=delete_disabled):
                             if st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
-                                st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
-                                st.rerun()
+                            st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
+                            st.rerun()
                     
                     with col2:
                         if st.button("❌ Cancel", key=f"cancel_delete_{mapping_type}_{processor}"):
@@ -1313,7 +1313,10 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
                 if mapping_type == "item":
                     st.write(f"- {m.raw_item} → {m.mapped_item}")
                 else:
-                    st.write(f"- {m.raw_name} → {m.mapped_name}")
+                    if mapping_type == "customer":
+                        st.write(f"- {m.raw_store_id} → {m.mapped_store_name}")
+                    else:  # store
+                        st.write(f"- {m.raw_store_id} → {m.mapped_store_name}")
     
     except Exception as e:
         st.error(f"❌ Error loading mapping details: {e}")
@@ -1411,9 +1414,9 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                         if mapping_type == "customer":
                             mapping_data.append({
                                 'ID': m.id,
-                                'Raw Customer ID': m.raw_customer_id,
-                                'Mapped Customer Name': m.mapped_customer_name,
-                                'Customer Type': m.customer_type,
+                                'Raw Customer ID': m.raw_store_id,
+                                'Mapped Customer Name': m.mapped_store_name,
+                                'Customer Type': m.store_type,
                                 'Priority': m.priority,
                                 'Active': m.active,
                                 'Notes': m.notes or ''
@@ -1500,8 +1503,12 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
                             
                             with st.form(f"edit_{mapping_type}_{mapping.id}_{processor}"):
                                 if mapping_type in ["customer", "store"]:
-                                    raw_name = st.text_input("Raw Name", value=mapping.raw_name, key=f"raw_{mapping.id}_{processor}")
-                                    mapped_name = st.text_input("Mapped Name", value=mapping.mapped_name, key=f"mapped_{mapping.id}_{processor}")
+                                    if mapping_type == "customer":
+                                        raw_name = st.text_input("Raw Customer ID", value=mapping.raw_store_id, key=f"raw_{mapping.id}_{processor}")
+                                        mapped_name = st.text_input("Mapped Customer Name", value=mapping.mapped_store_name, key=f"mapped_{mapping.id}_{processor}")
+                                    else:  # store
+                                        raw_name = st.text_input("Raw Store ID", value=mapping.raw_store_id, key=f"raw_{mapping.id}_{processor}")
+                                        mapped_name = st.text_input("Mapped Store Name", value=mapping.mapped_store_name, key=f"mapped_{mapping.id}_{processor}")
                                     mapping_type_val = st.text_input("Type", value=mapping.store_type, key=f"type_{mapping.id}_{processor}")
                                 else:  # item
                                     raw_item = st.text_input("Raw Item", value=mapping.raw_item, key=f"raw_{mapping.id}_{processor}")
@@ -1560,8 +1567,8 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                     if mapping_type in ["customer", "store"]:
                         mapping_data.append({
                             'ID': m.id,
-                            'Raw Name': m.raw_name,
-                            'Mapped Name': m.mapped_name,
+                            'Raw Name': m.raw_store_id,
+                            'Mapped Name': m.mapped_store_name,
                             'Type': m.store_type,
                             'Priority': m.priority,
                             'Active': m.active,
@@ -1899,8 +1906,8 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                     continue
                 
                 if mapping_type == "customer":
-                    mappings_data.append({
-                        'source': processor,
+                mappings_data.append({
+                    'source': processor,
                         'raw_store_id': raw_name,
                         'mapped_store_name': mapped_name,
                         'store_type': store_type,
@@ -1917,7 +1924,7 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                         'priority': priority,
                         'active': active,
                         'notes': notes
-                    })
+                })
             else:  # item
                 # Handle different column name formats
                 raw_item = str(row.get('Raw Item', '') or 
@@ -2066,8 +2073,8 @@ def save_row_changes(mapping, form_data: dict, db_service: DatabaseService, proc
     try:
         with db_service.get_session() as session:
             if mapping_type in ["customer", "store"]:
-                mapping.raw_name = form_data['raw_name']
-                mapping.mapped_name = form_data['mapped_name']
+                mapping.raw_store_id = form_data['raw_name']
+                mapping.mapped_store_name = form_data['mapped_name']
                 mapping.store_type = form_data['mapping_type_val']
                 mapping.priority = form_data['priority']
                 mapping.active = form_data['active']
