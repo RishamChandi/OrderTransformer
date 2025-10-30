@@ -6,6 +6,7 @@ Run this on Render to fix the schema issue
 
 import os
 import sys
+from sqlalchemy import text
 
 def fix_database_schema():
     """Fix the database schema by removing old columns"""
@@ -24,12 +25,12 @@ def fix_database_schema():
                 print("🔍 Checking store_mappings table structure...")
                 
                 # Check current columns
-                result = conn.execute("""
+                result = conn.execute(text("""
                     SELECT column_name, is_nullable, data_type 
                     FROM information_schema.columns 
                     WHERE table_name = 'store_mappings' 
                     ORDER BY ordinal_position
-                """)
+                """))
                 
                 columns = result.fetchall()
                 print("Current columns:")
@@ -42,14 +43,14 @@ def fix_database_schema():
                 
                 if raw_name_exists:
                     print("\n🗑️ Removing raw_name column...")
-                    conn.execute("ALTER TABLE store_mappings DROP COLUMN raw_name")
+                    conn.execute(text("ALTER TABLE store_mappings DROP COLUMN raw_name"))
                     print("✅ Dropped raw_name column")
                 else:
                     print("✅ raw_name column already removed")
                 
                 if mapped_name_exists:
                     print("🗑️ Removing mapped_name column...")
-                    conn.execute("ALTER TABLE store_mappings DROP COLUMN mapped_name")
+                    conn.execute(text("ALTER TABLE store_mappings DROP COLUMN mapped_name"))
                     print("✅ Dropped mapped_name column")
                 else:
                     print("✅ mapped_name column already removed")
@@ -59,12 +60,12 @@ def fix_database_schema():
                 print("\n✅ Database schema fixed successfully!")
                 
                 # Verify final structure
-                result = conn.execute("""
+                result = conn.execute(text("""
                     SELECT column_name, is_nullable, data_type 
                     FROM information_schema.columns 
                     WHERE table_name = 'store_mappings' 
                     ORDER BY ordinal_position
-                """)
+                """))
                 
                 columns = result.fetchall()
                 print("\nFinal columns:")
