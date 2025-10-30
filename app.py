@@ -1009,7 +1009,7 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Notes': m.notes or ''
                     })
             elif mapping_type == "store":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
+                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
                 data = []
                 for m in mappings:
                     data.append({
@@ -1187,7 +1187,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
                     # Store mappings: filter by store_type that indicates store entities  
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
                 elif mapping_type == "item":
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1203,11 +1203,18 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                     col_select_all, col_select_none, col_space = st.columns([1, 1, 4])
                     with col_select_all:
                         if st.button("Select All", key=f"select_all_{mapping_type}_{processor}"):
-                            st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = [m.id for m in mappings]
+                            ids = [m.id for m in mappings]
+                            st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = ids
+                            # Reflect selection in checkbox widget states as well
+                            for mid in ids:
+                                st.session_state[f'select_{mapping_type}_{processor}_{mid}'] = True
                             st.rerun()
                     with col_select_none:
                         if st.button("Select None", key=f"select_none_{mapping_type}_{processor}"):
                             st.session_state[f'selected_mappings_{mapping_type}_{processor}'] = []
+                            # Clear checkbox widget states
+                            for m in mappings:
+                                st.session_state[f'select_{mapping_type}_{processor}_{m.id}'] = False
                             st.rerun()
                     
                     # Display mappings with checkboxes
@@ -1401,9 +1408,9 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])).all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
                 else:
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1475,7 +1482,7 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
         try:
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])).all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
                     mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
                 else:
@@ -1546,9 +1553,9 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                # Customer mappings: filter by store_type values that indicate customer entities
+                # Customer mappings only
                 mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(
-                    db_service.StoreMapping.store_type.in_(["customer", "store", "distributor"])
+                    db_service.StoreMapping.store_type == "customer"
                 ).all()
             elif mapping_type == "store":
                 # Store mappings: filter by store_type values that indicate store entities  
@@ -1619,10 +1626,8 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 
                 # Ensure distinct store_type values for customer vs store mappings
                 if mapping_type == 'customer':
-                    store_type = str(row.get('Customer Type', '') or
-                                 row.get('CustomerType', '') or
-                                 row.get('Type', 'customer') or
-                                 'customer').strip()
+                    # Force customer uploads to be labeled as 'customer' to keep datasets separate
+                    store_type = 'customer'
                 else:  # store
                     store_type = str(row.get('Store Type', '') or
                                  row.get('StoreType', '') or
