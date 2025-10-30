@@ -70,9 +70,14 @@ class XoroTemplate:
         customer_name = str(order.get('customer_name', ''))
         first_name, last_name = self._split_customer_name(customer_name)
         
-        # Use parser-provided mapped values from database
-        sale_store_name = order.get('store_name')
-        store_name = order.get('store_name')
+        # Use parser-provided mapped values from database, with source-specific overrides
+        if source_name.lower().replace(' ', '_') in ['wholefoods', 'whole_foods', 'whole foods']:
+            # For Whole Foods, always hardcode to IDI - Richmond as requested
+            sale_store_name = 'IDI - Richmond'
+            store_name = 'IDI - Richmond'
+        else:
+            sale_store_name = order.get('store_name')
+            store_name = order.get('store_name')
         final_customer_name = order.get('customer_name', 'UNKNOWN')
         
         # Validate required fields - fail if no mapping found

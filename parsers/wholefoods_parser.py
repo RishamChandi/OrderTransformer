@@ -160,23 +160,10 @@ class WholeFoodsParser(BaseParser):
             item_mappings_dict: Pre-fetched item mappings dictionary (optimization to avoid per-row DB queries)
         """
         
-        # Robustly extract store number from metadata (following reference code)
-        store_number = order_data['metadata'].get('store_number')
-        if not store_number:
-            # Try to extract from any metadata value that looks like a 5-digit number
-            for v in order_data['metadata'].values():
-                if isinstance(v, str) and v.strip().isdigit() and len(v.strip()) == 5:
-                    store_number = v.strip()
-                    break
-        
-        # Map store info using the reference code pattern
-        if store_number:
-            # Use mapping_utils to get the mapped customer name 
-            mapped_customer = self.mapping_utils.get_store_mapping(str(store_number).strip(), 'wholefoods')
-            if not mapped_customer or mapped_customer == 'UNKNOWN':
-                raise ValueError(f"No store mapping found for Whole Foods store {store_number}")
-        else:
-            raise ValueError("No store number found in Whole Foods order")
+        # Always use mapping for blank store id for Whole Foods
+        mapped_customer = self.mapping_utils.get_store_mapping('', 'wholefoods')
+        if not mapped_customer or mapped_customer == 'UNKNOWN':
+            mapped_customer = 'IDI - Richmond'
         
         # Map item number and description using bulk-fetched dictionary first, then CSV fallback
         mapped_item = None
@@ -213,7 +200,7 @@ class WholeFoodsParser(BaseParser):
             'order_date': self.parse_date(order_data['metadata'].get('order_date')) if order_data['metadata'].get('order_date') else None,
             'delivery_date': self.parse_date(order_data['metadata'].get('delivery_date')) if order_data['metadata'].get('delivery_date') else None,
             'customer_name': mapped_customer,
-            'raw_customer_name': f"WHOLE FOODS #{store_number}" if store_number else 'UNKNOWN',
+            'raw_customer_name': f"WHOLE FOODS #{order_data['metadata'].get('store_number')}" if order_data['metadata'].get('store_number') else 'UNKNOWN',
             'item_number': mapped_item,
             'raw_item_number': line_item['item_no'],
             'item_description': item_description,

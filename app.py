@@ -1234,8 +1234,9 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col2:
                             if mapping_type == "customer":
-                                # Use StoreMapping field names for customer mappings
-                                st.write(f"**{m.raw_store_id}**")
+                                # Support both CustomerMapping and StoreMapping fallbacks
+                                raw_val = getattr(m, 'raw_store_id', getattr(m, 'raw_customer_id', ''))
+                                st.write(f"**{raw_val}**")
                             elif mapping_type == "store":
                                 st.write(f"**{m.raw_store_id}**")
                             else:  # item
@@ -1243,8 +1244,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col3:
                             if mapping_type == "customer":
-                                # Use StoreMapping field names for customer mappings
-                                st.write(f"{m.mapped_store_name}")
+                                mapped_val = getattr(m, 'mapped_store_name', getattr(m, 'mapped_customer_name', ''))
+                                st.write(f"{mapped_val}")
                             elif mapping_type == "store":
                                 st.write(f"{m.mapped_store_name}")
                             else:  # item
@@ -1252,8 +1253,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col4:
                             if mapping_type == "customer":
-                                # Use StoreMapping field names for customer mappings
-                                st.write(f"{m.store_type}")
+                                type_val = getattr(m, 'store_type', getattr(m, 'customer_type', 'customer'))
+                                st.write(f"{type_val}")
                             elif mapping_type == "store":
                                 st.write(f"{m.store_type}")
                             else:  # item
@@ -1373,11 +1374,11 @@ def show_add_new_mapping_form(db_service: DatabaseService, processor: str, mappi
             if mapping_type == "customer":
                 raw_name = st.text_input("Raw Customer ID", key=f"raw_customer_{processor}")
                 mapped_name = st.text_input("Mapped Customer Name", key=f"mapped_customer_{processor}")
-                customer_type = st.selectbox("Customer Type", ["distributor", "retailer", "wholesaler"], key=f"customer_type_{processor}")
+                customer_type = st.selectbox("Customer Type", ["customer", "distributor", "retailer", "wholesaler"], index=0, key=f"customer_type_{processor}")
             elif mapping_type == "store":
                 raw_name = st.text_input("Raw Store ID", key=f"raw_store_{processor}")
                 mapped_name = st.text_input("Mapped Store Name", key=f"mapped_store_{processor}")
-                store_type = st.selectbox("Store Type", ["distributor", "retailer", "wholesaler"], key=f"store_type_{processor}")
+                store_type = st.selectbox("Store Type", ["store", "distributor", "retailer", "wholesaler"], index=0, key=f"store_type_{processor}")
             elif mapping_type == "item":
                 raw_item = st.text_input("Raw Item", key=f"raw_item_{processor}")
                 mapped_item = st.text_input("Mapped Item", key=f"mapped_item_{processor}")
@@ -2013,11 +2014,18 @@ def add_new_mapping_to_database(db_service: DatabaseService, processor: str, map
     """Add new mapping to database"""
     try:
         if mapping_type in ["customer", "store"]:
+            # Normalize to StoreMapping fields
+            store_type_val = form_data.get('customer_type' if mapping_type == 'customer' else 'store_type', None)
+            if mapping_type == 'customer':
+                store_type_val = 'customer'
+            elif not store_type_val:
+                store_type_val = 'store'
+
             mapping_data = {
                 'source': processor,
-                'raw_name': form_data['raw_name'],
-                'mapped_name': form_data['mapped_name'],
-                'store_type': form_data.get('customer_type' if mapping_type == 'customer' else 'store_type', 'distributor'),
+                'raw_store_id': form_data['raw_name'],
+                'mapped_store_name': form_data['mapped_name'],
+                'store_type': store_type_val,
                 'priority': form_data['priority'],
                 'active': form_data['active'],
                 'notes': form_data['notes']

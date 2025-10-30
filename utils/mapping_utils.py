@@ -86,7 +86,10 @@ class MappingUtils:
             if key.lower() in raw_name_lower or raw_name_lower in key.lower():
                 return value
         
-        # Return original name if no mapping found
+        # Return default for Whole Foods if no mapping found
+        if source.lower().replace(' ', '_') in ['wholefoods', 'whole_foods', 'whole foods']:
+            return 'IDI - Richmond'
+        # Otherwise return original
         return raw_name_clean
     
     def _load_mapping(self, source: str) -> None:
