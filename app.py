@@ -1757,16 +1757,52 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                         result = db_service.bulk_upsert_store_mappings(mappings_data)
                     except Exception as e:
                         if "raw_name" in str(e) or "mapped_name" in str(e):
-                            st.error("❌ Database schema issue detected. Please run the schema migration script on Render.")
-                            st.error(f"Error details: {str(e)}")
-                            return {
-                                'success': False,
-                                'inserted': 0,
-                                'updated': 0,
-                                'errors': len(mappings_data),
-                                'error_details': [f"Database schema error: {str(e)}"],
-                                'skipped_rows': []
-                            }
+                            st.error("❌ Database schema issue detected. Using fallback method...")
+                            
+                            # Fallback: insert one by one to bypass bulk insert issues
+                            try:
+                                with db_service.get_session() as session:
+                                    # Clear existing wholefoods customer mappings
+                                    session.query(db_service.StoreMapping).filter_by(source='wholefoods', store_type='store').delete()
+                                    
+                                    # Insert new mappings one by one
+                                    inserted_count = 0
+                                    for data in mappings_data:
+                                        mapping = db_service.StoreMapping(
+                                            source=data['source'],
+                                            raw_store_id=data['raw_store_id'],
+                                            mapped_store_name=data['mapped_store_name'],
+                                            store_type=data['store_type'],
+                                            priority=data['priority'],
+                                            active=data['active'],
+                                            notes=data['notes']
+                                        )
+                                        session.add(mapping)
+                                        inserted_count += 1
+                                    
+                                    session.commit()
+                                    
+                                    st.success(f"✅ Successfully uploaded {inserted_count} customer mappings using fallback method!")
+                                    
+                                    return {
+                                        'success': True,
+                                        'inserted': inserted_count,
+                                        'updated': 0,
+                                        'errors': 0,
+                                        'error_details': [],
+                                        'skipped_rows': []
+                                    }
+                                    
+                            except Exception as fallback_error:
+                                st.error(f"❌ Fallback method also failed: {str(fallback_error)}")
+                                return {
+                                    'success': False,
+                                    'inserted': 0,
+                                    'updated': 0,
+                                    'errors': len(mappings_data),
+                                    'error_details': [f"Both bulk and fallback methods failed: {str(fallback_error)}"],
+                                    'skipped_rows': []
+                                }
                         else:
                             raise
                 else:
