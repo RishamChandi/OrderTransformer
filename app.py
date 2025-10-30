@@ -1152,8 +1152,8 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                                 # Store upload result in session state instead of showing immediately
                                 upload_result = upload_mappings_to_database_silent(df, db_service, processor, mapping_type)
                                 st.session_state[f'upload_result_{mapping_type}_{processor}'] = upload_result
-                        st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
-                        st.rerun()
+                                st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
+                                st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Upload failed: {str(e)}")
                                 st.exception(e)
@@ -1231,7 +1231,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                                 st.write(f"**{m.raw_store_id}**")
                             elif mapping_type == "store":
                                 st.write(f"**{m.raw_store_id}**")
-                        else:  # item
+                            else:  # item
                                 st.write(f"**{m.raw_item}**")
                         
                         with col3:
@@ -1272,8 +1272,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         delete_disabled = len(st.session_state[f'selected_mappings_{mapping_type}_{processor}']) == 0
                         if st.button("🗑️ Delete Selected", key=f"delete_selected_{mapping_type}_{processor}", disabled=delete_disabled):
                             if st.session_state[f'selected_mappings_{mapping_type}_{processor}']:
-                            st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
-                            st.rerun()
+                                st.session_state[f'confirm_delete_{mapping_type}_{processor}'] = True
+                                st.rerun()
                     
                     with col2:
                         if st.button("❌ Cancel", key=f"cancel_delete_{mapping_type}_{processor}"):
@@ -1906,8 +1906,8 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                     continue
                 
                 if mapping_type == "customer":
-                mappings_data.append({
-                    'source': processor,
+                    mappings_data.append({
+                        'source': processor,
                         'raw_store_id': raw_name,
                         'mapped_store_name': mapped_name,
                         'store_type': store_type,
