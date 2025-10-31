@@ -1610,6 +1610,30 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         
         for index, row in df.iterrows():
             if mapping_type in ["customer", "store"]:
+                # Get source from CSV if available, otherwise use processor parameter
+                # Normalize source name (e.g., "UNFI East" -> "unfi_east")
+                csv_source = str(row.get('Source', '') or row.get('source', '')).strip()
+                if csv_source:
+                    # Normalize the source name to match database format
+                    csv_source = csv_source.lower().replace(' ', '_').replace('-', '_')
+                    # Handle specific cases
+                    if csv_source == 'unfi_east':
+                        csv_source = 'unfi_east'
+                    elif csv_source == 'unfi_west':
+                        csv_source = 'unfi_west'
+                    elif csv_source == 'whole_foods' or csv_source == 'wholefoods':
+                        csv_source = 'wholefoods'
+                    source_to_use = csv_source
+                else:
+                    # Fallback to processor parameter and normalize it
+                    source_to_use = processor.lower().replace(' ', '_').replace('-', '_')
+                    if source_to_use == 'unfi_east':
+                        source_to_use = 'unfi_east'
+                    elif source_to_use == 'unfi_west':
+                        source_to_use = 'unfi_west'
+                    elif source_to_use == 'whole_foods' or source_to_use == 'wholefoods':
+                        source_to_use = 'wholefoods'
+                
                 # Handle different column name formats for customer/store mappings
                 raw_name = str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
                            row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
@@ -1668,7 +1692,7 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 
                 if mapping_type == "customer":
                     mappings_data.append({
-                        'source': processor,
+                        'source': source_to_use,
                         'raw_store_id': raw_name,
                         'mapped_store_name': mapped_name,
                         'store_type': store_type,
@@ -1678,7 +1702,7 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     })
                 else:  # store
                     mappings_data.append({
-                        'source': processor,
+                        'source': source_to_use,
                         'raw_store_id': raw_name,
                         'mapped_store_name': mapped_name,
                         'store_type': store_type,

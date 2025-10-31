@@ -420,18 +420,23 @@ class DatabaseService:
             validated_data = []
             for idx, mapping_data in enumerate(mappings_data):
                 try:
-                    source = mapping_data.get('source', mapping_data.get('Source', '')).strip()
-                    raw_store_id = mapping_data.get('raw_store_id', mapping_data.get('RawStoreID', '')).strip()
-                    mapped_store_name = mapping_data.get('mapped_store_name', mapping_data.get('MappedStoreName', '')).strip()
+                    source = str(mapping_data.get('source', mapping_data.get('Source', '')) or '').strip()
+                    raw_store_id = str(mapping_data.get('raw_store_id', mapping_data.get('RawStoreID', '')) or '').strip()
+                    mapped_store_name = str(mapping_data.get('mapped_store_name', mapping_data.get('MappedStoreName', '')) or '').strip()
                     
                     if not source:
                         stats['errors'] += 1
                         stats['error_details'].append(f"Row {idx + 1}: Missing source")
                         continue
                     
-                    if not raw_store_id and not mapped_store_name:
+                    if not raw_store_id:
                         stats['errors'] += 1
-                        stats['error_details'].append(f"Row {idx + 1}: Missing both raw_store_id and mapped_store_name")
+                        stats['error_details'].append(f"Row {idx + 1}: Missing raw_store_id")
+                        continue
+                    
+                    if not mapped_store_name:
+                        stats['errors'] += 1
+                        stats['error_details'].append(f"Row {idx + 1}: Missing mapped_store_name")
                         continue
                     
                     active = parse_boolean(mapping_data.get('active', mapping_data.get('Active', True)))

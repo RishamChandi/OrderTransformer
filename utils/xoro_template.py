@@ -75,14 +75,17 @@ class XoroTemplate:
             # For Whole Foods, always hardcode to IDI - Richmond as requested
             sale_store_name = 'IDI - Richmond'
             store_name = 'IDI - Richmond'
+            final_customer_name = order.get('customer_name', 'UNKNOWN')
         elif source_name.lower().replace(' ', '_') == 'unfi_west' or source_name.lower() == 'unfi west':
-            # For UNFI West: use store mapping from parser
+            # For UNFI West: use store mapping from parser for store names, customer mapping for customer name
             sale_store_name = order.get('sale_store_name') or order.get('store_name') or 'KL - Richmond'
             store_name = order.get('store_name') or 'KL - Richmond'
+            # Customer name comes from customer mapping (e.g., "UNFI MORENO VALLEY #2")
+            final_customer_name = order.get('customer_name', 'UNKNOWN')
         else:
             sale_store_name = order.get('store_name')
             store_name = order.get('store_name')
-        final_customer_name = order.get('customer_name', 'UNKNOWN')
+            final_customer_name = order.get('customer_name', 'UNKNOWN')
         
         # Validate required fields - fail if no mapping found
         if not sale_store_name or sale_store_name == 'UNKNOWN':

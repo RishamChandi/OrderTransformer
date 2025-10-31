@@ -112,30 +112,35 @@ class UNFIWestParser(BaseParser):
                     raw_customer = buyer_match.group(1).strip()
                     order_info['raw_customer_name'] = raw_customer
         
-        # Apply store mapping - try store code first, then location name
+        # Apply customer mapping using raw customer name (location name)
+        # This maps customer names like "UNFI - MORENO VALLEY, CA" to "UNFI MORENO VALLEY #2"
+        mapped_customer = None
+        if order_info.get('raw_customer_name'):
+            mapped_customer = self.mapping_utils.get_customer_mapping(
+                order_info['raw_customer_name'], 
+                'unfi_west'
+            )
+            if mapped_customer and mapped_customer != 'UNKNOWN':
+                order_info['customer_name'] = mapped_customer
+            else:
+                # Fallback if customer mapping not found
+                order_info['customer_name'] = order_info.get('raw_customer_name', 'UNKNOWN')
+        else:
+            order_info['customer_name'] = 'UNKNOWN'
+        
+        # Apply store mapping using store code (for SaleStoreName and StoreName)
+        # This maps store codes like "144" to "KL - Richmond"
         mapped_store = None
         if store_code_match:
             store_code = store_code_match.group(1)
             mapped_store = self.mapping_utils.get_store_mapping(store_code, 'unfi_west')
-            if mapped_store and mapped_store != store_code and mapped_store != 'UNKNOWN':
-                order_info['raw_customer_name'] = store_code  # Use store code as raw name
         
-        # If store code mapping didn't work, try location name
-        if not mapped_store or mapped_store == 'UNKNOWN' or mapped_store == order_info.get('raw_customer_name', ''):
-            if order_info.get('raw_customer_name'):
-                mapped_store = self.mapping_utils.get_store_mapping(
-                    order_info['raw_customer_name'], 
-                    'unfi_west'
-                )
-        
-        # Set the mapped values
-        if mapped_store and mapped_store != 'UNKNOWN':
-            order_info['customer_name'] = mapped_store
+        # Set store names
+        if mapped_store and mapped_store != 'UNKNOWN' and mapped_store != store_code:
             order_info['store_name'] = mapped_store
             order_info['sale_store_name'] = mapped_store
         else:
-            # Fallback to default if no mapping found
-            order_info['customer_name'] = 'KL - Richmond'
+            # Fallback to default store name if no mapping found
             order_info['store_name'] = 'KL - Richmond'
             order_info['sale_store_name'] = 'KL - Richmond'
         
