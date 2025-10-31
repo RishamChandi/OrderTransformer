@@ -1225,7 +1225,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
         try:
             # Normalize processor name to match database format
             normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
-            if normalized_processor == 'kehe':
+            # Handle KEHE variations - normalize all to 'kehe'
+            if normalized_processor == 'kehe' or normalized_processor.startswith('kehe_') or normalized_processor == 'kehe___sps':
                 normalized_processor = 'kehe'
             elif normalized_processor == 'unfi_east':
                 normalized_processor = 'unfi_east'
@@ -1243,9 +1244,24 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                             test_session.query(db_service.CustomerMapping).first()
                         # If we get here, the table exists, use CustomerMapping
                         mappings = session.query(db_service.CustomerMapping).filter_by(source=normalized_processor).all()
+                        # If no mappings found, also try alternative KEHE source names
+                        if not mappings and normalized_processor == 'kehe':
+                            # Try other possible KEHE source variations
+                            for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps']:
+                                alt_mappings = session.query(db_service.CustomerMapping).filter_by(source=alt_source).all()
+                                if alt_mappings:
+                                    mappings = alt_mappings
+                                    break
                     except Exception:
                         # CustomerMapping table doesn't exist, use StoreMapping fallback
                         mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                        # If no mappings found, also try alternative KEHE source names
+                        if not mappings and normalized_processor == 'kehe':
+                            for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps']:
+                                alt_mappings = session.query(db_service.StoreMapping).filter_by(source=alt_source).filter(db_service.StoreMapping.store_type == "customer").all()
+                                if alt_mappings:
+                                    mappings = alt_mappings
+                                    break
                 elif mapping_type == "store":
                     # Store mappings: filter by source and exclude customer type mappings
                     # Normalize processor name to match database format
@@ -1676,7 +1692,8 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
     try:
         # Normalize processor name to match database format
         normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
-        if normalized_processor == 'kehe':
+        # Handle KEHE variations - normalize all to 'kehe'
+        if normalized_processor == 'kehe' or normalized_processor.startswith('kehe_') or normalized_processor == 'kehe___sps':
             normalized_processor = 'kehe'
         elif normalized_processor == 'unfi_east':
             normalized_processor = 'unfi_east'
@@ -1692,6 +1709,13 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                 try:
                     # Try to query CustomerMapping table
                     mappings = session.query(db_service.CustomerMapping).filter_by(source=normalized_processor).all()
+                    # If no mappings found, also try alternative KEHE source names
+                    if not mappings and normalized_processor == 'kehe':
+                        for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps']:
+                            alt_mappings = session.query(db_service.CustomerMapping).filter_by(source=alt_source).all()
+                            if alt_mappings:
+                                mappings = alt_mappings
+                                break
                 except Exception:
                     # CustomerMapping table doesn't exist, use StoreMapping fallback
                     pass
@@ -1701,6 +1725,15 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                     mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
                         db_service.StoreMapping.store_type == "customer"
                     ).all()
+                    # If no mappings found, also try alternative KEHE source names
+                    if not mappings and normalized_processor == 'kehe':
+                        for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps']:
+                            alt_mappings = session.query(db_service.StoreMapping).filter_by(source=alt_source).filter(
+                                db_service.StoreMapping.store_type == "customer"
+                            ).all()
+                            if alt_mappings:
+                                mappings = alt_mappings
+                                break
             elif mapping_type == "store":
                 # Store mappings: exclude customer type to get all store/distributor/retail mappings
                 mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
@@ -1775,7 +1808,9 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     # Normalize the source name to match database format
                     csv_source = csv_source.lower().replace(' ', '_').replace('-', '_')
                     # Handle specific cases
-                    if csv_source == 'unfi_east':
+                    if csv_source == 'kehe' or csv_source == 'kehe_sps' or csv_source == 'kehe___sps':
+                        csv_source = 'kehe'
+                    elif csv_source == 'unfi_east':
                         csv_source = 'unfi_east'
                     elif csv_source == 'unfi_west':
                         csv_source = 'unfi_west'
@@ -1785,7 +1820,10 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 else:
                     # Fallback to processor parameter and normalize it
                     source_to_use = processor.lower().replace(' ', '_').replace('-', '_')
-                    if source_to_use == 'unfi_east':
+                    # Handle KEHE variations
+                    if source_to_use == 'kehe' or source_to_use == 'kehe_sps' or source_to_use == 'kehe___sps':
+                        source_to_use = 'kehe'
+                    elif source_to_use == 'unfi_east':
                         source_to_use = 'unfi_east'
                     elif source_to_use == 'unfi_west':
                         source_to_use = 'unfi_west'

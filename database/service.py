@@ -230,10 +230,14 @@ class DatabaseService:
         """Get all customer mappings for a source"""
         
         try:
-            # Normalize source name (e.g., "Whole Foods" -> "wholefoods")
+            # Normalize source name (e.g., "Whole Foods" -> "wholefoods", "UNFI East" -> "unfi_east")
             normalized_source = source.lower().replace(' ', '_').replace('-', '_')
             if normalized_source == 'whole_foods':
                 normalized_source = 'wholefoods'
+            elif normalized_source == 'unfi_east':
+                normalized_source = 'unfi_east'
+            elif normalized_source == 'unfi_west':
+                normalized_source = 'unfi_west'
             
             with get_session() as session:
                 mappings = session.query(CustomerMapping)\
@@ -244,6 +248,7 @@ class DatabaseService:
                 return {str(mapping.raw_customer_id): str(mapping.mapped_customer_name) for mapping in mappings}
         except Exception as e:
             # Return empty dict if query fails (e.g., table doesn't exist yet)
+            print(f"DEBUG: Error in get_customer_mappings for {source}: {e}")
             return {}
     
     def get_item_mappings(self, source: str) -> Dict[str, str]:
