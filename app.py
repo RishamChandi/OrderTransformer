@@ -991,11 +991,22 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
     """Download current mappings from database"""
     import pandas as pd
     
+    # Normalize processor name to match database format
+    normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
+    if normalized_processor == 'kehe':
+        normalized_processor = 'kehe'
+    elif normalized_processor == 'unfi_east':
+        normalized_processor = 'unfi_east'
+    elif normalized_processor == 'unfi_west':
+        normalized_processor = 'unfi_west'
+    elif normalized_processor in ['whole_foods', 'wholefoods']:
+        normalized_processor = 'wholefoods'
+    
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
                 # Use StoreMapping table for customer mappings with store_type = "customer"
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 data = []
                 for m in mappings:
                     # Use StoreMapping field names for customer mappings
@@ -1009,7 +1020,7 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Notes': m.notes or ''
                     })
             elif mapping_type == "store":
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 data = []
                 for m in mappings:
                     data.append({
@@ -1080,7 +1091,21 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
         
         if uploaded_file:
             try:
-                df = pd.read_csv(uploaded_file)
+                # Read CSV - convert Raw Item and RawKeyValue columns to string to avoid .0 suffix
+                dtype_dict = {}
+                if mapping_type == 'item':
+                    # For item mappings, read Raw Item columns as string to preserve format
+                    for col in ['Raw Item', 'RawKeyValue', 'Raw Item Number']:
+                        dtype_dict[col] = str
+                
+                df = pd.read_csv(uploaded_file, dtype=dtype_dict if dtype_dict else None)
+                
+                # Post-process: Remove .0 suffix from Raw Item columns if they were read as numeric
+                if mapping_type == 'item':
+                    for col in ['Raw Item', 'RawKeyValue', 'Raw Item Number']:
+                        if col in df.columns:
+                            df[col] = df[col].astype(str).apply(lambda x: x[:-2] if x.endswith('.0') and x.replace('.', '').replace('-', '').isdigit() else x)
+                
                 st.write("**File Preview:**")
                 st.dataframe(df.head())
                 
@@ -1457,13 +1482,24 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
         
         # Load current mappings
         try:
+            # Normalize processor name to match database format
+            normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
+            if normalized_processor == 'kehe':
+                normalized_processor = 'kehe'
+            elif normalized_processor == 'unfi_east':
+                normalized_processor = 'unfi_east'
+            elif normalized_processor == 'unfi_west':
+                normalized_processor = 'unfi_west'
+            elif normalized_processor in ['whole_foods', 'wholefoods']:
+                normalized_processor = 'wholefoods'
+            
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 else:
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
                 
                 if mappings:
                     # Create editable dataframe
@@ -1531,13 +1567,24 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
         
         # Load current mappings with pagination
         try:
+            # Normalize processor name to match database format
+            normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
+            if normalized_processor == 'kehe':
+                normalized_processor = 'kehe'
+            elif normalized_processor == 'unfi_east':
+                normalized_processor = 'unfi_east'
+            elif normalized_processor == 'unfi_west':
+                normalized_processor = 'unfi_west'
+            elif normalized_processor in ['whole_foods', 'wholefoods']:
+                normalized_processor = 'wholefoods'
+            
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])).all()
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 else:
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
                 
                 if mappings:
                     # Pagination
@@ -1615,10 +1662,20 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
         
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                # Customer mappings only
-                mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
-                    db_service.StoreMapping.store_type == "customer"
-                ).all()
+                # Try CustomerMapping table first, then fallback to StoreMapping
+                mappings = []
+                try:
+                    # Try to query CustomerMapping table
+                    mappings = session.query(db_service.CustomerMapping).filter_by(source=normalized_processor).all()
+                except Exception:
+                    # CustomerMapping table doesn't exist, use StoreMapping fallback
+                    pass
+                
+                # If no mappings found in CustomerMapping, try StoreMapping with store_type="customer"
+                if not mappings:
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
+                        db_service.StoreMapping.store_type == "customer"
+                    ).all()
             elif mapping_type == "store":
                 # Store mappings: exclude customer type to get all store/distributor/retail mappings
                 mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
@@ -1634,15 +1691,30 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                 mapping_data = []
                 for m in mappings:
                     if mapping_type in ["customer", "store"]:
-                        mapping_data.append({
-                            'ID': m.id,
-                            'Raw Name': m.raw_store_id,
-                            'Mapped Name': m.mapped_store_name,
-                            'Type': m.store_type,
-                            'Priority': m.priority,
-                            'Active': m.active,
-                            'Notes': m.notes or ''
-                        })
+                        # Handle both CustomerMapping and StoreMapping structures
+                        # Check if it's a CustomerMapping (has raw_customer_id) or StoreMapping (has raw_store_id)
+                        if hasattr(m, 'raw_customer_id'):
+                            # CustomerMapping structure
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Name': m.raw_customer_id,
+                                'Mapped Name': m.mapped_customer_name,
+                                'Type': getattr(m, 'customer_type', 'customer'),
+                                'Priority': m.priority,
+                                'Active': m.active,
+                                'Notes': m.notes or ''
+                            })
+                        else:
+                            # StoreMapping structure
+                            mapping_data.append({
+                                'ID': m.id,
+                                'Raw Name': m.raw_store_id,
+                                'Mapped Name': m.mapped_store_name,
+                                'Type': m.store_type,
+                                'Priority': m.priority,
+                                'Active': m.active,
+                                'Notes': m.notes or ''
+                            })
                     else:  # item
                         mapping_data.append({
                             'ID': m.id,
@@ -1773,10 +1845,13 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     })
             else:  # item
                 # Handle different column name formats
-                raw_item = str(row.get('Raw Item', '') or 
-                           row.get('RawKeyValue', '') or 
-                           row.get('Raw Item Number', '') or 
-                           '').strip()
+                raw_item_value = row.get('Raw Item', '') or row.get('RawKeyValue', '') or row.get('Raw Item Number', '') or ''
+                
+                # Convert to string and normalize numeric values (remove .0 suffix)
+                raw_item = str(raw_item_value).strip()
+                # Remove .0 suffix if it's a numeric value (e.g., "256821.0" -> "256821")
+                if raw_item.endswith('.0') and raw_item.replace('.', '').replace('-', '').isdigit():
+                    raw_item = raw_item[:-2]
                 
                 mapped_item = str(row.get('Mapped Item', '') or 
                               row.get('MappedItemNumber', '') or 
@@ -2018,10 +2093,13 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                 })
             else:  # item
                 # Handle different column name formats
-                raw_item = str(row.get('Raw Item', '') or 
-                           row.get('RawKeyValue', '') or 
-                           row.get('Raw Item Number', '') or 
-                           '').strip()
+                raw_item_value = row.get('Raw Item', '') or row.get('RawKeyValue', '') or row.get('Raw Item Number', '') or ''
+                
+                # Convert to string and normalize numeric values (remove .0 suffix)
+                raw_item = str(raw_item_value).strip()
+                # Remove .0 suffix if it's a numeric value (e.g., "256821.0" -> "256821")
+                if raw_item.endswith('.0') and raw_item.replace('.', '').replace('-', '').isdigit():
+                    raw_item = raw_item[:-2]
                 
                 mapped_item = str(row.get('Mapped Item', '') or 
                               row.get('MappedItemNumber', '') or 
