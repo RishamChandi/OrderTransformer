@@ -18,6 +18,9 @@ class KEHEParser(BaseParser):
         super().__init__()
         self.source_name = "KEHE - SPS"
         self.mapping_utils = MappingUtils()
+        # Initialize customer_mapping as empty dict for backward compatibility
+        # (legacy CSV mapping fallback - now primarily uses database mappings)
+        self.customer_mapping = {}
         
     
     def parse(self, file_content, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
@@ -42,18 +45,25 @@ class KEHEParser(BaseParser):
             # Read CSV using pandas with error handling for inconsistent columns
             try:
                 df = pd.read_csv(io.StringIO(content_str))
-            except pd.errors.ParserError:
+            except pd.errors.ParserError as e:
                 # Handle files with inconsistent columns - use on_bad_lines parameter for newer pandas
                 try:
                     df = pd.read_csv(io.StringIO(content_str), on_bad_lines='skip')
                 except TypeError:
                     # Fallback for older pandas versions - just read normally
                     df = pd.read_csv(io.StringIO(content_str))
+            except Exception as e:
+                print(f"ERROR: Failed to read CSV file: {e}")
+                raise ValueError(f"Failed to parse CSV file: {str(e)}")
+            
+            # Check if required columns exist
+            if 'Record Type' not in df.columns:
+                raise ValueError("CSV file missing required 'Record Type' column")
             
             # Get header information from the first 'H' record
             header_df = df[df['Record Type'] == 'H']
             if header_df.empty:
-                return None
+                raise ValueError("No header record (Record Type='H') found in CSV file")
                 
             header_info = header_df.iloc[0]
             
@@ -141,14 +151,14 @@ class KEHEParser(BaseParser):
                         ship_to_location = '0' + ship_to_location
                         print(f"DEBUG: Added leading zero to Ship To Location: '{ship_to_location_raw}' → '{ship_to_location}'")
                     
-                    # NEW: Use database-first store mapping resolution
+                    # Use customer mapping for customer names (separate from store mappings)
                     customer_name = "IDI - Richmond"  # Default value
                     if ship_to_location:
-                        # Try database-first store mapping
-                        db_mapped_customer = self.mapping_utils.get_store_mapping(ship_to_location, 'kehe')
-                        if db_mapped_customer and db_mapped_customer != ship_to_location:
+                        # Try database customer mapping first
+                        db_mapped_customer = self.mapping_utils.get_customer_mapping(ship_to_location, 'kehe')
+                        if db_mapped_customer and db_mapped_customer != 'UNKNOWN':
                             customer_name = db_mapped_customer
-                            print(f"DEBUG: KEHE DB Store Mapping: '{ship_to_location}' → '{customer_name}'")
+                            print(f"DEBUG: KEHE DB Customer Mapping: '{ship_to_location}' → '{customer_name}'")
                         # Fallback to legacy CSV mapping
                         elif ship_to_location in self.customer_mapping:
                             customer_name = self.customer_mapping[ship_to_location]
@@ -172,11 +182,16 @@ class KEHEParser(BaseParser):
                     final_total = line_total - discount_amount
                     
                     # Get store mapping for SaleStoreName and StoreName fields
-                    # For KEHE, use the Store Mapping from customer mapping file, not the company name
+                    # For KEHE, use store mapping (separate from customer mapping)
                     store_name = "KL - Richmond"  # Default for KEHE SPS orders
-                    if ship_to_location and ship_to_location in self.customer_mapping:
-                        # Get store mapping from the CSV file - need to reload to get Store Mapping column
-                        store_name = self._get_store_mapping(ship_to_location)
+                    if ship_to_location:
+                        # Try database store mapping first
+                        db_mapped_store = self.mapping_utils.get_store_mapping(ship_to_location, 'kehe')
+                        if db_mapped_store and db_mapped_store != 'UNKNOWN' and db_mapped_store != ship_to_location:
+                            store_name = db_mapped_store
+                            print(f"DEBUG: KEHE DB Store Mapping: '{ship_to_location}' → '{store_name}'")
+                        else:
+                            print(f"DEBUG: No KEHE store mapping found for '{ship_to_location}', using default: '{store_name}'")
                     
                     # Build order data
                     order_data = {

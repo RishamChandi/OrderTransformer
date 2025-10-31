@@ -216,11 +216,12 @@ class DatabaseService:
             return False
     
     def get_store_mappings(self, source: str) -> Dict[str, str]:
-        """Get all store mappings for a source"""
+        """Get all store mappings for a source (excludes customer mappings)"""
         
         with get_session() as session:
             mappings = session.query(StoreMapping)\
                              .filter_by(source=source)\
+                             .filter(StoreMapping.store_type != 'customer')\
                              .all()
             
             return {str(mapping.raw_store_id): str(mapping.mapped_store_name) for mapping in mappings}
@@ -446,12 +447,17 @@ class DatabaseService:
                     except (ValueError, TypeError):
                         priority = 100
                     
+                    store_type = mapping_data.get('store_type', mapping_data.get('StoreType', 'distributor'))
+                    # Ensure store_type is never 'customer' for store mappings
+                    if store_type == 'customer':
+                        store_type = 'distributor'  # Default to distributor if customer is specified
+                    
                     validated_data.append({
                         'row_index': idx + 1,
                         'source': source,
                         'raw_store_id': raw_store_id,
                         'mapped_store_name': mapped_store_name,
-                        'store_type': mapping_data.get('store_type', mapping_data.get('StoreType', 'distributor')),
+                        'store_type': store_type,
                         'priority': priority,
                         'active': active,
                         'notes': mapping_data.get('notes', mapping_data.get('Notes', ''))
@@ -463,10 +469,13 @@ class DatabaseService:
             
             for data in validated_data:
                 try:
+                    # Filter by store_type != 'customer' to avoid overwriting customer mappings
+                    # This ensures store mappings and customer mappings remain separate
                     existing = session.query(StoreMapping).filter(
                         and_(
                             StoreMapping.source == data['source'],
-                            StoreMapping.raw_store_id == data['raw_store_id']
+                            StoreMapping.raw_store_id == data['raw_store_id'],
+                            StoreMapping.store_type != 'customer'  # Exclude customer mappings
                         )
                     ).first()
                     

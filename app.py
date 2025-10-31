@@ -1005,20 +1005,40 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
     try:
         with db_service.get_session() as session:
             if mapping_type == "customer":
-                # Use StoreMapping table for customer mappings with store_type = "customer"
-                mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                # Use CustomerMapping table for customer mappings (separate from store mappings)
+                mappings = []
+                try:
+                    # Try CustomerMapping table first
+                    mappings = session.query(db_service.CustomerMapping).filter_by(source=normalized_processor).all()
+                except Exception:
+                    # Fallback to StoreMapping if CustomerMapping doesn't exist
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                
                 data = []
                 for m in mappings:
-                    # Use StoreMapping field names for customer mappings
-                    data.append({
-                        'Source': m.source,
-                        'Raw Customer ID': m.raw_store_id,
-                        'Mapped Customer Name': m.mapped_store_name,
-                        'Customer Type': m.store_type,
-                        'Priority': m.priority,
-                        'Active': m.active,
-                        'Notes': m.notes or ''
-                    })
+                    # Handle both CustomerMapping and StoreMapping structures
+                    if hasattr(m, 'raw_customer_id'):
+                        # CustomerMapping structure
+                        data.append({
+                            'Source': m.source,
+                            'Raw Customer ID': m.raw_customer_id,
+                            'Mapped Customer Name': m.mapped_customer_name,
+                            'Customer Type': getattr(m, 'customer_type', 'customer'),
+                            'Priority': m.priority,
+                            'Active': m.active,
+                            'Notes': m.notes or ''
+                        })
+                    else:
+                        # StoreMapping structure (fallback)
+                        data.append({
+                            'Source': m.source,
+                            'Raw Customer ID': m.raw_store_id,
+                            'Mapped Customer Name': m.mapped_store_name,
+                            'Customer Type': m.store_type,
+                            'Priority': m.priority,
+                            'Active': m.active,
+                            'Notes': m.notes or ''
+                        })
             elif mapping_type == "store":
                 mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 data = []
@@ -1177,7 +1197,12 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                                 # Store upload result in session state instead of showing immediately
                                 upload_result = upload_mappings_to_database_silent(df, db_service, processor, mapping_type)
                                 st.session_state[f'upload_result_{mapping_type}_{processor}'] = upload_result
+                                # Clear all interface state flags to show upload result in default view
                                 st.session_state[f'show_{mapping_type}_upload_{processor}'] = False
+                                st.session_state[f'show_{mapping_type}_delete_{processor}'] = False
+                                st.session_state[f'show_{mapping_type}_add_{processor}'] = False
+                                st.session_state[f'show_{mapping_type}_bulk_{processor}'] = False
+                                st.session_state[f'show_{mapping_type}_row_by_row_{processor}'] = False
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Upload failed: {str(e)}")
@@ -1906,28 +1931,21 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
         
         if mapping_type in ["customer", "store"]:
                 if mapping_type == "customer":
-                    # Force use of StoreMapping table for customer mappings until CustomerMapping table is created
-                    # Normalize keys to those expected by bulk_upsert_store_mappings
+                    # Use CustomerMapping table for customer mappings (separate from store mappings)
+                    # Normalize keys to those expected by bulk_upsert_customer_mappings
+                    customer_mappings_data = []
                     for data in mappings_data:
-                        if 'raw_customer_id' in data:
-                            data['raw_store_id'] = data.pop('raw_customer_id')
-                        if 'mapped_customer_name' in data:
-                            data['mapped_store_name'] = data.pop('mapped_customer_name')
-                        # Prefer provided store_type; otherwise map from customer_type; default to 'customer'
-                        if 'customer_type' in data and 'store_type' not in data:
-                            data['store_type'] = data.pop('customer_type') or 'customer'
-                        elif 'store_type' not in data:
-                            data['store_type'] = 'customer'
-                        # Remove any fields that don't exist in StoreMapping model
-                        data.pop('raw_name', None)
-                        data.pop('mapped_name', None)
-                        # Ensure we have the required fields
-                        if 'raw_store_id' not in data or not data['raw_store_id']:
-                            data['raw_store_id'] = data.get('RawCustomerID', '')
-                        if 'mapped_store_name' not in data or not data['mapped_store_name']:
-                            data['mapped_store_name'] = data.get('MappedCustomerName', '')
+                        customer_mappings_data.append({
+                            'source': data['source'],
+                            'raw_customer_id': data['raw_store_id'],  # Map raw_store_id to raw_customer_id
+                            'mapped_customer_name': data['mapped_store_name'],  # Map mapped_store_name to mapped_customer_name
+                            'customer_type': data.get('store_type', 'customer'),  # Map store_type to customer_type
+                            'priority': data.get('priority', 100),
+                            'active': data.get('active', True),
+                            'notes': data.get('notes', '')
+                        })
                     try:
-                        result = db_service.bulk_upsert_store_mappings(mappings_data)
+                        result = db_service.bulk_upsert_customer_mappings(customer_mappings_data)
                     except Exception as e:
                         if "raw_name" in str(e) or "mapped_name" in str(e):
                             st.error("❌ Database schema issue detected. Using fallback method...")

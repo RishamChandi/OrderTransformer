@@ -140,14 +140,14 @@ class UNFIEastParser(BaseParser):
         
         # Apply IOW-based mapping using database lookup
         if iow_location:
-            # Use database mapping for IOW location
-            mapped_customer = self.mapping_utils.get_store_mapping(iow_location.upper(), 'unfi_east')
+            # Use customer mapping for IOW location (raw customer ID like "RCH", "HOW", etc.)
+            mapped_customer = self.mapping_utils.get_customer_mapping(iow_location.upper(), 'unfi_east')
             if mapped_customer and mapped_customer != 'UNKNOWN':
                 order_info['customer_name'] = mapped_customer
                 order_info['raw_customer_name'] = iow_location
                 print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
             else:
-                print(f"DEBUG: IOW code {iow_location} not found in mapping -> UNKNOWN")
+                print(f"DEBUG: IOW code {iow_location} not found in customer mapping -> UNKNOWN")
         else:
             # Fallback: Look for warehouse location in Ship To section
             warehouse_location = ""
@@ -167,7 +167,7 @@ class UNFIEastParser(BaseParser):
                 }
                 iow_code = warehouse_to_iow.get(warehouse_location, '')
                 if iow_code:
-                    mapped_customer = self.mapping_utils.get_store_mapping(iow_code, 'unfi_east')
+                    mapped_customer = self.mapping_utils.get_customer_mapping(iow_code, 'unfi_east')
                     if mapped_customer and mapped_customer != 'UNKNOWN':
                         order_info['customer_name'] = mapped_customer
                         order_info['raw_customer_name'] = f"{warehouse_location} ({iow_code})"
@@ -193,8 +193,8 @@ class UNFIEastParser(BaseParser):
                 }
                 
                 location_code = warehouse_to_code.get(warehouse_location, warehouse_location.upper()[:3])
-                mapped_customer = self.mapping_utils.get_store_mapping(location_code, 'unfi_east')
-                if mapped_customer and mapped_customer != location_code:
+                mapped_customer = self.mapping_utils.get_customer_mapping(location_code, 'unfi_east')
+                if mapped_customer and mapped_customer != 'UNKNOWN':
                     order_info['customer_name'] = mapped_customer
                     order_info['raw_customer_name'] = warehouse_location
                     print(f"DEBUG: Mapped {warehouse_location} ({location_code}) -> {mapped_customer}")
