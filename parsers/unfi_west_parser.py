@@ -86,6 +86,12 @@ class UNFIWestParser(BaseParser):
         if po_match:
             order_info['order_number'] = po_match.group(1)
         
+        # Look for store code/number (e.g., "144") - try this first for mapping
+        store_code_match = re.search(r'Store\s*(?:Code|#|No|Number)[:\s]*(\d+)', html_text, re.IGNORECASE)
+        if not store_code_match:
+            # Try other patterns for store code
+            store_code_match = re.search(r'\b(\d{3,4})\b', html_text)  # 3-4 digit codes
+        
         # Look for UNFI location information (e.g., "UNFI - MORENO VALLEY, CA")
         # This appears in the header section of UNFI West HTML files
         unfi_location_match = re.search(r'UNFI\s*-\s*([^<\n\r]+)', html_text)
@@ -106,12 +112,32 @@ class UNFIWestParser(BaseParser):
                     raw_customer = buyer_match.group(1).strip()
                     order_info['raw_customer_name'] = raw_customer
         
-        # Apply store mapping
-        if order_info['raw_customer_name']:
-            order_info['customer_name'] = self.mapping_utils.get_store_mapping(
-                order_info['raw_customer_name'], 
-                'unfi_west'
-            )
+        # Apply store mapping - try store code first, then location name
+        mapped_store = None
+        if store_code_match:
+            store_code = store_code_match.group(1)
+            mapped_store = self.mapping_utils.get_store_mapping(store_code, 'unfi_west')
+            if mapped_store and mapped_store != store_code and mapped_store != 'UNKNOWN':
+                order_info['raw_customer_name'] = store_code  # Use store code as raw name
+        
+        # If store code mapping didn't work, try location name
+        if not mapped_store or mapped_store == 'UNKNOWN' or mapped_store == order_info.get('raw_customer_name', ''):
+            if order_info.get('raw_customer_name'):
+                mapped_store = self.mapping_utils.get_store_mapping(
+                    order_info['raw_customer_name'], 
+                    'unfi_west'
+                )
+        
+        # Set the mapped values
+        if mapped_store and mapped_store != 'UNKNOWN':
+            order_info['customer_name'] = mapped_store
+            order_info['store_name'] = mapped_store
+            order_info['sale_store_name'] = mapped_store
+        else:
+            # Fallback to default if no mapping found
+            order_info['customer_name'] = 'KL - Richmond'
+            order_info['store_name'] = 'KL - Richmond'
+            order_info['sale_store_name'] = 'KL - Richmond'
         
         # Look for order date from "Dated:" field
         dated_match = re.search(r'Dated:\s*(\d{2}/\d{2}/\d{2})', html_text)
