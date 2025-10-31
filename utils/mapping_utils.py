@@ -129,8 +129,9 @@ class MappingUtils:
                     if str(key).lower() in raw_customer_id_lower or raw_customer_id_lower in str(key).lower():
                         return value
                         
-            except Exception:
-                pass  # Fall back to file-based mapping
+            except Exception as e:
+                # Silently fall back if database query fails
+                pass
         
         # Fallback: return UNKNOWN if no mapping found
         return "UNKNOWN"
