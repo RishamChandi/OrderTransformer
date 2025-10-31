@@ -334,10 +334,23 @@ class UNFIWestParser(BaseParser):
             # Apply item mapping using Prod# instead of Vendor P.N.
             mapped_item = self.mapping_utils.get_item_mapping(prod_number, 'unfi_west')
             
+            # Get mapped description from item mapping if available
+            mapped_description = None
+            if self.mapping_utils.use_database and self.mapping_utils.db_service:
+                try:
+                    item_mapping_info = self.mapping_utils.db_service.get_item_mapping_with_description(prod_number, 'unfi_west')
+                    if item_mapping_info and item_mapping_info.get('mapped_description'):
+                        mapped_description = item_mapping_info['mapped_description']
+                except Exception:
+                    pass  # Fall back to raw description if database lookup fails
+            
+            # Use mapped description if available, otherwise use raw description
+            final_description = mapped_description if mapped_description else description.strip()
+            
             return {
                 'item_number': mapped_item,
                 'raw_item_number': raw_prod_number,  # Store original Prod# with leading zeros
-                'item_description': description.strip(),
+                'item_description': final_description,
                 'quantity': qty,
                 'unit_price': cost,  # Use cost column (with 'p' suffix removed) as unit price
                 'total_price': cost * qty,  # Calculate total from cost, not extension
@@ -460,6 +473,22 @@ class UNFIWestParser(BaseParser):
                     elif item['total_price'] == 0.0:
                         item['total_price'] = numeric_value
         
+        # Apply item mapping and get mapped description if item_number is set
+        if item['item_number']:
+            raw_item = item['item_number']
+            mapped_item = self.mapping_utils.get_item_mapping(raw_item, 'unfi_west')
+            item['item_number'] = mapped_item
+            item['raw_item_number'] = raw_item
+            
+            # Get mapped description from item mapping if available
+            if self.mapping_utils.use_database and self.mapping_utils.db_service:
+                try:
+                    item_mapping_info = self.mapping_utils.db_service.get_item_mapping_with_description(raw_item, 'unfi_west')
+                    if item_mapping_info and item_mapping_info.get('mapped_description'):
+                        item['item_description'] = item_mapping_info['mapped_description']
+                except Exception:
+                    pass  # Keep original description if database lookup fails
+        
         # Calculate total if missing
         if item['total_price'] == 0.0 and item['unit_price'] > 0:
             item['total_price'] = item['unit_price'] * item['quantity']
@@ -512,5 +541,21 @@ class UNFIWestParser(BaseParser):
                         item['unit_price'] = price_value
                     else:
                         item['total_price'] = price_value
+        
+        # Apply item mapping and get mapped description if item_number is set
+        if item['item_number']:
+            raw_item = item['item_number']
+            mapped_item = self.mapping_utils.get_item_mapping(raw_item, 'unfi_west')
+            item['item_number'] = mapped_item
+            item['raw_item_number'] = raw_item
+            
+            # Get mapped description from item mapping if available
+            if self.mapping_utils.use_database and self.mapping_utils.db_service:
+                try:
+                    item_mapping_info = self.mapping_utils.db_service.get_item_mapping_with_description(raw_item, 'unfi_west')
+                    if item_mapping_info and item_mapping_info.get('mapped_description'):
+                        item['item_description'] = item_mapping_info['mapped_description']
+                except Exception:
+                    pass  # Keep original description if database lookup fails
         
         return item if item['item_number'] else None

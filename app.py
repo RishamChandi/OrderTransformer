@@ -1173,6 +1173,17 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
         
         # Load current mappings
         try:
+            # Normalize processor name to match database format
+            normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
+            if normalized_processor == 'kehe':
+                normalized_processor = 'kehe'
+            elif normalized_processor == 'unfi_east':
+                normalized_processor = 'unfi_east'
+            elif normalized_processor == 'unfi_west':
+                normalized_processor = 'unfi_west'
+            elif normalized_processor in ['whole_foods', 'wholefoods']:
+                normalized_processor = 'wholefoods'
+            
             with db_service.get_session() as session:
                 if mapping_type == "customer":
                     # Check if CustomerMapping table exists, use fallback if not
@@ -1181,13 +1192,25 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         with db_service.get_session() as test_session:
                             test_session.query(db_service.CustomerMapping).first()
                         # If we get here, the table exists, use CustomerMapping
-                        mappings = session.query(db_service.CustomerMapping).filter_by(source=processor).all()
+                        mappings = session.query(db_service.CustomerMapping).filter_by(source=normalized_processor).all()
                     except Exception:
                         # CustomerMapping table doesn't exist, use StoreMapping fallback
-                        mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "customer").all()
+                        mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type == "customer").all()
                 elif mapping_type == "store":
-                    # Store mappings: filter by store_type that indicates store entities  
-                    mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(db_service.StoreMapping.store_type == "store").all()
+                    # Store mappings: filter by source and exclude customer type mappings
+                    # Normalize processor name to match database format
+                    normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
+                    if normalized_processor == 'kehe':
+                        normalized_processor = 'kehe'
+                    elif normalized_processor == 'unfi_east':
+                        normalized_processor = 'unfi_east'
+                    elif normalized_processor == 'unfi_west':
+                        normalized_processor = 'unfi_west'
+                    elif normalized_processor in ['whole_foods', 'wholefoods']:
+                        normalized_processor = 'wholefoods'
+                    
+                    # Get all store mappings for this source, excluding customer type
+                    mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 elif mapping_type == "item":
                     mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
                 
@@ -1311,9 +1334,20 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
     # Show what will be deleted
     try:
         with db_service.get_session() as session:
+            mappings = []
             if mapping_type == "item":
                 mappings = session.query(db_service.ItemMapping).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
-            else:
+            elif mapping_type == "customer":
+                # Try CustomerMapping first, then fallback to StoreMapping
+                try:
+                    mappings = session.query(db_service.CustomerMapping).filter(db_service.CustomerMapping.id.in_(selected_ids)).all()
+                    if not mappings:
+                        # Fallback to StoreMapping if CustomerMapping returns empty
+                        mappings = session.query(db_service.StoreMapping).filter(db_service.StoreMapping.id.in_(selected_ids)).all()
+                except Exception:
+                    # CustomerMapping table doesn't exist, use StoreMapping
+                    mappings = session.query(db_service.StoreMapping).filter(db_service.StoreMapping.id.in_(selected_ids)).all()
+            else:  # store
                 mappings = session.query(db_service.StoreMapping).filter(db_service.StoreMapping.id.in_(selected_ids)).all()
             
             st.write("**Mappings to be deleted:**")
@@ -1322,7 +1356,10 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
                     st.write(f"- {m.raw_item} → {m.mapped_item}")
                 else:
                     if mapping_type == "customer":
-                        st.write(f"- {m.raw_store_id} → {m.mapped_store_name}")
+                        # Handle both CustomerMapping and StoreMapping structures
+                        raw_val = getattr(m, 'raw_customer_id', getattr(m, 'raw_store_id', ''))
+                        mapped_val = getattr(m, 'mapped_customer_name', getattr(m, 'mapped_store_name', ''))
+                        st.write(f"- {raw_val} → {mapped_val}")
                     else:  # store
                         st.write(f"- {m.raw_store_id} → {m.mapped_store_name}")
     
@@ -1350,9 +1387,20 @@ def delete_selected_mappings(db_service: DatabaseService, processor: str, mappin
         with db_service.get_session() as session:
             deleted_count = 0
             for mapping_id in selected_ids:
+                mapping = None
                 if mapping_type == "item":
                     mapping = session.query(db_service.ItemMapping).filter_by(id=mapping_id).first()
-                else:
+                elif mapping_type == "customer":
+                    # Try CustomerMapping first, then fallback to StoreMapping
+                    try:
+                        mapping = session.query(db_service.CustomerMapping).filter_by(id=mapping_id).first()
+                        if not mapping:
+                            # Fallback to StoreMapping if CustomerMapping not found
+                            mapping = session.query(db_service.StoreMapping).filter_by(id=mapping_id).first()
+                    except Exception:
+                        # CustomerMapping table doesn't exist, use StoreMapping
+                        mapping = session.query(db_service.StoreMapping).filter_by(id=mapping_id).first()
+                else:  # store
                     mapping = session.query(db_service.StoreMapping).filter_by(id=mapping_id).first()
                 
                 if mapping:
@@ -1364,6 +1412,8 @@ def delete_selected_mappings(db_service: DatabaseService, processor: str, mappin
             
     except Exception as e:
         st.error(f"❌ Failed to delete mappings: {e}")
+        import traceback
+        st.error(f"Error details: {traceback.format_exc()}")
 
 def show_add_new_mapping_form(db_service: DatabaseService, processor: str, mapping_type: str):
     """Show form to add new mapping"""
@@ -1552,19 +1602,30 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
 def show_current_mappings_view(db_service: DatabaseService, processor: str, mapping_type: str):
     """Show current mappings in read-only view"""
     try:
+        # Normalize processor name to match database format
+        normalized_processor = processor.lower().replace(' ', '_').replace('-', '_')
+        if normalized_processor == 'kehe':
+            normalized_processor = 'kehe'
+        elif normalized_processor == 'unfi_east':
+            normalized_processor = 'unfi_east'
+        elif normalized_processor == 'unfi_west':
+            normalized_processor = 'unfi_west'
+        elif normalized_processor in ['whole_foods', 'wholefoods']:
+            normalized_processor = 'wholefoods'
+        
         with db_service.get_session() as session:
             if mapping_type == "customer":
                 # Customer mappings only
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(
+                mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
                     db_service.StoreMapping.store_type == "customer"
                 ).all()
             elif mapping_type == "store":
-                # Store mappings: filter by store_type values that indicate store entities  
-                mappings = session.query(db_service.StoreMapping).filter_by(source=processor).filter(
-                    db_service.StoreMapping.store_type.in_(["store", "retail", "wholesaler"])
+                # Store mappings: exclude customer type to get all store/distributor/retail mappings
+                mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(
+                    db_service.StoreMapping.store_type != "customer"
                 ).all()
             else:
-                mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
             
             if mappings:
                 st.success(f"✅ Found {len(mappings)} {mapping_type} mappings")
