@@ -225,6 +225,17 @@ class DatabaseService:
             
             return {str(mapping.raw_store_id): str(mapping.mapped_store_name) for mapping in mappings}
     
+    def get_customer_mappings(self, source: str) -> Dict[str, str]:
+        """Get all customer mappings for a source"""
+        
+        with get_session() as session:
+            mappings = session.query(CustomerMapping)\
+                             .filter_by(source=source, active=True)\
+                             .order_by(CustomerMapping.priority.asc())\
+                             .all()
+            
+            return {str(mapping.raw_customer_id): str(mapping.mapped_customer_name) for mapping in mappings}
+    
     def get_item_mappings(self, source: str) -> Dict[str, str]:
         """Get all item mappings for a source"""
         

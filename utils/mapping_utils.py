@@ -92,6 +92,49 @@ class MappingUtils:
         # Otherwise return original
         return raw_name_clean
     
+    def get_customer_mapping(self, raw_customer_id: str, source: str) -> str:
+        """
+        Get mapped customer name for a given raw customer ID and source
+        
+        Args:
+            raw_customer_id: Original customer ID from order file (e.g., store number)
+            source: Order source (wholefoods, unfi_west, unfi, tkmaxx)
+            
+        Returns:
+            Mapped customer name or 'UNKNOWN' if no mapping found
+        """
+        
+        if not raw_customer_id or not str(raw_customer_id).strip():
+            return "UNKNOWN"
+        
+        raw_customer_id_clean = str(raw_customer_id).strip()
+        
+        # Try database first if available
+        if self.use_database and self.db_service:
+            try:
+                mapping_dict = self.db_service.get_customer_mappings(source)
+                
+                # Try exact match first
+                if raw_customer_id_clean in mapping_dict:
+                    return mapping_dict[raw_customer_id_clean]
+                
+                # Try case-insensitive match
+                raw_customer_id_lower = raw_customer_id_clean.lower()
+                for key, value in mapping_dict.items():
+                    if str(key).lower() == raw_customer_id_lower:
+                        return value
+                
+                # Try partial match
+                for key, value in mapping_dict.items():
+                    if str(key).lower() in raw_customer_id_lower or raw_customer_id_lower in str(key).lower():
+                        return value
+                        
+            except Exception:
+                pass  # Fall back to file-based mapping
+        
+        # Fallback: return UNKNOWN if no mapping found
+        return "UNKNOWN"
+    
     def _load_mapping(self, source: str) -> None:
         """Load mapping file for the given source"""
         

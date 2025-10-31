@@ -160,9 +160,13 @@ class WholeFoodsParser(BaseParser):
             item_mappings_dict: Pre-fetched item mappings dictionary (optimization to avoid per-row DB queries)
         """
         
-        # Always use mapping for blank store id for Whole Foods
-        mapped_customer = self.mapping_utils.get_store_mapping('', 'wholefoods')
-        if not mapped_customer or mapped_customer == 'UNKNOWN':
+        # Use customer mapping with store number (which is the Raw Customer ID)
+        store_number = order_data['metadata'].get('store_number')
+        if store_number:
+            mapped_customer = self.mapping_utils.get_customer_mapping(store_number, 'wholefoods')
+            if not mapped_customer or mapped_customer == 'UNKNOWN':
+                mapped_customer = 'IDI - Richmond'
+        else:
             mapped_customer = 'IDI - Richmond'
         
         # Map item number and description using bulk-fetched dictionary first, then CSV fallback
@@ -258,8 +262,10 @@ class WholeFoodsParser(BaseParser):
             if store_match:
                 store_number = store_match.group(1)
                 customer_name = f"WHOLE FOODS #{store_number}"
-                # Map store number to customer name
-                mapped_customer = self.mapping_utils.get_store_mapping(store_number, 'wholefoods')
+                # Map store number (Raw Customer ID) to customer name using customer mapping
+                mapped_customer = self.mapping_utils.get_customer_mapping(store_number, 'wholefoods')
+                if not mapped_customer or mapped_customer == 'UNKNOWN':
+                    mapped_customer = "IDI - Richmond"  # Default fallback
             else:
                 mapped_customer = "IDI - Richmond"  # Default fallback
             
