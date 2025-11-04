@@ -365,7 +365,7 @@ class MappingUtils:
         
         Args:
             raw_item: Original item number/vendor P.N from order file
-            source: Order source (wholefoods, unfi_west, unfi, tkmaxx)
+            source: Order source (wholefoods, unfi_west, unfi_east, tkmaxx, kehe)
             
         Returns:
             Mapped item number or original item if no mapping found
@@ -390,8 +390,37 @@ class MappingUtils:
                 for key, value in item_mapping_dict.items():
                     if key.lower() == raw_item_lower:
                         return value
+                
+                # For Whole Foods: Try variations with spaces/dashes removed
+                # This handles cases where item is "13 025 24" but mapping is "1302524"
+                if source.lower() in ['wholefoods', 'whole foods', 'whole_foods']:
+                    # Try without spaces
+                    item_no_spaces = raw_item_clean.replace(' ', '')
+                    if item_no_spaces in item_mapping_dict:
+                        print(f"DEBUG: Found mapping for '{raw_item_clean}' by removing spaces -> '{item_no_spaces}'")
+                        return item_mapping_dict[item_no_spaces]
+                    
+                    # Try without dashes
+                    item_no_dashes = raw_item_clean.replace('-', '')
+                    if item_no_dashes in item_mapping_dict:
+                        print(f"DEBUG: Found mapping for '{raw_item_clean}' by removing dashes -> '{item_no_dashes}'")
+                        return item_mapping_dict[item_no_dashes]
+                    
+                    # Try without both spaces and dashes
+                    item_normalized = raw_item_clean.replace(' ', '').replace('-', '')
+                    if item_normalized in item_mapping_dict:
+                        print(f"DEBUG: Found mapping for '{raw_item_clean}' by removing spaces and dashes -> '{item_normalized}'")
+                        return item_mapping_dict[item_normalized]
+                    
+                    # Try reverse lookup: check if any key matches when normalized
+                    for key, value in item_mapping_dict.items():
+                        key_normalized = str(key).replace(' ', '').replace('-', '')
+                        if key_normalized == item_normalized:
+                            print(f"DEBUG: Found mapping for '{raw_item_clean}' via normalized match: '{key}' -> '{value}'")
+                            return value
                         
-            except Exception:
+            except Exception as e:
+                print(f"DEBUG: Error in get_item_mapping database lookup: {e}")
                 pass  # Fall back to file-based mapping
         
         # Fallback to file-based mapping
@@ -411,6 +440,26 @@ class MappingUtils:
         for key, value in item_mapping_dict.items():
             if key.lower() == raw_item_lower:
                 return value
+        
+        # For Whole Foods: Try variations with spaces/dashes removed in file-based mapping too
+        if source.lower() in ['wholefoods', 'whole foods', 'whole_foods']:
+            item_no_spaces = raw_item_clean.replace(' ', '')
+            if item_no_spaces in item_mapping_dict:
+                return item_mapping_dict[item_no_spaces]
+            
+            item_no_dashes = raw_item_clean.replace('-', '')
+            if item_no_dashes in item_mapping_dict:
+                return item_mapping_dict[item_no_dashes]
+            
+            item_normalized = raw_item_clean.replace(' ', '').replace('-', '')
+            if item_normalized in item_mapping_dict:
+                return item_mapping_dict[item_normalized]
+            
+            # Try reverse lookup
+            for key, value in item_mapping_dict.items():
+                key_normalized = str(key).replace(' ', '').replace('-', '')
+                if key_normalized == item_normalized:
+                    return value
         
         # Return original item if no mapping found
         return raw_item_clean

@@ -339,15 +339,39 @@ class DatabaseService:
             Dictionary mapping raw_item to {'mapped_item': str, 'mapped_description': str}
             Example: {'71094': {'mapped_item': '13-025-23', 'mapped_description': 'Bonne Maman Cranberry...'}}
         """
+        def _normalize_item_key(key: str) -> str:
+            """Normalize item key by removing .0 suffix from numeric strings, preserving spaces"""
+            key_str = str(key).strip()
+            # Remove .0 suffix if the key is numeric (e.g., "256821.0" -> "256821")
+            # But preserve spaces in item numbers like "13 025 24"
+            if key_str.endswith('.0') and key_str[:-2].replace('.', '').replace(' ', '').isdigit():
+                return key_str[:-2]
+            return key_str
+        
         try:
+            # Normalize source name
+            source_lower = source.lower().strip()
+            if source_lower in ['kehe', 'kehe - sps', 'kehe_sps', 'kehe___sps']:
+                normalized_source = 'kehe'
+            elif source_lower in ['whole foods', 'whole_foods']:
+                normalized_source = 'wholefoods'
+            elif source_lower in ['unfi east', 'unfi_east']:
+                normalized_source = 'unfi_east'
+            elif source_lower in ['unfi west', 'unfi_west']:
+                normalized_source = 'unfi_west'
+            else:
+                normalized_source = source_lower.replace(' ', '_').replace('-', '_')
+            
             with get_session() as session:
                 mappings = session.query(ItemMapping)\
-                                 .filter_by(source=source)\
+                                 .filter_by(source=normalized_source)\
                                  .all()
                 
                 result = {}
                 for mapping in mappings:
-                    result[str(mapping.raw_item).strip()] = {
+                    # Normalize key to remove .0 suffixes but preserve spaces
+                    normalized_key = _normalize_item_key(mapping.raw_item)
+                    result[normalized_key] = {
                         'mapped_item': str(mapping.mapped_item),
                         'mapped_description': str(mapping.mapped_description) if mapping.mapped_description else ''
                     }

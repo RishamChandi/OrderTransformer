@@ -93,7 +93,8 @@ class WholeFoodsParser(BaseParser):
                                 cost_text = cells[5].get_text(strip=True)
                                 
                                 # Skip totals row and empty rows
-                                if not item_number or item_number.lower() == 'totals:' or not item_number.isdigit():
+                                # Allow item numbers with spaces (e.g., "13 025 24"), but require at least some digits
+                                if not item_number or item_number.lower() == 'totals:' or not any(c.isdigit() for c in item_number):
                                     continue
                                 
                                 # Parse cost
@@ -172,22 +173,71 @@ class WholeFoodsParser(BaseParser):
         # Map item number and description using bulk-fetched dictionary first, then CSV fallback
         mapped_item = None
         item_description = line_item.get('description', '')
+        raw_item_no = line_item['item_no']
+        mapping_warning = None
         
         # Try bulk-fetched mappings dictionary first (optimized - no per-row DB calls)
-        if item_mappings_dict and line_item['item_no'] in item_mappings_dict:
-            db_mapping = item_mappings_dict[line_item['item_no']]
-            mapped_item = db_mapping.get('mapped_item')
-            # Use database description if available, otherwise keep HTML description
-            db_description = db_mapping.get('mapped_description', '').strip()
-            if db_description:
-                item_description = db_description
+        if item_mappings_dict:
+            # Try exact match first
+            if raw_item_no in item_mappings_dict:
+                db_mapping = item_mappings_dict[raw_item_no]
+                mapped_item = db_mapping.get('mapped_item')
+                db_description = db_mapping.get('mapped_description', '').strip()
+                if db_description:
+                    item_description = db_description
+            else:
+                # Try variations: without spaces, without dashes, normalized
+                variations = [
+                    raw_item_no.replace(' ', ''),  # Remove spaces: "13 025 24" -> "1302524"
+                    raw_item_no.replace('-', ''),   # Remove dashes: "13-025-25" -> "1302525"
+                    raw_item_no.replace(' ', '').replace('-', '')  # Remove both
+                ]
+                
+                for variant in variations:
+                    if variant in item_mappings_dict:
+                        db_mapping = item_mappings_dict[variant]
+                        mapped_item = db_mapping.get('mapped_item')
+                        db_description = db_mapping.get('mapped_description', '').strip()
+                        if db_description:
+                            item_description = db_description
+                        print(f"DEBUG: Found mapping for '{raw_item_no}' via variant '{variant}'")
+                        break
+                
+                # Also try reverse lookup: normalize both keys and raw item
+                if not mapped_item:
+                    raw_normalized = raw_item_no.replace(' ', '').replace('-', '')
+                    for key, db_mapping in item_mappings_dict.items():
+                        key_normalized = str(key).replace(' ', '').replace('-', '')
+                        if key_normalized == raw_normalized:
+                            mapped_item = db_mapping.get('mapped_item')
+                            db_description = db_mapping.get('mapped_description', '').strip()
+                            if db_description:
+                                item_description = db_description
+                            print(f"DEBUG: Found mapping for '{raw_item_no}' via normalized match with key '{key}'")
+                            break
         
-        # If no database mapping found, try CSV fallback
+        # If no database mapping found, try mapping_utils (which handles CSV and variations)
         if not mapped_item:
-            mapped_item = self.mapping_utils.get_item_mapping(line_item['item_no'], 'wholefoods')
-            if not mapped_item or mapped_item == line_item['item_no']:
-                # If no mapping found at all, use "Invalid Item" as specified
-                mapped_item = "Invalid Item"
+            mapped_item = self.mapping_utils.get_item_mapping(raw_item_no, 'wholefoods')
+            # If mapping_utils returns the original item, it means no mapping was found
+            if mapped_item == raw_item_no:
+                # Check if item has spaces or dashes - suggest mapping without them
+                if ' ' in raw_item_no or '-' in raw_item_no:
+                    normalized_item = raw_item_no.replace(' ', '').replace('-', '')
+                    mapping_warning = f"Item mapping missing for '{raw_item_no}'. Try mapping as '{normalized_item}' (spaces/dashes removed)."
+                    print(f"WARNING: {mapping_warning}")
+                    # Still process the item, but use "Invalid Item" as mapped_item
+                    mapped_item = "Invalid Item"
+                else:
+                    # No mapping found, use "Invalid Item"
+                    mapped_item = "Invalid Item"
+                    print(f"WARNING: Item mapping missing for '{raw_item_no}'")
+        
+        # Always include the item, even if mapping is missing (critical requirement)
+        # Store warning in item description if mapping is missing (for visibility)
+        if mapping_warning and mapped_item == "Invalid Item":
+            # Append warning to description so user can see it
+            item_description = f"{item_description} [WARNING: {mapping_warning}]" if item_description else f"[WARNING: {mapping_warning}]"
         
         # Parse quantity from qty field
         import re
@@ -198,7 +248,7 @@ class WholeFoodsParser(BaseParser):
         # Parse unit price
         unit_price = float(line_item.get('cost', '0.0'))
         
-        # Build the order item
+        # Build the order item - ALWAYS include, never skip
         return {
             'order_number': order_data['metadata'].get('order_number', ''),
             'order_date': self.parse_date(order_data['metadata'].get('order_date')) if order_data['metadata'].get('order_date') else None,
@@ -211,7 +261,8 @@ class WholeFoodsParser(BaseParser):
             'quantity': quantity,
             'unit_price': unit_price,
             'total_price': unit_price * quantity,
-            'source_file': order_data['metadata'].get('order_number', '') + '.html'
+            'source_file': order_data['metadata'].get('order_number', '') + '.html',
+            'mapping_warning': mapping_warning  # Include warning in order data
         }
     
     def _extract_order_from_table(self, table_element, filename: str) -> List[Dict[str, Any]]:
@@ -294,7 +345,8 @@ class WholeFoodsParser(BaseParser):
                                 upc = cells[6].get_text(strip=True) if len(cells) > 6 else ""
                                 
                                 # Skip totals row and empty rows
-                                if not item_number or item_number.lower() == 'totals:' or not item_number.isdigit():
+                                # Allow item numbers with spaces (e.g., "13 025 24"), but require at least some digits
+                                if not item_number or item_number.lower() == 'totals:' or not any(c.isdigit() for c in item_number):
                                     continue
                                 
                                 # Parse quantity (e.g., "1  CA" -> 1)
@@ -311,10 +363,28 @@ class WholeFoodsParser(BaseParser):
                                     if cost_value > 0:
                                         unit_price = cost_value
                                 
-                                # Apply item mapping
+                                # Apply item mapping with support for spaces/dashes
                                 mapped_item = self.mapping_utils.get_item_mapping(item_number, 'wholefoods')
-                                if not mapped_item or mapped_item == item_number:
-                                    mapped_item = "Invalid Item"  # Use "Invalid Item" if no mapping found
+                                mapping_warning = None
+                                
+                                # If mapping_utils returns the original item, it means no mapping was found
+                                if mapped_item == item_number:
+                                    # Check if item has spaces or dashes - suggest mapping without them
+                                    if ' ' in item_number or '-' in item_number:
+                                        normalized_item = item_number.replace(' ', '').replace('-', '')
+                                        mapping_warning = f"Item mapping missing for '{item_number}'. Try mapping as '{normalized_item}' (spaces/dashes removed)."
+                                        print(f"WARNING: {mapping_warning}")
+                                    else:
+                                        mapping_warning = f"Item mapping missing for '{item_number}'"
+                                        print(f"WARNING: {mapping_warning}")
+                                    # Use "Invalid Item" if no mapping found, but still process the item
+                                    mapped_item = "Invalid Item"
+                                
+                                # Always include the item, even if mapping is missing (critical requirement)
+                                # Append warning to description if mapping is missing
+                                final_description = description
+                                if mapping_warning and mapped_item == "Invalid Item":
+                                    final_description = f"{description} [WARNING: {mapping_warning}]" if description else f"[WARNING: {mapping_warning}]"
                                 
                                 order_item = {
                                     'order_number': order_number or filename,
@@ -324,11 +394,12 @@ class WholeFoodsParser(BaseParser):
                                     'raw_customer_name': customer_name,
                                     'item_number': mapped_item,
                                     'raw_item_number': item_number,
-                                    'item_description': description,
+                                    'item_description': final_description,
                                     'quantity': quantity,
                                     'unit_price': unit_price,
                                     'total_price': unit_price * quantity,
-                                    'source_file': filename
+                                    'source_file': filename,
+                                    'mapping_warning': mapping_warning  # Include warning in order data
                                 }
                                 
                                 orders.append(order_item)
