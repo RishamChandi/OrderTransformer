@@ -76,6 +76,15 @@ class XoroTemplate:
             sale_store_name = 'IDI - Richmond'
             store_name = 'IDI - Richmond'
             final_customer_name = order.get('customer_name', 'UNKNOWN')
+        elif source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
+            # For UNFI East: Store mapping and Customer mapping are SEPARATE
+            # - Store mapping: "Order To" number (85948, 85950) -> Store name (PSS-NJ, IDI-Richmond) for SaleStoreName/StoreName
+            # - Customer mapping: IOW code (RCH, HOW, etc.) -> Customer name (UNFI EAST - RICHBURG) for CustomerName
+            sale_store_name = order.get('sale_store_name') or order.get('store_name') or 'PSS-NJ'
+            store_name = order.get('store_name') or 'PSS-NJ'
+            # Customer name comes from customer mapping (IOW code lookup)
+            final_customer_name = order.get('customer_name', 'UNKNOWN')
+            print(f"DEBUG: UNFI East - Store: '{sale_store_name}' (from store mapping), Customer: '{final_customer_name}' (from customer mapping)")
         elif source_name.lower().replace(' ', '_') == 'unfi_west' or source_name.lower() == 'unfi west':
             # For UNFI West: use store mapping from parser for store names, customer mapping for customer name
             sale_store_name = order.get('sale_store_name') or order.get('store_name') or 'KL - Richmond'

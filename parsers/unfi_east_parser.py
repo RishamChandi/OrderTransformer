@@ -92,11 +92,13 @@ class UNFIEastParser(BaseParser):
         if po_match:
             order_info['order_number'] = po_match.group(1)
         
-        # Extract "Order To" number (vendor number like 85948, 85950) for store mapping
-        order_to_match = re.search(r'Order To:\s*(\d+)', text_content)
+        # Extract "Order To" number (vendor number like 85948, 85950) for STORE MAPPING
+        # This is used to select which store (PSS-NJ, IDI-Richmond) to use in Xoro
+        order_to_match = re.search(r'Order\s+To[:\s]+(\d+)', text_content, re.IGNORECASE)
         if order_to_match:
             order_info['order_to_number'] = order_to_match.group(1)
-            order_info['vendor_number'] = order_to_match.group(1)  # Store vendor number for mapping
+            order_info['vendor_number'] = order_to_match.group(1)  # Store vendor number for STORE mapping
+            print(f"DEBUG: Found Order To number: {order_info['order_to_number']} (for store mapping)")
         
         # Extract order date (Ord Date) - for OrderDate in Xoro
         order_date_match = re.search(r'Ord Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
@@ -122,95 +124,154 @@ class UNFIEastParser(BaseParser):
             if 'Ord Date' in line or 'Pck Date' in line or 'ETA Date' in line:
                 print(f"DEBUG: Date line {i}: {repr(line)}")
         
-        # Extract IOW location information for customer mapping from Internal Ref Number field
-        # The Internal Ref Number contains the IOW customer code as a 2-letter prefix before the dash
-        # Examples: "ss-85948-J10" -> "ss", "HH-85948-J10" -> "HH", "II-85948-H01" -> "II"
+        # Extract IOW location information for customer mapping
+        # Strategy: Use Ship To warehouse name as PRIMARY source (most reliable)
+        # Then try Internal Ref Number as fallback
         iow_location = ""
+        warehouse_location = ""
         
-        # Look for Internal Ref Number or Int Ref# field with 2-letter code pattern
-        # Pattern matches: "Internal Ref Number: ss-85948-J10" or "Int Ref#: HH-85948-J10"
-        int_ref_pattern = r'Int(?:ernal)?\s+Ref(?:\s+Number)?[:#\s]+([A-Za-z]{2})-\d+-'
-        int_ref_match = re.search(int_ref_pattern, text_content, re.IGNORECASE)
+        # PRIMARY: Look for warehouse location in Ship To section (most reliable)
+        # Pattern matches: "Ship To: Richburg Warehouse" or "Ship To: Richburg"
+        ship_to_patterns = [
+            r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)',
+            r'Ship To[:\s]+([A-Za-z\s]+?)(?:Warehouse|$)',
+            r'Ship To[:\s]+([A-Za-z]+)',
+        ]
         
-        if int_ref_match:
-            iow_location = int_ref_match.group(1).upper()  # Convert to uppercase for consistent mapping
-            print(f"DEBUG: Found IOW code from Internal Ref Number: {iow_location}")
-        else:
-            print(f"DEBUG: Could not find Internal Ref Number pattern in PDF")
-        
-        # Apply IOW-based mapping using database lookup
-        if iow_location:
-            # Use customer mapping for IOW location (raw customer ID like "RCH", "HOW", etc.)
-            mapped_customer = self.mapping_utils.get_customer_mapping(iow_location.upper(), 'unfi_east')
-            if mapped_customer and mapped_customer != 'UNKNOWN':
-                order_info['customer_name'] = mapped_customer
-                order_info['raw_customer_name'] = iow_location
-                print(f"DEBUG: Mapped IOW code {iow_location} -> {mapped_customer}")
-            else:
-                print(f"DEBUG: IOW code {iow_location} not found in customer mapping -> UNKNOWN")
-        else:
-            # Fallback: Look for warehouse location in Ship To section
-            warehouse_location = ""
-            ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
+        for pattern in ship_to_patterns:
+            ship_to_match = re.search(pattern, text_content, re.IGNORECASE)
             if ship_to_match:
                 warehouse_location = ship_to_match.group(1).strip()
-                print(f"DEBUG: Found Ship To location: {warehouse_location}")
-                
-                # Try to map warehouse name to IOW code
-                warehouse_to_iow = {
-                    'Iowa City': 'IOW',
-                    'Richburg': 'RCH',
-                    'Howell': 'HOW', 
-                    'Chesterfield': 'CHE',
-                    'York': 'YOR',
-                    'Greenwood': 'GG'  # Add Greenwood mapping
-                }
-                iow_code = warehouse_to_iow.get(warehouse_location, '')
-                if iow_code:
-                    mapped_customer = self.mapping_utils.get_customer_mapping(iow_code, 'unfi_east')
-                    if mapped_customer and mapped_customer != 'UNKNOWN':
-                        order_info['customer_name'] = mapped_customer
-                        order_info['raw_customer_name'] = f"{warehouse_location} ({iow_code})"
-                        print(f"DEBUG: Mapped {warehouse_location} ({iow_code}) -> {order_info['customer_name']}")
+                print(f"DEBUG: Found Ship To location: '{warehouse_location}'")
+                break
         
-        # Fallback 1: Look for warehouse info in "Ship To:" section like "Manchester", "Howell Warehouse", etc.
-        if order_info['customer_name'] == 'UNKNOWN':
-            ship_to_match = re.search(r'Ship To:\s*([A-Za-z\s]+?)(?:\s+Warehouse|\s*\n|\s+\d)', text_content)
-            if ship_to_match:
-                warehouse_location = ship_to_match.group(1).strip()
-                order_info['warehouse_location'] = warehouse_location
-                print(f"DEBUG: Found Ship To location: {warehouse_location}")
-                
-                # Convert full warehouse names to 3-letter codes for mapping
-                warehouse_to_code = {
-                    'Manchester': 'MAN',
-                    'Howell': 'HOW', 
-                    'Atlanta': 'ATL',
-                    'Sarasota': 'SAR',
-                    'York': 'YOR',
-                    'Richburg': 'RCH',
-                    'Greenwood': 'GG'  # Add Greenwood mapping
-                }
-                
-                location_code = warehouse_to_code.get(warehouse_location, warehouse_location.upper()[:3])
-                mapped_customer = self.mapping_utils.get_customer_mapping(location_code, 'unfi_east')
+        # Map warehouse name to IOW code (these are the codes stored in customer mappings)
+        warehouse_to_iow = {
+            'Iowa City': 'IOW',
+            'Richburg': 'RCH',
+            'Howell': 'HOW', 
+            'Chesterfield': 'CHE',
+            'York': 'YOR',
+            'Greenwood': 'GG',
+            'Manchester': 'MAN',
+            'Atlanta': 'ATL',
+            'Sarasota': 'SAR',
+            'Dayville': 'DAY',
+            'Hudson Valley': 'HVA',
+            'Racine': 'RAC',
+            'Prescott': 'TWC',
+        }
+        
+        # Try warehouse name mapping first (most reliable)
+        if warehouse_location:
+            # Try exact match
+            iow_code = warehouse_to_iow.get(warehouse_location, '')
+            # Try partial match (e.g., "Richburg Warehouse" contains "Richburg")
+            if not iow_code:
+                for warehouse_name, code in warehouse_to_iow.items():
+                    if warehouse_name.lower() in warehouse_location.lower():
+                        iow_code = code
+                        print(f"DEBUG: Matched warehouse '{warehouse_location}' to IOW code '{iow_code}' via partial match")
+                        break
+            
+            if iow_code:
+                mapped_customer = self.mapping_utils.get_customer_mapping(iow_code, 'unfi_east')
                 if mapped_customer and mapped_customer != 'UNKNOWN':
                     order_info['customer_name'] = mapped_customer
-                    order_info['raw_customer_name'] = warehouse_location
-                    print(f"DEBUG: Mapped {warehouse_location} ({location_code}) -> {mapped_customer}")
+                    order_info['raw_customer_name'] = f"{warehouse_location} ({iow_code})"
+                    print(f"DEBUG: Successfully mapped warehouse '{warehouse_location}' -> IOW '{iow_code}' -> Customer '{mapped_customer}'")
+                else:
+                    print(f"DEBUG: Warehouse '{warehouse_location}' -> IOW '{iow_code}' not found in customer mapping")
+                    # Try direct warehouse name lookup as fallback
+                    mapped_customer = self.mapping_utils.get_customer_mapping(warehouse_location, 'unfi_east')
+                    if mapped_customer and mapped_customer != 'UNKNOWN':
+                        order_info['customer_name'] = mapped_customer
+                        order_info['raw_customer_name'] = warehouse_location
+                        print(f"DEBUG: Mapped warehouse name directly '{warehouse_location}' -> '{mapped_customer}'")
         
-        # Apply vendor-based store mapping for SaleStoreName and StoreName
-        # This determines which store to use in Xoro template based on vendor number
-        if order_info.get('vendor_number'):
-            mapped_store = self.mapping_utils.get_store_mapping(order_info['vendor_number'], 'unfi_east')
-            if mapped_store and mapped_store != order_info['vendor_number']:
+        # FALLBACK: Try to extract IOW code from Int Ref# line (code appears AFTER the Internal Ref Number)
+        # Pattern: "Int Ref#: UU-85950-I16 RCH" - the IOW code (RCH) appears after the Internal Ref Number
+        if order_info['customer_name'] == 'UNKNOWN':
+            # Look for Int Ref# line and extract the IOW code that appears after it
+            # Pattern 1: Look for IOW code after Int Ref# (e.g., "Int Ref#: UU-85950-I16 RCH")
+            int_ref_line_pattern = r'Int(?:ernal)?\s+Ref(?:\s+Number)?[:#\s]+[A-Za-z0-9\-]+(?:\s+([A-Z]{2,3}))?\b'
+            int_ref_match = re.search(int_ref_line_pattern, text_content, re.IGNORECASE)
+            if int_ref_match and int_ref_match.group(1):
+                iow_code_from_ref = int_ref_match.group(1).upper()
+                print(f"DEBUG: Found IOW code '{iow_code_from_ref}' after Int Ref#")
+                
+                # Try to map this code (should match "128 RCH" in database)
+                mapped_customer = self.mapping_utils.get_customer_mapping(iow_code_from_ref, 'unfi_east')
+                if mapped_customer and mapped_customer != 'UNKNOWN':
+                    order_info['customer_name'] = mapped_customer
+                    order_info['raw_customer_name'] = iow_code_from_ref
+                    print(f"DEBUG: Mapped IOW code from Int Ref# '{iow_code_from_ref}' -> '{mapped_customer}'")
+            
+            # Pattern 2: Look for IOW code on the line immediately after Int Ref#
+            if order_info['customer_name'] == 'UNKNOWN':
+                lines = text_content.split('\n')
+                for i, line in enumerate(lines):
+                    if re.search(r'Int(?:ernal)?\s+Ref(?:\s+Number)?[:#]', line, re.IGNORECASE):
+                        # Check current line and next line for IOW code
+                        for check_line in [line, lines[i+1] if i+1 < len(lines) else '']:
+                            # Look for 2-3 letter uppercase code (RCH, HOW, etc.)
+                            iow_match = re.search(r'\b([A-Z]{2,3})\b', check_line)
+                            if iow_match:
+                                potential_code = iow_match.group(1)
+                                # Verify it's a known IOW code
+                                if potential_code in ['RCH', 'HOW', 'CHE', 'YOR', 'IOW', 'GG', 'MAN', 'ATL', 'SAR', 'DAY', 'HVA', 'RAC', 'TWC', 'SS', 'HH', 'JJ', 'MM']:
+                                    mapped_customer = self.mapping_utils.get_customer_mapping(potential_code, 'unfi_east')
+                                    if mapped_customer and mapped_customer != 'UNKNOWN':
+                                        order_info['customer_name'] = mapped_customer
+                                        order_info['raw_customer_name'] = potential_code
+                                        print(f"DEBUG: Found IOW code '{potential_code}' near Int Ref# -> '{mapped_customer}'")
+                                        break
+                        if order_info['customer_name'] != 'UNKNOWN':
+                            break
+        
+        # FINAL FALLBACK: Try to extract any 2-3 letter codes from the document that might be IOW codes
+        if order_info['customer_name'] == 'UNKNOWN':
+            # Look for common IOW codes in the text (RCH, HOW, CHE, YOR, IOW, etc.)
+            common_iow_codes = ['RCH', 'HOW', 'CHE', 'YOR', 'IOW', 'GG', 'MAN', 'ATL', 'SAR', 'DAY', 'HVA', 'RAC', 'TWC']
+            for code in common_iow_codes:
+                # Look for code as standalone or with context
+                pattern = rf'\b{code}\b'
+                if re.search(pattern, text_content, re.IGNORECASE):
+                    mapped_customer = self.mapping_utils.get_customer_mapping(code, 'unfi_east')
+                    if mapped_customer and mapped_customer != 'UNKNOWN':
+                        order_info['customer_name'] = mapped_customer
+                        order_info['raw_customer_name'] = code
+                        print(f"DEBUG: Found IOW code '{code}' in document -> '{mapped_customer}'")
+                        break
+        
+        # Apply STORE MAPPING: Use "Order To" number to select which store to use in Xoro
+        # Store mapping is SEPARATE from customer mapping:
+        # - Store mapping: "Order To" number (85948, 85950) -> Store name (PSS-NJ, IDI-Richmond) for SaleStoreName/StoreName
+        # - Customer mapping: IOW code (RCH) -> Customer name (UNFI EAST - RICHBURG) for CustomerName
+        if order_info.get('vendor_number') or order_info.get('order_to_number'):
+            # Use order_to_number if available, otherwise vendor_number
+            store_lookup_key = order_info.get('order_to_number') or order_info.get('vendor_number')
+            mapped_store = self.mapping_utils.get_store_mapping(str(store_lookup_key), 'unfi_east')
+            if mapped_store and mapped_store != str(store_lookup_key) and mapped_store != 'UNKNOWN':
                 order_info['sale_store_name'] = mapped_store
                 order_info['store_name'] = mapped_store
-                print(f"DEBUG: Mapped vendor {order_info['vendor_number']} -> store {mapped_store}")
+                print(f"DEBUG: STORE MAPPING - Order To '{store_lookup_key}' -> Store '{mapped_store}'")
             else:
-                # Default fallback stores
-                order_info['sale_store_name'] = 'PSS-NJ'  # Default store
-                order_info['store_name'] = 'PSS-NJ'
+                # Hardcoded fallback based on Order To number (legacy behavior)
+                order_to_num = order_info.get('order_to_number', '')
+                if order_to_num == '85948':
+                    order_info['sale_store_name'] = 'PSS-NJ'
+                    order_info['store_name'] = 'PSS-NJ'
+                    print(f"DEBUG: Using hardcoded store mapping: 85948 -> PSS-NJ")
+                elif order_to_num == '85950':
+                    order_info['sale_store_name'] = 'IDI - Richmond'
+                    order_info['store_name'] = 'IDI - Richmond'
+                    print(f"DEBUG: Using hardcoded store mapping: 85950 -> IDI - Richmond")
+                else:
+                    # Default fallback
+                    order_info['sale_store_name'] = 'PSS-NJ'
+                    order_info['store_name'] = 'PSS-NJ'
+                    print(f"DEBUG: Using default store: PSS-NJ (no mapping found for Order To '{store_lookup_key}')")
         
         return order_info
     
