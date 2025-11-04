@@ -4,6 +4,7 @@ Utilities for handling customer and store name mappings
 
 import pandas as pd
 import os
+import re
 from typing import Optional, Dict, Any
 
 class MappingUtils:
@@ -98,7 +99,7 @@ class MappingUtils:
         
         Args:
             raw_customer_id: Original customer ID from order file (e.g., store number, IOW code)
-            source: Order source (wholefoods, unfi_west, unfi_east, tkmaxx)
+            source: Order source (wholefoods, unfi_west, unfi_east, tkmaxx, kehe)
             
         Returns:
             Mapped customer name or 'UNKNOWN' if no mapping found
@@ -107,7 +108,11 @@ class MappingUtils:
         if not raw_customer_id or not str(raw_customer_id).strip():
             return "UNKNOWN"
         
+        # Normalize the raw customer ID - remove .0 suffix if present
         raw_customer_id_clean = str(raw_customer_id).strip()
+        if raw_customer_id_clean.endswith('.0') and raw_customer_id_clean[:-2].replace('.', '').isdigit():
+            raw_customer_id_clean = raw_customer_id_clean[:-2]
+        
         raw_customer_id_lower = raw_customer_id_clean.lower()
         
         # Try database first if available
@@ -115,18 +120,28 @@ class MappingUtils:
             try:
                 mapping_dict = self.db_service.get_customer_mappings(source)
                 
-                # Debug output for UNFI East
-                if source.lower() in ['unfi_east', 'unfi east']:
+                # Debug output for KeHE and UNFI East
+                if source.lower() in ['kehe', 'kehe_sps', 'kehe - sps', 'unfi_east', 'unfi east']:
                     print(f"DEBUG: Looking up customer mapping for '{raw_customer_id_clean}' (source: {source})")
                     print(f"DEBUG: Found {len(mapping_dict)} customer mappings")
                     if len(mapping_dict) > 0:
-                        sample_keys = list(mapping_dict.keys())[:5]
-                        print(f"DEBUG: Sample mapping keys: {sample_keys}")
+                        sample_keys = list(mapping_dict.keys())[:10]
+                        print(f"DEBUG: Sample mapping keys (first 10): {sample_keys}")
+                        # Also show all keys if there aren't too many
+                        if len(mapping_dict) <= 20:
+                            print(f"DEBUG: All mapping keys: {list(mapping_dict.keys())}")
+                    else:
+                        print(f"DEBUG: WARNING - No customer mappings found in database for source '{source}'")
                 
                 # Try exact match first
                 if raw_customer_id_clean in mapping_dict:
                     print(f"DEBUG: Found exact match for '{raw_customer_id_clean}'")
                     return mapping_dict[raw_customer_id_clean]
+                
+                # Try with .0 suffix if the clean version doesn't match (for backward compatibility)
+                if raw_customer_id_clean + '.0' in mapping_dict:
+                    print(f"DEBUG: Found match with .0 suffix for '{raw_customer_id_clean}'")
+                    return mapping_dict[raw_customer_id_clean + '.0']
                 
                 # Try case-insensitive exact match
                 for key, value in mapping_dict.items():
@@ -136,43 +151,88 @@ class MappingUtils:
                 # For UNFI East: Try matching the code at the end of the key (e.g., "128 RCH" matches "RCH")
                 # This handles cases where database has "128 RCH" but parser extracts just "RCH"
                 if source.lower() in ['unfi_east', 'unfi east']:
-                    # Try matching code as suffix/end of key (most common case)
+                    # First, try exact match (case-insensitive)
                     for key, value in mapping_dict.items():
                         key_str = str(key).strip()
                         key_lower = key_str.lower()
-                        # Check if raw_customer_id matches the end of the key after a space
-                        # Examples: "RCH" matches "128 RCH", "HOW" matches "129 HOW"
-                        if key_lower.endswith(' ' + raw_customer_id_lower) or key_lower.endswith(raw_customer_id_lower):
-                            # Verify it's a complete match (not partial) - check if preceded by space or is exact match
-                            if key_lower == raw_customer_id_lower or \
-                               (len(key_lower) > len(raw_customer_id_lower) and 
-                                key_lower[-len(raw_customer_id_lower)-1] == ' '):
-                                return value
-                        # Also check if key ends with just the code (no prefix) - exact match
-                        elif key_lower == raw_customer_id_lower:
+                        if key_lower == raw_customer_id_lower:
+                            print(f"DEBUG: Found exact case-insensitive match: '{raw_customer_id_clean}' = '{key_str}'")
                             return value
+                    
+                    # Try matching code as suffix/end of key (most common case)
+                    # Examples: "RCH" matches "128 RCH", "HOW" matches "129 HOW", "RCH" matches "RCH"
+                    for key, value in mapping_dict.items():
+                        key_str = str(key).strip()
+                        key_lower = key_str.lower()
+                        
+                        # Check if key ends with the code (with or without space prefix)
+                        if key_lower.endswith(' ' + raw_customer_id_lower):
+                            # Matches "128 RCH" -> "RCH"
+                            print(f"DEBUG: Matched '{raw_customer_id_clean}' to key '{key_str}' (suffix match with space)")
+                            return value
+                        elif key_lower.endswith(raw_customer_id_lower):
+                            # Check if it's a complete word match (not partial like "RCH" matching "RICH")
+                            # Verify it's either an exact match or preceded by space/non-letter
+                            if key_lower == raw_customer_id_lower:
+                                # Already handled above, but keep for safety
+                                continue
+                            elif len(key_lower) > len(raw_customer_id_lower):
+                                # Check if the character before the match is a space or non-letter
+                                char_before = key_lower[-len(raw_customer_id_lower)-1] if len(key_lower) > len(raw_customer_id_lower) else ''
+                                if char_before == ' ' or not char_before.isalnum():
+                                    print(f"DEBUG: Matched '{raw_customer_id_clean}' to key '{key_str}' (suffix match)")
+                                    return value
+                        
                         # Check if key starts with code followed by space
-                        elif key_lower.startswith(raw_customer_id_lower + ' '):
+                        if key_lower.startswith(raw_customer_id_lower + ' '):
+                            print(f"DEBUG: Matched '{raw_customer_id_clean}' to key '{key_str}' (prefix match)")
                             return value
-                        # Extract code from key if it follows pattern "NUMBER CODE" (e.g., "128 RCH" -> "RCH")
-                        elif ' ' in key_lower:
+                        
+                        # Extract code from key if it follows pattern "NUMBER CODE" or "CODE NUMBER" (e.g., "128 RCH" -> "RCH")
+                        if ' ' in key_lower:
                             parts = key_lower.split()
-                            if len(parts) >= 2 and parts[-1] == raw_customer_id_lower:
+                            # Check if last part matches
+                            if len(parts) >= 1 and parts[-1] == raw_customer_id_lower:
                                 print(f"DEBUG: Matched '{raw_customer_id_clean}' to key '{key_str}' (extracted code from end)")
                                 return value
+                            # Check if first part matches (for patterns like "RCH 128")
+                            if len(parts) >= 1 and parts[0] == raw_customer_id_lower:
+                                print(f"DEBUG: Matched '{raw_customer_id_clean}' to key '{key_str}' (extracted code from start)")
+                                return value
                 
-                # Try partial match (key contains raw_customer_id or vice versa)
-                for key, value in mapping_dict.items():
-                    key_lower = str(key).lower()
-                    if raw_customer_id_lower in key_lower or key_lower in raw_customer_id_lower:
-                        return value
+                # Try partial match (key contains raw_customer_id or vice versa) - but only for UNFI East
+                # This is a last resort and should be more careful to avoid false matches
+                if source.lower() in ['unfi_east', 'unfi east']:
+                    for key, value in mapping_dict.items():
+                        key_lower = str(key).lower()
+                        # Only match if the raw_customer_id is a complete word in the key
+                        # This prevents "RCH" from matching "RICH" incorrectly
+                        if raw_customer_id_lower in key_lower:
+                            # Check if it's a word boundary match
+                            pattern = r'\b' + re.escape(raw_customer_id_lower) + r'\b'
+                            if re.search(pattern, key_lower):
+                                print(f"DEBUG: Matched '{raw_customer_id_clean}' to key '{key}' (partial word match)")
+                                return value
                         
             except Exception as e:
                 # Log error for debugging but don't raise
                 print(f"DEBUG: Error in get_customer_mapping for {source}: {e}")
+                import traceback
+                traceback.print_exc()
                 pass
         
         # Fallback: return UNKNOWN if no mapping found
+        if source.lower() in ['unfi_east', 'unfi east']:
+            print(f"DEBUG: FAILED to find customer mapping for '{raw_customer_id_clean}' (source: {source})")
+            if self.use_database and self.db_service:
+                try:
+                    mapping_dict = self.db_service.get_customer_mappings(source)
+                    if mapping_dict:
+                        print(f"DEBUG: Available keys in database: {sorted(mapping_dict.keys())}")
+                    else:
+                        print(f"DEBUG: No mappings returned from database for source '{source}'")
+                except:
+                    pass
         return "UNKNOWN"
     
     def _load_mapping(self, source: str) -> None:

@@ -229,23 +229,69 @@ class DatabaseService:
     def get_customer_mappings(self, source: str) -> Dict[str, str]:
         """Get all customer mappings for a source"""
         
+        def _normalize_key(key: str) -> str:
+            """Normalize key by removing .0 suffix from numeric strings"""
+            key_str = str(key).strip()
+            # Remove .0 suffix if the key is numeric (e.g., "569813000000.0" -> "569813000000")
+            if key_str.endswith('.0') and key_str[:-2].replace('.', '').isdigit():
+                return key_str[:-2]
+            return key_str
+        
         try:
             # Normalize source name (e.g., "Whole Foods" -> "wholefoods", "UNFI East" -> "unfi_east")
-            normalized_source = source.lower().replace(' ', '_').replace('-', '_')
-            if normalized_source == 'whole_foods':
+            source_lower = source.lower().strip()
+            # Handle special cases first
+            if source_lower in ['whole foods', 'whole_foods']:
                 normalized_source = 'wholefoods'
-            elif normalized_source == 'unfi_east':
+            elif source_lower in ['unfi east', 'unfi_east']:
                 normalized_source = 'unfi_east'
-            elif normalized_source == 'unfi_west':
+            elif source_lower in ['unfi west', 'unfi_west']:
                 normalized_source = 'unfi_west'
+            elif source_lower in ['kehe', 'kehe - sps', 'kehe_sps', 'kehe___sps']:
+                normalized_source = 'kehe'
+            else:
+                # General normalization: replace spaces and hyphens with underscores
+                normalized_source = source_lower.replace(' ', '_').replace('-', '_')
+            
+            mapping_dict = {}
             
             with get_session() as session:
-                mappings = session.query(CustomerMapping)\
-                                 .filter_by(source=normalized_source, active=True)\
-                                 .order_by(CustomerMapping.priority.asc())\
-                                 .all()
+                # Try CustomerMapping table first
+                try:
+                    mappings = session.query(CustomerMapping)\
+                                     .filter_by(source=normalized_source, active=True)\
+                                     .order_by(CustomerMapping.priority.asc())\
+                                     .all()
+                    
+                    # Normalize keys to remove .0 suffixes
+                    for mapping in mappings:
+                        normalized_key = _normalize_key(mapping.raw_customer_id)
+                        mapping_dict[normalized_key] = str(mapping.mapped_customer_name)
+                except Exception as e:
+                    print(f"DEBUG: CustomerMapping table query failed for {source}: {e}")
+                    mapping_dict = {}
                 
-                return {str(mapping.raw_customer_id): str(mapping.mapped_customer_name) for mapping in mappings}
+                # Fallback to StoreMapping table with store_type='customer' if CustomerMapping is empty or doesn't exist
+                if not mapping_dict:
+                    try:
+                        store_mappings = session.query(StoreMapping)\
+                                               .filter_by(source=normalized_source)\
+                                               .filter(StoreMapping.store_type == 'customer')\
+                                               .all()
+                        
+                        # Build mapping dict from StoreMapping (using raw_store_id as key)
+                        for mapping in store_mappings:
+                            raw_id = _normalize_key(mapping.raw_store_id)
+                            mapped_name = str(mapping.mapped_store_name).strip()
+                            if raw_id and mapped_name:
+                                mapping_dict[raw_id] = mapped_name
+                        
+                        if store_mappings:
+                            print(f"DEBUG: Found {len(store_mappings)} customer mappings in StoreMapping table for {source}")
+                    except Exception as e:
+                        print(f"DEBUG: StoreMapping fallback query failed for {source}: {e}")
+                
+                return mapping_dict
         except Exception as e:
             # Return empty dict if query fails (e.g., table doesn't exist yet)
             print(f"DEBUG: Error in get_customer_mappings for {source}: {e}")
@@ -254,12 +300,33 @@ class DatabaseService:
     def get_item_mappings(self, source: str) -> Dict[str, str]:
         """Get all item mappings for a source"""
         
+        def _normalize_item_key(key: str) -> str:
+            """Normalize item key by removing .0 suffix from numeric strings"""
+            key_str = str(key).strip()
+            # Remove .0 suffix if the key is numeric (e.g., "256821.0" -> "256821")
+            if key_str.endswith('.0') and key_str[:-2].replace('.', '').isdigit():
+                return key_str[:-2]
+            return key_str
+        
+        # Normalize source name
+        source_lower = source.lower().strip()
+        if source_lower in ['kehe', 'kehe - sps', 'kehe_sps', 'kehe___sps']:
+            normalized_source = 'kehe'
+        else:
+            normalized_source = source_lower.replace(' ', '_').replace('-', '_')
+        
         with get_session() as session:
             mappings = session.query(ItemMapping)\
-                             .filter_by(source=source)\
+                             .filter_by(source=normalized_source)\
                              .all()
             
-            return {str(mapping.raw_item): str(mapping.mapped_item) for mapping in mappings}
+            # Normalize keys to remove .0 suffixes
+            result = {}
+            for mapping in mappings:
+                normalized_key = _normalize_item_key(mapping.raw_item)
+                result[normalized_key] = str(mapping.mapped_item)
+            
+            return result
     
     def get_item_mappings_dict(self, source: str) -> Dict[str, Dict[str, str]]:
         """

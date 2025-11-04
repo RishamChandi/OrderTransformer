@@ -1111,20 +1111,45 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
         
         if uploaded_file:
             try:
-                # Read CSV - convert Raw Item and RawKeyValue columns to string to avoid .0 suffix
+                # Read CSV - convert Raw columns to string to avoid .0 suffix
                 dtype_dict = {}
                 if mapping_type == 'item':
-                    # For item mappings, read Raw Item columns as string to preserve format
-                    for col in ['Raw Item', 'RawKeyValue', 'Raw Item Number']:
-                        dtype_dict[col] = str
-                
-                df = pd.read_csv(uploaded_file, dtype=dtype_dict if dtype_dict else None)
-                
-                # Post-process: Remove .0 suffix from Raw Item columns if they were read as numeric
-                if mapping_type == 'item':
-                    for col in ['Raw Item', 'RawKeyValue', 'Raw Item Number']:
-                        if col in df.columns:
-                            df[col] = df[col].astype(str).apply(lambda x: x[:-2] if x.endswith('.0') and x.replace('.', '').replace('-', '').isdigit() else x)
+                    # For item mappings, read ALL columns as string first to prevent pandas auto-converting numbers to floats
+                    # This prevents .0 suffix from being added
+                    df = pd.read_csv(uploaded_file, dtype=str)
+                    # Then convert back to appropriate types for non-raw-item columns
+                    # But keep Raw Item columns as strings
+                    for col in df.columns:
+                        col_lower = col.lower()
+                        # Keep these columns as strings (raw item columns)
+                        if any(term in col_lower for term in ['raw item', 'rawkeyvalue', 'raw item number', 'raw']):
+                            df[col] = df[col].astype(str).str.strip()
+                            # Remove .0 suffix if present
+                            df[col] = df[col].apply(lambda x: x[:-2] if str(x).endswith('.0') and str(x)[:-2].replace('.', '').replace('-', '').isdigit() else str(x))
+                        # Convert numeric columns back to appropriate types
+                        elif 'priority' in col_lower:
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(100).astype(int)
+                        elif 'active' in col_lower:
+                            df[col] = df[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
+                elif mapping_type in ['customer', 'store']:
+                    # For customer/store mappings, read ALL columns as string first to prevent pandas auto-converting numbers to floats
+                    # This prevents .0 suffix from being added to customer IDs (e.g., KeHE customer IDs like "569813000000")
+                    df = pd.read_csv(uploaded_file, dtype=str)
+                    # Then convert back to appropriate types for non-raw columns
+                    for col in df.columns:
+                        col_lower = col.lower()
+                        # Keep these columns as strings (raw customer/store ID columns)
+                        if any(term in col_lower for term in ['raw customer', 'rawcustomerid', 'raw store', 'rawstoreid', 'raw id', 'customer id', 'store id']):
+                            df[col] = df[col].astype(str).str.strip()
+                            # Remove .0 suffix if present (common with numeric customer IDs like KeHE)
+                            df[col] = df[col].apply(lambda x: x[:-2] if str(x).endswith('.0') and str(x)[:-2].replace('.', '').replace('-', '').isdigit() else str(x))
+                        # Convert numeric columns back to appropriate types
+                        elif 'priority' in col_lower:
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(100).astype(int)
+                        elif 'active' in col_lower:
+                            df[col] = df[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
+                else:
+                    df = pd.read_csv(uploaded_file, dtype=dtype_dict if dtype_dict else None)
                 
                 st.write("**File Preview:**")
                 st.dataframe(df.head())
@@ -1278,7 +1303,15 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                     # Get all store mappings for this source, excluding customer type
                     mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 elif mapping_type == "item":
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                    # Normalize processor name for item mappings too
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                    # If no mappings found, also try alternative KEHE source names
+                    if not mappings and normalized_processor == 'kehe':
+                        for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps']:
+                            alt_mappings = session.query(db_service.ItemMapping).filter_by(source=alt_source).all()
+                            if alt_mappings:
+                                mappings = alt_mappings
+                                break
                 
                 if mappings:
                     # Initialize session state for selected mappings if not exists
@@ -1831,12 +1864,26 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                         source_to_use = 'wholefoods'
                 
                 # Handle different column name formats for customer/store mappings
-                raw_name = str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
-                           row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
-                           row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
-                           row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
-                           row.get('Raw ID', '') or
-                           '').strip()
+                raw_name_value = row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or \
+                               row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or \
+                               row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or \
+                               row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or \
+                               row.get('Raw ID', '') or ''
+                
+                # Convert to string and normalize numeric values (remove .0 suffix)
+                # Handle cases where pandas might have already converted to float
+                if isinstance(raw_name_value, float):
+                    # If it's a float that represents an integer, convert to int then string
+                    if raw_name_value == int(raw_name_value):
+                        raw_name = str(int(raw_name_value))
+                    else:
+                        raw_name = str(raw_name_value).strip()
+                else:
+                    raw_name = str(raw_name_value).strip()
+                
+                # Remove .0 suffix if it's a numeric value (e.g., "569813000000.0" -> "569813000000")
+                if raw_name.endswith('.0') and raw_name.replace('.', '').replace('-', '').isdigit():
+                    raw_name = raw_name[:-2]
                 
                 mapped_name = str(row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
                               row.get('MappedCustomerName' if mapping_type == 'customer' else 'MappedStoreName', '') or
@@ -1911,7 +1958,16 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 raw_item_value = row.get('Raw Item', '') or row.get('RawKeyValue', '') or row.get('Raw Item Number', '') or ''
                 
                 # Convert to string and normalize numeric values (remove .0 suffix)
-                raw_item = str(raw_item_value).strip()
+                # Handle cases where pandas might have already converted to float
+                if isinstance(raw_item_value, float):
+                    # If it's a float that represents an integer, convert to int then string
+                    if raw_item_value == int(raw_item_value):
+                        raw_item = str(int(raw_item_value))
+                    else:
+                        raw_item = str(raw_item_value).strip()
+                else:
+                    raw_item = str(raw_item_value).strip()
+                
                 # Remove .0 suffix if it's a numeric value (e.g., "256821.0" -> "256821")
                 if raw_item.endswith('.0') and raw_item.replace('.', '').replace('-', '').isdigit():
                     raw_item = raw_item[:-2]
@@ -2070,12 +2126,26 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
         for index, row in df.iterrows():
             if mapping_type in ["customer", "store"]:
                 # Handle different column name formats for customer/store mappings
-                raw_name = str(row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or
-                           row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or
-                           row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or
-                           row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or
-                           row.get('Raw ID', '') or
-                           '').strip()
+                raw_name_value = row.get('Raw Customer ID' if mapping_type == 'customer' else 'Raw Store ID', '') or \
+                               row.get('RawCustomerID' if mapping_type == 'customer' else 'RawStoreID', '') or \
+                               row.get('Raw Customer' if mapping_type == 'customer' else 'Raw Store', '') or \
+                               row.get('Customer ID' if mapping_type == 'customer' else 'Store ID', '') or \
+                               row.get('Raw ID', '') or ''
+                
+                # Convert to string and normalize numeric values (remove .0 suffix)
+                # Handle cases where pandas might have already converted to float
+                if isinstance(raw_name_value, float):
+                    # If it's a float that represents an integer, convert to int then string
+                    if raw_name_value == int(raw_name_value):
+                        raw_name = str(int(raw_name_value))
+                    else:
+                        raw_name = str(raw_name_value).strip()
+                else:
+                    raw_name = str(raw_name_value).strip()
+                
+                # Remove .0 suffix if it's a numeric value (e.g., "569813000000.0" -> "569813000000")
+                if raw_name.endswith('.0') and raw_name.replace('.', '').replace('-', '').isdigit():
+                    raw_name = raw_name[:-2]
                 
                 mapped_name = str(row.get('Mapped Customer Name' if mapping_type == 'customer' else 'Mapped Store Name', '') or
                               row.get('MappedCustomerName' if mapping_type == 'customer' else 'MappedStoreName', '') or
@@ -2152,7 +2222,16 @@ def upload_mappings_to_database(df: pd.DataFrame, db_service: DatabaseService, p
                 raw_item_value = row.get('Raw Item', '') or row.get('RawKeyValue', '') or row.get('Raw Item Number', '') or ''
                 
                 # Convert to string and normalize numeric values (remove .0 suffix)
-                raw_item = str(raw_item_value).strip()
+                # Handle cases where pandas might have already converted to float
+                if isinstance(raw_item_value, float):
+                    # If it's a float that represents an integer, convert to int then string
+                    if raw_item_value == int(raw_item_value):
+                        raw_item = str(int(raw_item_value))
+                    else:
+                        raw_item = str(raw_item_value).strip()
+                else:
+                    raw_item = str(raw_item_value).strip()
+                
                 # Remove .0 suffix if it's a numeric value (e.g., "256821.0" -> "256821")
                 if raw_item.endswith('.0') and raw_item.replace('.', '').replace('-', '').isdigit():
                     raw_item = raw_item[:-2]
