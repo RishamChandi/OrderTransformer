@@ -1249,7 +1249,14 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
 
 def show_delete_mapping_interface(db_service: DatabaseService, processor: str, mapping_type: str):
     """Show delete mapping interface"""
-    db_service.migrate_legacy_customer_mappings(processor)
+    # Run migration first to ensure data is in the correct table
+    try:
+        migration_stats = db_service.migrate_legacy_customer_mappings(processor)
+        if migration_stats.get('migrated', 0) > 0 or migration_stats.get('updated', 0) > 0:
+            st.info(f"ℹ️ Migrated {migration_stats.get('migrated', 0)} legacy customer mappings to CustomerMapping table")
+    except Exception as e:
+        st.warning(f"⚠️ Migration warning: {str(e)}")
+    
     with st.expander("🗑️ Delete Mappings", expanded=True):
         st.warning("⚠️ Select mappings to delete")
         
@@ -1265,8 +1272,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
             
             with db_service.get_session() as session:
                 if mapping_type == "customer":
-                    # Customer mappings are stored separately in CustomerMapping table
-                    # DO NOT use StoreMapping fallback - customer and store mappings are separate data
+                    # Customer mappings are stored ONLY in CustomerMapping table
+                    # StoreMapping is separate and should NOT be used for customer mappings
                     mappings = []
                     for source_key in candidate_sources:
                         variants = {source_key, db_service.normalize_source_name(source_key)}
@@ -1353,7 +1360,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col2:
                             if mapping_type == "customer":
-                                # Customer mappings use CustomerMapping table structure
+                                # Customer mappings use CustomerMapping table structure only
                                 raw_val = m.raw_customer_id
                                 st.write(f"**{raw_val}**")
                             elif mapping_type == "store":
@@ -1363,7 +1370,7 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col3:
                             if mapping_type == "customer":
-                                # Customer mappings use CustomerMapping table structure
+                                # Customer mappings use CustomerMapping table structure only
                                 mapped_val = m.mapped_customer_name
                                 st.write(f"{mapped_val}")
                             elif mapping_type == "store":
@@ -1373,8 +1380,8 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         
                         with col4:
                             if mapping_type == "customer":
-                                # Customer mappings use CustomerMapping table structure
-                                type_val = getattr(m, 'customer_type', 'customer')
+                                # Customer mappings use CustomerMapping table structure only
+                                type_val = m.customer_type
                                 st.write(f"{type_val}")
                             elif mapping_type == "store":
                                 st.write(f"{m.store_type}")
@@ -1436,8 +1443,8 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
             if mapping_type == "item":
                 mappings = session.query(db_service.ItemMapping).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
             elif mapping_type == "customer":
-                # Customer mappings are stored separately in CustomerMapping table
-                # DO NOT use StoreMapping fallback - customer and store mappings are separate data
+                # Customer mappings are stored ONLY in CustomerMapping table
+                # StoreMapping is separate and should NOT be used for customer mappings
                 mappings = session.query(db_service.CustomerMapping).filter(
                     db_service.CustomerMapping.id.in_(selected_ids)
                 ).all()
@@ -1450,7 +1457,7 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
                     st.write(f"- {m.raw_item} → {m.mapped_item}")
                 else:
                     if mapping_type == "customer":
-                        # Customer mappings use CustomerMapping table structure
+                        # Customer mappings use CustomerMapping table structure only
                         raw_val = m.raw_customer_id
                         mapped_val = m.mapped_customer_name
                         st.write(f"- {raw_val} → {mapped_val}")
@@ -1480,23 +1487,38 @@ def delete_selected_mappings(db_service: DatabaseService, processor: str, mappin
     try:
         with db_service.get_session() as session:
             deleted_count = 0
+            failed_deletions = []
+            
             for mapping_id in selected_ids:
                 mapping = None
                 if mapping_type == "item":
                     mapping = session.query(db_service.ItemMapping).filter_by(id=mapping_id).first()
                 elif mapping_type == "customer":
-                    # Customer mappings are stored separately in CustomerMapping table
-                    # DO NOT use StoreMapping fallback - customer and store mappings are separate data
+                    # Customer mappings are stored ONLY in CustomerMapping table
+                    # StoreMapping is separate and should NOT be used for customer mappings
                     mapping = session.query(db_service.CustomerMapping).filter_by(id=mapping_id).first()
                 else:  # store
                     mapping = session.query(db_service.StoreMapping).filter_by(id=mapping_id).first()
                 
                 if mapping:
-                    session.delete(mapping)
-                    deleted_count += 1
+                    try:
+                        session.delete(mapping)
+                        deleted_count += 1
+                    except Exception as delete_error:
+                        failed_deletions.append(f"ID {mapping_id}: {str(delete_error)}")
+                else:
+                    failed_deletions.append(f"ID {mapping_id}: Mapping not found")
             
-            session.commit()
-            st.success(f"✅ Successfully deleted {deleted_count} mapping(s)!")
+            if deleted_count > 0:
+                session.commit()
+                st.success(f"✅ Successfully deleted {deleted_count} mapping(s)!")
+            
+            if failed_deletions:
+                st.warning(f"⚠️ Failed to delete {len(failed_deletions)} mapping(s):")
+                for failure in failed_deletions[:5]:  # Show first 5 failures
+                    st.write(f"  - {failure}")
+                if len(failed_deletions) > 5:
+                    st.write(f"  - ... and {len(failed_deletions) - 5} more")
             
     except Exception as e:
         st.error(f"❌ Failed to delete mappings: {e}")
@@ -2701,3 +2723,9 @@ def health_check():
 
 if __name__ == "__main__":
     main()
+
+"""
+comments
+$env:DATABASE_URL = "sqlite:///local.db"
+//python -m streamlit run app.py --server.port 8502
+"""

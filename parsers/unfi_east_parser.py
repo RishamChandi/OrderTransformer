@@ -244,6 +244,13 @@ class UNFIEastParser(BaseParser):
                         print(f"DEBUG: Found IOW code '{code}' in document -> '{mapped_customer}'")
                         break
         
+        # If still UNKNOWN, log diagnostic information
+        if order_info['customer_name'] == 'UNKNOWN':
+            print(f"DEBUG: WARNING - Could not find customer mapping for UNFI East order")
+            print(f"DEBUG: Extracted warehouse_location: '{warehouse_location}'")
+            print(f"DEBUG: Attempted IOW code lookups but all returned UNKNOWN")
+            print(f"DEBUG: Please verify customer mappings exist in database for source='unfi_east'")
+        
         # Apply STORE MAPPING: Use "Order To" number to select which store to use in Xoro
         # Store mapping is SEPARATE from customer mapping:
         # - Store mapping: "Order To" number (85948, 85950) -> Store name (PSS-NJ, IDI-Richmond) for SaleStoreName/StoreName

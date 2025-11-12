@@ -26,15 +26,18 @@ class DatabaseService:
         """Normalize processor/source names to canonical database value."""
         if not source:
             return ""
-        normalized = source.lower().strip().replace(' ', '_').replace('-', '_')
-        if normalized in ('kehe', 'kehe_sps', 'kehe___sps'):
+        source_lower = source.lower().strip()
+        # Handle special cases first (case-insensitive)
+        if source_lower in ('kehe', 'kehe_sps', 'kehe___sps', 'kehe - sps'):
             return 'kehe'
-        if normalized in ('whole_foods', 'wholefoods'):
+        if source_lower in ('whole_foods', 'wholefoods', 'whole foods'):
             return 'wholefoods'
-        if normalized in ('unfi_east',):
+        if source_lower in ('unfi_east', 'unfi east'):
             return 'unfi_east'
-        if normalized in ('unfi_west',):
+        if source_lower in ('unfi_west', 'unfi west'):
             return 'unfi_west'
+        # General normalization: replace spaces and hyphens with underscores
+        normalized = source_lower.replace(' ', '_').replace('-', '_')
         return normalized
     
     def migrate_legacy_customer_mappings(self, source: Optional[str] = None) -> Dict[str, int]:
@@ -344,15 +347,26 @@ class DatabaseService:
                 # General normalization: replace spaces and hyphens with underscores
                 normalized_source = source_lower.replace(' ', '_').replace('-', '_')
             
+            # For UNFI East, also try alternative source name formats that might exist in production
+            candidate_sources = [normalized_source]
+            if normalized_source == 'unfi_east':
+                candidate_sources.extend(['UNFI East', 'unfi east', 'UNFI_EAST', 'Unfi East'])
+            
             mapping_dict = {}
             
             with get_session() as session:
-                # Try CustomerMapping table first
+                # Try CustomerMapping table first with all candidate source names
                 try:
-                    mappings = session.query(CustomerMapping)\
-                                     .filter_by(source=normalized_source, active=True)\
-                                     .order_by(CustomerMapping.priority.asc())\
-                                     .all()
+                    mappings = []
+                    for candidate_source in candidate_sources:
+                        found_mappings = session.query(CustomerMapping)\
+                                             .filter_by(source=candidate_source, active=True)\
+                                             .order_by(CustomerMapping.priority.asc())\
+                                             .all()
+                        if found_mappings:
+                            mappings = found_mappings
+                            print(f"DEBUG: Found {len(mappings)} customer mappings with source='{candidate_source}'")
+                            break
                     
                     # Normalize keys to remove .0 suffixes
                     for mapping in mappings:
@@ -363,12 +377,20 @@ class DatabaseService:
                     mapping_dict = {}
                 
                 # Fallback to StoreMapping table with store_type='customer' if CustomerMapping is empty or doesn't exist
+                # NOTE: This should not be used for new data - customer mappings should be in CustomerMapping table
+                # This is only for legacy data migration
                 if not mapping_dict:
                     try:
-                        store_mappings = session.query(StoreMapping)\
-                                               .filter_by(source=normalized_source)\
-                                               .filter(StoreMapping.store_type == 'customer')\
-                                               .all()
+                        store_mappings = []
+                        for candidate_source in candidate_sources:
+                            found_store_mappings = session.query(StoreMapping)\
+                                                       .filter_by(source=candidate_source)\
+                                                       .filter(StoreMapping.store_type == 'customer')\
+                                                       .all()
+                            if found_store_mappings:
+                                store_mappings = found_store_mappings
+                                print(f"DEBUG: Found {len(store_mappings)} legacy customer mappings in StoreMapping table with source='{candidate_source}'")
+                                break
                         
                         # Build mapping dict from StoreMapping (using raw_store_id as key)
                         for mapping in store_mappings:
@@ -378,7 +400,7 @@ class DatabaseService:
                                 mapping_dict[raw_id] = mapped_name
                         
                         if store_mappings:
-                            print(f"DEBUG: Found {len(store_mappings)} customer mappings in StoreMapping table for {source}")
+                            print(f"DEBUG: WARNING - Using legacy StoreMapping table for customer mappings. Consider migrating to CustomerMapping table.")
                     except Exception as e:
                         print(f"DEBUG: StoreMapping fallback query failed for {source}: {e}")
                 
