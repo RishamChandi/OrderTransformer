@@ -21,6 +21,97 @@ from .connection import get_session
 class DatabaseService:
     """Service class for database operations"""
     
+    @staticmethod
+    def normalize_source_name(source: str) -> str:
+        """Normalize processor/source names to canonical database value."""
+        if not source:
+            return ""
+        normalized = source.lower().strip().replace(' ', '_').replace('-', '_')
+        if normalized in ('kehe', 'kehe_sps', 'kehe___sps'):
+            return 'kehe'
+        if normalized in ('whole_foods', 'wholefoods'):
+            return 'wholefoods'
+        if normalized in ('unfi_east',):
+            return 'unfi_east'
+        if normalized in ('unfi_west',):
+            return 'unfi_west'
+        return normalized
+    
+    def migrate_legacy_customer_mappings(self, source: Optional[str] = None) -> Dict[str, int]:
+        """
+        Move any legacy customer mappings that were accidentally stored in the
+        StoreMapping table (store_type == 'customer') into the dedicated
+        CustomerMapping table.
+        """
+        stats = {'migrated': 0, 'updated': 0, 'deleted': 0}
+        normalized_source = self.normalize_source_name(source) if source else None
+        candidate_sources: set[str] = set()
+        if normalized_source:
+            candidate_sources.update({normalized_source})
+            if normalized_source == 'kehe':
+                candidate_sources.update({'kehe_sps', 'kehe___sps', 'kehe - sps', 'KEHE - SPS', 'KEHE_SPS', 'KEHE___SPS'})
+            elif normalized_source == 'wholefoods':
+                candidate_sources.update({'whole_foods', 'whole foods', 'Whole Foods'})
+            elif normalized_source == 'unfi_east':
+                candidate_sources.update({'unfi east', 'unfi-east', 'UNFI EAST'})
+            elif normalized_source == 'unfi_west':
+                candidate_sources.update({'unfi west', 'unfi-west', 'UNFI WEST'})
+            if source:
+                candidate_sources.update({str(source).strip(), str(source).strip().lower()})
+        candidate_sources.discard('')
+        
+        try:
+            with get_session() as session:
+                query = session.query(StoreMapping).filter(StoreMapping.store_type == 'customer')
+                if candidate_sources:
+                    query = query.filter(StoreMapping.source.in_(candidate_sources))
+                legacy_mappings = query.all()
+                
+                for legacy in legacy_mappings:
+                    target_source = legacy.source
+                    normalized_target_source = self.normalize_source_name(target_source)
+                    if not normalized_target_source:
+                        normalized_target_source = target_source
+                    raw_id = str(legacy.raw_store_id)
+                    existing = session.query(CustomerMapping).filter_by(
+                        source=normalized_target_source,
+                        raw_customer_id=raw_id
+                    ).first()
+                    
+                    if existing:
+                        # Update existing customer mapping with latest values
+                        existing.source = normalized_target_source  # type: ignore
+                        existing.mapped_customer_name = legacy.mapped_store_name  # type: ignore
+                        existing.customer_type = getattr(legacy, 'store_type', 'customer')  # type: ignore
+                        existing.priority = legacy.priority  # type: ignore
+                        existing.active = legacy.active  # type: ignore
+                        existing.notes = legacy.notes  # type: ignore
+                        existing.updated_at = datetime.utcnow()  # type: ignore
+                        stats['updated'] += 1
+                    else:
+                        new_mapping = CustomerMapping(
+                            source=normalized_target_source,
+                            raw_customer_id=raw_id,
+                            mapped_customer_name=str(legacy.mapped_store_name),
+                            customer_type=getattr(legacy, 'store_type', 'customer'),
+                            priority=legacy.priority,
+                            active=legacy.active,
+                            notes=legacy.notes
+                        )
+                        session.add(new_mapping)
+                        stats['migrated'] += 1
+                    
+                    session.delete(legacy)
+                    stats['deleted'] += 1
+                
+                if legacy_mappings:
+                    session.commit()
+        except Exception:
+            # If migration fails we don't want to block the UI; just return stats so caller can log if needed.
+            pass
+        
+        return stats
+    
     def get_session(self):
         """Get database session"""
         return get_session()
