@@ -117,6 +117,7 @@ class DatabaseService:
     
     def get_session(self):
         """Get database session"""
+        # All sessions use the same database connection from database/connection.py
         return get_session()
     
     # Model references for direct access

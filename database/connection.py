@@ -8,6 +8,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from typing import Generator
+
+# Load .env file early (before any database imports)
+# CRITICAL: Use override=True to ensure .env file values override any existing environment variables
+# This prevents PowerShell environment variables from overriding .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=True)  # Load .env file and OVERRIDE any existing environment variables
+except ImportError:
+    pass  # python-dotenv not installed, that's okay
+
 from .env_config import get_database_url, get_environment, get_ssl_config
 
 def _mask_database_url(url: str) -> str:
@@ -37,6 +47,18 @@ def create_database_engine():
     if not database_url:
         raise ValueError(f"DATABASE_URL not found for environment: {env}")
     
+    # Log database connection details (masked for security)
+    masked_url = _mask_database_url(database_url)
+    print(f"🔌 Initializing database connection...")
+    print(f"   Environment: {env}")
+    print(f"   Database URL: {masked_url}")
+    
+    # Verify all components use the same database
+    if 'render.com' in database_url.lower():
+        print(f"   ✅ Using Render production database")
+    elif env == 'production':
+        print(f"   ✅ Using production database")
+    
     # Configure engine with connection pooling and stability settings
     engine_config = {
         'echo': False,  # Set to True for SQL debugging
@@ -46,22 +68,21 @@ def create_database_engine():
         'pool_recycle': 300,  # Recycle connections every 5 minutes
         'connect_args': {
             'connect_timeout': 30,  # 30 second connection timeout
-            'application_name': 'order_transformer_dev'  # Identify our connections
+            'application_name': 'order_transformer'  # Identify our connections
         }
     }
     
     # Add SSL configuration for production and cloud databases
     if env == 'production':
         engine_config['connect_args'].update(get_ssl_config())
-    elif 'neon' in database_url.lower() or 'aws' in database_url.lower():
-        # For cloud databases like Neon, add stability settings
+    elif 'render.com' in database_url.lower() or 'neon' in database_url.lower() or 'aws' in database_url.lower():
+        # For cloud databases (Render, Neon, AWS), add stability settings
         engine_config['connect_args'].update({
             'keepalives_idle': 600,  # Start keepalives after 10 min
             'keepalives_interval': 30,  # Send keepalive every 30 sec
             'keepalives_count': 3   # Give up after 3 failed keepalives
         })
-    
-    print(f"🔌 Connecting to {env} database...")
+        # Note: SSL mode is already set in the database URL by env_config.py
     
     try:
         engine = create_engine(database_url, **engine_config)
@@ -72,6 +93,7 @@ def create_database_engine():
                 connection = engine.connect()
                 connection.close()
                 print(f"✅ Connected to {env} database successfully (attempt {attempt + 1})")
+                print(f"   All order processors and mappings will use this database")
                 return engine
             except Exception as retry_error:
                 if attempt < max_retries - 1:
@@ -82,6 +104,7 @@ def create_database_engine():
                     raise retry_error
     except Exception as e:
         print(f"❌ Failed to connect to {env} database: {e}")
+        print(f"   Database URL: {masked_url}")
         
         # Enhanced fallback for development environments
         if env != 'production':

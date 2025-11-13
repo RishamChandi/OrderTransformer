@@ -5,6 +5,15 @@ from datetime import datetime
 import os
 import sys
 
+# Load environment variables from .env file
+# CRITICAL: Use override=True to ensure .env file values override any existing environment variables
+# This prevents PowerShell environment variables from overriding .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=True)  # Load .env file and OVERRIDE any existing environment variables
+except ImportError:
+    pass  # python-dotenv not installed, that's okay
+
 # Configure Streamlit for better deployment
 st.set_page_config(
     page_title="Order Transformer",
@@ -127,6 +136,46 @@ def initialize_database_if_needed():
 
 
 def main():
+    # Show database connection info in sidebar (for debugging)
+    with st.sidebar:
+        try:
+            from database.env_config import get_environment, get_database_url
+            from database.connection import get_current_environment
+            
+            env = get_environment()
+            db_url = get_database_url()
+            
+            # Mask the database URL for security
+            if db_url and '@' in db_url:
+                masked_url = db_url.split('@')[0].split('://')[0] + '://***:***@' + db_url.split('@')[1].split('/')[0] + '/...'
+            else:
+                masked_url = db_url[:50] + '...' if len(db_url) > 50 else db_url
+            
+            # Show connection status
+            with st.expander("🔌 Database Connection", expanded=True):
+                st.write(f"**Environment:** {env}")
+                st.write(f"**Database:** {masked_url}")
+                
+                # Check if it's a production database
+                if 'render.com' in db_url.lower():
+                    st.success("✅ Connected to Render Production Database")
+                    st.info("ℹ️ **All data changes will affect the production database**")
+                elif 'amazonaws.com' in db_url.lower():
+                    st.success("✅ Connected to Production Database (AWS)")
+                elif 'sqlite' in db_url.lower():
+                    st.error("❌ **SQLite Database Detected - NOT ALLOWED!**")
+                    st.error("🚫 **This application ONLY uses Render PostgreSQL database.**")
+                    st.error("❌ **SQLite is completely disabled for data consistency.**")
+                    st.warning("**FIX:** Remove any SQLite DATABASE_URL from:")
+                    st.code("1. PowerShell environment variables\n2. .env file\n3. run_app.bat file", language="text")
+                    st.info("**Solution:** Set DATABASE_URL to your Render database URL in .env file")
+                    st.code("DATABASE_URL=postgresql://user:pass@host.render.com/dbname", language="bash")
+                    st.stop()  # Stop the app - SQLite is not allowed
+                else:
+                    st.warning("⚠️ Unknown Database Type")
+        except Exception as e:
+            st.error(f"❌ Could not determine database connection: {e}")
+    
     # Initialize database if needed
     try:
         initialize_database_if_needed()
@@ -188,7 +237,9 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Initialize database service
+    # Initialize database service once - all order processors and mappings use this instance
+    # DatabaseService uses database/connection.py which creates a single database engine
+    # This ensures all components (KEHE, UNFI East, Whole Foods, etc.) use the same Render database
     db_service = DatabaseService()
     
     # Sidebar navigation system
@@ -485,10 +536,14 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Initialize mapping utils
-        mapping_utils = MappingUtils()
+        # Initialize mapping utils (all parsers use same database via MappingUtils)
+        # MappingUtils uses DatabaseService which uses the same database connection
+        mapping_utils = MappingUtils(use_database=True)
         
         # Order source selection with modern styling
+        # All parsers use the same database:
+        # - WholeFoodsParser: uses db_service directly (same database)
+        # - Other parsers: use mapping_utils which uses DatabaseService (same database)
         order_sources = {
             "Whole Foods": WholeFoodsParser(db_service),
             "UNFI West": UNFIWestParser(),
@@ -500,10 +555,16 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         # Source already selected, use it directly
         selected_order_source = selected_source_name
     
-    # Initialize mapping utils
-    mapping_utils = MappingUtils()
+    # Initialize mapping utils once (all parsers share the same database connection)
+    # MappingUtils internally uses DatabaseService which uses database/connection.py
+    # This ensures all order processors use the same Render database
+    mapping_utils = MappingUtils(use_database=True)
     
     # Order source selection for parsers
+    # All parsers use the same database connection:
+    # - WholeFoodsParser: receives db_service directly (same DatabaseService instance)
+    # - UNFIWestParser, KEHEParser, TKMaxxParser: use mapping_utils (same DatabaseService via MappingUtils)
+    # - UNFIEastParser: receives mapping_utils (same DatabaseService via MappingUtils)
     order_sources = {
         "Whole Foods": WholeFoodsParser(db_service),
         "UNFI West": UNFIWestParser(),
@@ -1275,12 +1336,12 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                     # Customer mappings are stored ONLY in CustomerMapping table
                     # StoreMapping is separate and should NOT be used for customer mappings
                     mappings = []
+                    # Try all candidate sources and variants (same logic as Current view)
                     for source_key in candidate_sources:
                         variants = {source_key, db_service.normalize_source_name(source_key)}
                         for variant in variants:
                             alt_mappings = session.query(db_service.CustomerMapping).filter_by(
-                                source=variant,
-                                active=True
+                                source=variant
                             ).all()
                             if alt_mappings:
                                 mappings = alt_mappings
@@ -1288,19 +1349,28 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                         if mappings:
                             break
                     
-                    # If still no mappings, try without active filter (include inactive ones for deletion)
-                    if not mappings:
-                        for source_key in candidate_sources:
-                            variants = {source_key, db_service.normalize_source_name(source_key)}
-                            for variant in variants:
-                                alt_mappings = session.query(db_service.CustomerMapping).filter_by(
-                                    source=variant
-                                ).all()
-                                if alt_mappings:
-                                    mappings = alt_mappings
-                                    break
-                            if mappings:
+                    # If no mappings found, also try alternative KEHE source names directly (same as Current view)
+                    if not mappings and normalized_processor == 'kehe':
+                        for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps', 'KEHE - SPS', 'kehe']:
+                            alt_mappings = session.query(db_service.CustomerMapping).filter_by(source=alt_source).all()
+                            if alt_mappings:
+                                mappings = alt_mappings
                                 break
+                    
+                    # If still no mappings found, try case-insensitive search as last resort
+                    if not mappings:
+                        all_sources = session.query(db_service.CustomerMapping.source).distinct().all()
+                        available_sources = [s[0] for s in all_sources]
+                        # Try to find any source that contains 'kehe' (case-insensitive)
+                        if normalized_processor == 'kehe':
+                            for available_source in available_sources:
+                                if 'kehe' in str(available_source).lower():
+                                    alt_mappings = session.query(db_service.CustomerMapping).filter_by(
+                                        source=available_source
+                                    ).all()
+                                    if alt_mappings:
+                                        mappings = alt_mappings
+                                        break
                 elif mapping_type == "store":
                     # Store mappings: filter by source and exclude customer type mappings
                     # Normalize processor name to match database format
@@ -2723,9 +2793,3 @@ def health_check():
 
 if __name__ == "__main__":
     main()
-
-"""
-comments
-$env:DATABASE_URL = "sqlite:///local.db"
-//python -m streamlit run app.py --server.port 8502
-"""

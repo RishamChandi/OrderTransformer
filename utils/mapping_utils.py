@@ -113,6 +113,23 @@ class MappingUtils:
         if raw_customer_id_clean.endswith('.0') and raw_customer_id_clean[:-2].replace('.', '').isdigit():
             raw_customer_id_clean = raw_customer_id_clean[:-2]
         
+        # For UNFI East: Extract IOW code from formats like "128 RCH" -> "RCH"
+        # The database stores just the code (RCH), but parser might extract "128 RCH"
+        if source.lower() in ['unfi_east', 'unfi east']:
+            # Pattern: "NUMBER CODE" or "CODE" - extract the code part
+            # Examples: "128 RCH" -> "RCH", "129 HOW" -> "HOW", "RCH" -> "RCH"
+            parts = raw_customer_id_clean.split()
+            if len(parts) > 1:
+                # Check if last part is a 2-3 letter code (IOW code pattern)
+                last_part = parts[-1].strip().upper()
+                if len(last_part) in [2, 3] and last_part.isalpha():
+                    # This looks like an IOW code, use it
+                    raw_customer_id_clean = last_part
+                    print(f"DEBUG: Extracted IOW code '{raw_customer_id_clean}' from '{raw_customer_id}'")
+            elif len(parts) == 1 and len(parts[0]) in [2, 3] and parts[0].isalpha():
+                # Already just a code, uppercase it
+                raw_customer_id_clean = parts[0].upper()
+        
         raw_customer_id_lower = raw_customer_id_clean.lower()
         
         # Try database first if available

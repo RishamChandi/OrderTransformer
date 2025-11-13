@@ -100,7 +100,17 @@ class XoroTemplate:
         if not sale_store_name or sale_store_name == 'UNKNOWN':
             raise ValueError(f"No store mapping found for {source_name} order {order.get('order_number')}")
         if not final_customer_name or final_customer_name == 'UNKNOWN':
-            raise ValueError(f"No customer mapping found for {source_name} order {order.get('order_number')}")
+            # For UNFI East, provide more detailed error message with debugging info
+            if source_name.lower().replace(' ', '_') in ['unfi_east', 'unfi east']:
+                raw_customer = order.get('raw_customer_name', 'NOT EXTRACTED')
+                raise ValueError(
+                    f"No customer mapping found for {source_name} order {order.get('order_number')}. "
+                    f"Raw customer ID extracted: '{raw_customer}'. "
+                    f"Please verify the PDF contains a valid IOW code (RCH, HOW, CHE, YOR, IOW, GRW, MAN, ATL, SAR, SRQ, DAY, HVA, RAC, TWC) "
+                    f"or add a customer mapping for '{raw_customer}' in the database."
+                )
+            else:
+                raise ValueError(f"No customer mapping found for {source_name} order {order.get('order_number')}")
         
         # Create Xoro order
         xoro_order = {
@@ -152,8 +162,9 @@ class XoroTemplate:
             'UnitPrice': float(order.get('unit_price', 0.0)),
             'Qty': int(order.get('quantity', 1)),
             'LineTotal': float(order.get('total_price', 0.0)),
-            'DiscountAmount': 0.0,
-            'DiscountPercent': 0.0,
+            # Extract discount information from order (for UNFI East, discounts are extracted from PDF)
+            'DiscountAmount': float(order.get('discount_amount', 0.0)),
+            'DiscountPercent': float(order.get('discount_percent', 0.0)),
             'TaxAmount': 0.0,
             'TaxPercent': 0.0,
             
