@@ -100,23 +100,37 @@ class UNFIEastParser(BaseParser):
             order_info['vendor_number'] = order_to_match.group(1)  # Store vendor number for STORE mapping
             print(f"DEBUG: Found Order To number: {order_info['order_to_number']} (for store mapping)")
         
-        # Extract order date (Ord Date) - for OrderDate in Xoro
+        # Extract order date (Ord Date), pickup date (Pck Date), ETA date
         order_date_match = re.search(r'Ord Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
         if order_date_match:
             order_info['order_date'] = self.parse_date(order_date_match.group(1))
             print(f"DEBUG: Extracted Ord Date: {order_date_match.group(1)} -> {order_info['order_date']}")
         
-        # Extract pickup date (Pck Date) - for DateToBeShipped and LastDateToBeShipped in Xoro
         pickup_date_match = re.search(r'Pck Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
         if pickup_date_match:
             order_info['pickup_date'] = self.parse_date(pickup_date_match.group(1))
             print(f"DEBUG: Extracted Pck Date: {pickup_date_match.group(1)} -> {order_info['pickup_date']}")
             
-        # Extract ETA date - for reference only (not used in Xoro template)
         eta_date_match = re.search(r'ETA Date[:\s]+(\d{2}/\d{2}/\d{2})', text_content)
         if eta_date_match:
             order_info['eta_date'] = self.parse_date(eta_date_match.group(1))
             print(f"DEBUG: Extracted ETA Date: {eta_date_match.group(1)} -> {order_info['eta_date']}")
+        
+        # Fallback: handle cases where all three dates appear on same line without colons
+        if not order_info['order_date'] or not order_info['pickup_date'] or not order_info['eta_date']:
+            triple_date_pattern = r'Ord\s+Date\s+Pck\s+Date\s+ETA\s+Date[^\d]+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})'
+            triple_match = re.search(triple_date_pattern, text_content)
+            if triple_match:
+                ord_date_raw, pck_date_raw, eta_date_raw = triple_match.groups()
+                if not order_info['order_date']:
+                    order_info['order_date'] = self.parse_date(ord_date_raw)
+                    print(f"DEBUG: Fallback Ord Date: {ord_date_raw} -> {order_info['order_date']}")
+                if not order_info['pickup_date']:
+                    order_info['pickup_date'] = self.parse_date(pck_date_raw)
+                    print(f"DEBUG: Fallback Pck Date: {pck_date_raw} -> {order_info['pickup_date']}")
+                if not order_info['eta_date']:
+                    order_info['eta_date'] = self.parse_date(eta_date_raw)
+                    print(f"DEBUG: Fallback ETA Date: {eta_date_raw} -> {order_info['eta_date']}")
         
         # Debug: Show the raw text around the date fields to see what's being matched
         lines = text_content.split('\n')
