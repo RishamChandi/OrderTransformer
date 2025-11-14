@@ -145,16 +145,15 @@ def main():
             env = get_environment()
             db_url = get_database_url()
             
-            # Mask the database URL for security
-            if db_url and '@' in db_url:
-                masked_url = db_url.split('@')[0].split('://')[0] + '://***:***@' + db_url.split('@')[1].split('/')[0] + '/...'
-            else:
-                masked_url = db_url[:50] + '...' if len(db_url) > 50 else db_url
+            # We no longer show or partially mask the actual database URL in the UI
+            # to prevent accidental disclosure in screenshots. Instead we only display
+            # a generic message.
+            display_db_label = "Hidden for security"
             
             # Show connection status
             with st.expander("🔌 Database Connection", expanded=True):
                 st.write(f"**Environment:** {env}")
-                st.write(f"**Database:** {masked_url}")
+                st.write(f"**Database:** {display_db_label}")
                 
                 # Check if it's a production database
                 if 'render.com' in db_url.lower():

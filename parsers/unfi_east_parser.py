@@ -147,7 +147,8 @@ class UNFIEastParser(BaseParser):
                 warehouse_location = header_match.group(1).strip()
                 # Only use if it's a known warehouse name
                 known_warehouses = ['Howell', 'Richburg', 'Chesterfield', 'York', 'Greenwood', 'Manchester', 
-                                   'Atlanta', 'Sarasota', 'Dayville', 'Hudson Valley', 'Racine', 'Prescott', 'Iowa City']
+                                   'Atlanta', 'Sarasota', 'Dayville', 'Hudson Valley', 'Racine', 'Prescott', 'Iowa City',
+                                   'Twin City', 'Twin Cities']
                 if any(wh.lower() == warehouse_location.lower() for wh in known_warehouses):
                     print(f"DEBUG: Found warehouse location in header with pattern '{header_pattern}': '{warehouse_location}'")
                     break
@@ -183,7 +184,8 @@ class UNFIEastParser(BaseParser):
                     
                     # Verify it's a known warehouse
                     known_warehouses = ['Howell', 'Richburg', 'Chesterfield', 'York', 'Greenwood', 'Manchester', 
-                                       'Atlanta', 'Sarasota', 'Dayville', 'Hudson Valley', 'Racine', 'Prescott', 'Iowa City']
+                                       'Atlanta', 'Sarasota', 'Dayville', 'Hudson Valley', 'Racine', 'Prescott', 'Iowa City',
+                                       'Twin City', 'Twin Cities']
                     if any(wh.lower() in warehouse_location.lower() for wh in known_warehouses):
                         print(f"DEBUG: Found Warehouse location with pattern '{pattern}': '{warehouse_location}'")
                         break
@@ -196,7 +198,8 @@ class UNFIEastParser(BaseParser):
         if not warehouse_location:
             # First, try to find known warehouse names in Ship To section
             known_warehouses = ['Howell', 'Richburg', 'Chesterfield', 'York', 'Greenwood', 'Manchester', 
-                               'Atlanta', 'Sarasota', 'Dayville', 'Hudson Valley', 'Racine', 'Prescott', 'Iowa City']
+                               'Atlanta', 'Sarasota', 'Dayville', 'Hudson Valley', 'Racine', 'Prescott', 'Iowa City',
+                               'Twin City', 'Twin Cities']
             
             # Look for "Ship To:" followed by a known warehouse name
             for warehouse_name in known_warehouses:
@@ -256,6 +259,8 @@ class UNFIEastParser(BaseParser):
             'Hudson Valley': 'HVA',
             'Racine': 'RAC',
             'Prescott': 'TWC',
+            'Twin City': 'TWC',
+            'Twin Cities': 'TWC',
         }
         
         # Try warehouse name mapping first (most reliable)
@@ -391,7 +396,7 @@ class UNFIEastParser(BaseParser):
                                 for code in valid_codes:
                                     # Use word boundary to ensure we match the code as a complete word
                                     # Pattern: \bCHE\b matches "CHE" but not "CHEMICAL" or "ACHIEVE"
-                                    pattern = rf'\b{re.escape(code)}\b'
+                                    pattern = rf'(?<![A-Z]){re.escape(code)}(?![A-Z])'
                                     if re.search(pattern, check_line, re.IGNORECASE):
                                         # Found a valid IOW code, try to map it
                                         mapped_customer = self.mapping_utils.get_customer_mapping(code, 'unfi_east')
@@ -430,7 +435,8 @@ class UNFIEastParser(BaseParser):
                     context = text_content[start:end]
                     # Look for IOW codes in this context
                     for code in common_iow_codes:
-                        pattern = rf'\b{code}\b'
+                        # Match code even if followed by punctuation/digits (e.g., "TWC-")
+                        pattern = rf'(?<![A-Z]){re.escape(code)}(?![A-Z])'
                         if re.search(pattern, context, re.IGNORECASE):
                             mapped_customer = self.mapping_utils.get_customer_mapping(code, 'unfi_east')
                             if mapped_customer and mapped_customer != 'UNKNOWN':
@@ -471,7 +477,7 @@ class UNFIEastParser(BaseParser):
                     common_iow_codes = ['RCH', 'HOW', 'CHE', 'YOR', 'IOW', 'GRW', 'MAN', 'ATL', 'SAR', 'SRQ', 'DAY', 'HVA', 'RAC', 'TWC']
                     found_codes = []
                     for code in common_iow_codes:
-                        pattern = rf'\b{code}\b'
+                        pattern = rf'(?<![A-Z]){re.escape(code)}(?![A-Z])'
                         if re.search(pattern, text_content, re.IGNORECASE):
                             found_codes.append(code)
                     
@@ -740,6 +746,9 @@ class UNFIEastParser(BaseParser):
         
         for line_idx, line in enumerate(item_lines):
             print(f"DEBUG: Processing line {line_idx + 1}/{len(item_lines)}: {line[:100]}...")
+            # Initialize price variables for this line to avoid UnboundLocalError when extraction fails
+            unit_cost = 0.0
+            vend_cs = 0.0
             # Try multiple patterns to match different UNFI East formats
             patterns = [
                 # Pattern 1: Full format - Prod# Seq Ord Qty Vend Qty Vend ID MC Pack U/M Brand Description Unit Cst Vend CS Extensin
@@ -917,7 +926,7 @@ class UNFIEastParser(BaseParser):
                             print(f"DEBUG: ✅ Extracted prices: Unit={unit_cost}, VendCS={vend_cs}, Ext={extension}")
                         else:
                             # Fallback: Try simpler pattern (just two decimal prices)
-                            two_price_pattern = r'(\d{1,2}\.\d{2})\s+(\d{1,2}\.\d{2})'
+                            two_price_pattern = r'(\d{1,4}\.\d{2})\s+(\d{1,4}\.\d{2})'
                             two_price_matches = list(re.finditer(two_price_pattern, item_section))
                             
                             # Find the first valid two-price match after description
@@ -946,7 +955,7 @@ class UNFIEastParser(BaseParser):
                                         break
                             
                             # If still no prices found, use fallback
-                            if unit_cost == 0.0 or 'unit_cost' not in locals():
+                            if unit_cost == 0.0:
                                 # Try to use potential_unit_cost from pattern match
                                 try:
                                     if potential_unit_cost and '.' in str(potential_unit_cost):

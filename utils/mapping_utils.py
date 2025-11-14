@@ -113,9 +113,12 @@ class MappingUtils:
         if raw_customer_id_clean.endswith('.0') and raw_customer_id_clean[:-2].replace('.', '').isdigit():
             raw_customer_id_clean = raw_customer_id_clean[:-2]
         
+        source_lower = source.lower().strip()
+        normalized_source = source_lower.replace(' ', '_')
+        
         # For UNFI East: Extract IOW code from formats like "128 RCH" -> "RCH"
         # The database stores just the code (RCH), but parser might extract "128 RCH"
-        if source.lower() in ['unfi_east', 'unfi east']:
+        if source_lower in ['unfi_east', 'unfi east']:
             # Pattern: "NUMBER CODE" or "CODE" - extract the code part
             # Examples: "128 RCH" -> "RCH", "129 HOW" -> "HOW", "RCH" -> "RCH"
             parts = raw_customer_id_clean.split()
@@ -130,7 +133,33 @@ class MappingUtils:
                 # Already just a code, uppercase it
                 raw_customer_id_clean = parts[0].upper()
         
+        # Build candidate IDs for matching (handles different formatting quirks)
+        candidate_ids = []
+        def add_candidate(candidate: str):
+            candidate = str(candidate).strip()
+            if candidate and candidate not in candidate_ids:
+                candidate_ids.append(candidate)
+        
+        add_candidate(raw_customer_id_clean)
+        
+        # Special normalization for KEHE ship-to locations:
+        # - Sometimes arrive as 13-digit values with leading zeros
+        # - Database stores them without the leading zero (12 digits)
+        if normalized_source in ['kehe', 'kehe_sps', 'kehe___sps', 'kehe_-_sps', 'kehe - sps']:
+            digits_only = ''.join(ch for ch in raw_customer_id_clean if ch.isdigit())
+            if digits_only:
+                add_candidate(digits_only)
+                trimmed = digits_only.lstrip('0')
+                if trimmed:
+                    add_candidate(trimmed)
+                # Some files may drop/add a leading zero - try both lengths
+                if len(digits_only) == 12:
+                    add_candidate(digits_only.zfill(13))
+                if len(digits_only) == 13 and digits_only.startswith('0'):
+                    add_candidate(digits_only[1:])
+        
         raw_customer_id_lower = raw_customer_id_clean.lower()
+        candidate_lowers = [candidate.lower() for candidate in candidate_ids]
         
         # Try database first if available
         if self.use_database and self.db_service:
@@ -150,24 +179,28 @@ class MappingUtils:
                     else:
                         print(f"DEBUG: WARNING - No customer mappings found in database for source '{source}'")
                 
-                # Try exact match first
-                if raw_customer_id_clean in mapping_dict:
-                    print(f"DEBUG: Found exact match for '{raw_customer_id_clean}'")
-                    return mapping_dict[raw_customer_id_clean]
+                # Try exact match for each candidate first
+                for candidate in candidate_ids:
+                    if candidate in mapping_dict:
+                        print(f"DEBUG: Found exact match for '{candidate}'")
+                        return mapping_dict[candidate]
                 
                 # Try with .0 suffix if the clean version doesn't match (for backward compatibility)
-                if raw_customer_id_clean + '.0' in mapping_dict:
-                    print(f"DEBUG: Found match with .0 suffix for '{raw_customer_id_clean}'")
-                    return mapping_dict[raw_customer_id_clean + '.0']
+                for candidate in candidate_ids:
+                    suffix_candidate = candidate + '.0'
+                    if suffix_candidate in mapping_dict:
+                        print(f"DEBUG: Found match with .0 suffix for '{candidate}'")
+                        return mapping_dict[suffix_candidate]
                 
                 # Try case-insensitive exact match
                 for key, value in mapping_dict.items():
-                    if str(key).lower() == raw_customer_id_lower:
+                    key_lower = str(key).lower()
+                    if key_lower in candidate_lowers:
                         return value
                 
                 # For UNFI East: Try matching the code at the end of the key (e.g., "128 RCH" matches "RCH")
                 # This handles cases where database has "128 RCH" but parser extracts just "RCH"
-                if source.lower() in ['unfi_east', 'unfi east']:
+                if normalized_source in ['unfi_east', 'unfi east']:
                     # First, try exact match (case-insensitive)
                     for key, value in mapping_dict.items():
                         key_str = str(key).strip()
