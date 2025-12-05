@@ -27,6 +27,8 @@ from parsers.unfi_west_parser import UNFIWestParser
 from parsers.unfi_east_parser import UNFIEastParser
 from parsers.kehe_parser import KEHEParser
 from parsers.tkmaxx_parser import TKMaxxParser
+from parsers.vmc_parser import VMCParser
+from parsers.davidson_parser import DavidsonParser
 from utils.xoro_template import XoroTemplate
 from utils.mapping_utils import MappingUtils
 from database.service import DatabaseService
@@ -250,7 +252,9 @@ def main():
             "📦 UNFI West": "unfi_west",
             "🏭 UNFI East": "unfi_east", 
             "📋 KEHE - SPS": "kehe",
-            "🏬 TK Maxx": "tkmaxx"
+            "🏬 TJ Maxx": "tkmaxx",
+            "📦 VMC": "vmc",
+            "🏪 Davidson": "davidson"
         }
         
         selected_source_name = st.selectbox(
@@ -259,7 +263,7 @@ def main():
             index=0
         )
         selected_source = sources[selected_source_name]
-        source_display_name = selected_source_name.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+        source_display_name = selected_source_name.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🏪 ", "")
         
         st.markdown("---")
         
@@ -308,10 +312,22 @@ def main():
                 "color": "#96CEB4"
             },
             "tkmaxx": {
-                "description": "CSV/Excel files from TK Maxx orders", 
+                "description": "PDF/CSV/Excel files from TJ Maxx orders", 
                 "formats": "CSV and Excel files",
                 "features": "Basic order processing and item mapping",
                 "color": "#FFEAA7"
+            },
+            "vmc": {
+                "description": "CSV files from VMC orders",
+                "formats": "CSV with header (H) and line (D) records",
+                "features": "Item mapping, Discount support, Customer/Store mapping",
+                "color": "#DDA0DD"
+            },
+            "davidson": {
+                "description": "CSV files from Davidson orders",
+                "formats": "CSV with header (H) and line (D) records",
+                "features": "Item mapping, Discount support, Customer/Store mapping",
+                "color": "#98D8C8"
             }
         }
         
@@ -437,9 +453,11 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "unfi_west": "UNFI West", 
             "unfi_east": "UNFI East",
             "kehe": "KEHE - SPS",
-            "tkmaxx": "TK Maxx"
+            "tkmaxx": "TJ Maxx",
+            "vmc": "VMC",
+            "davidson": "Davidson"
         }
-        clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🌐 ", "")
+        clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🌐 ", "").replace("🏪 ", "")
         
         # Enhanced header for specific source
         st.markdown(f"""
@@ -526,8 +544,32 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             <div class="card-header">
                 <div class="card-icon">🏬</div>
                 <div>
-                    <h3 class="card-title">TK Maxx</h3>
-                    <p class="card-description">Multi-format order processing (CSV/Excel)</p>
+                    <h3 class="card-title">TJ Maxx</h3>
+                    <p class="card-description">Multi-format order processing (PDF/CSV/Excel)</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">📦</div>
+                <div>
+                    <h3 class="card-title">VMC</h3>
+                    <p class="card-description">CSV order processing with discount support</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🏪</div>
+                <div>
+                    <h3 class="card-title">Davidson</h3>
+                    <p class="card-description">CSV order processing with discount support</p>
                 </div>
             </div>
         </div>
@@ -548,7 +590,9 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "UNFI West": UNFIWestParser(),
             "UNFI East": UNFIEastParser(mapping_utils),
             "KEHE - SPS": KEHEParser(),
-            "TK Maxx": TKMaxxParser()
+            "TJ Maxx": TKMaxxParser(),
+            "VMC": VMCParser(),
+            "Davidson": DavidsonParser()
         }
         
         # Source already selected, use it directly
@@ -569,11 +613,13 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         "UNFI West": UNFIWestParser(),
         "UNFI East": UNFIEastParser(mapping_utils),
         "KEHE - SPS": KEHEParser(),
-        "TK Maxx": TKMaxxParser()
+        "TJ Maxx": TKMaxxParser(),
+        "VMC": VMCParser(),
+        "Davidson": DavidsonParser()
     }
     
     # Determine accepted file types based on selected source
-    clean_source_name = selected_order_source.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "")
+    clean_source_name = selected_order_source.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🏪 ", "")
     
     if clean_source_name == "Whole Foods":
         accepted_types = ['html']
@@ -591,9 +637,17 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         accepted_types = ['csv']
         help_text = "📊 Upload CSV files from KEHE - SPS system"
         file_icon = "📊"
-    elif clean_source_name == "TK Maxx":
-        accepted_types = ['csv', 'xlsx']
-        help_text = "📊 Upload CSV or Excel files from TK Maxx orders"
+    elif clean_source_name == "TJ Maxx":
+        accepted_types = ['pdf', 'csv', 'xlsx']
+        help_text = "📊 Upload PDF (Distribution/PO), CSV or Excel files from TJ Maxx orders"
+        file_icon = "📊"
+    elif clean_source_name == "VMC":
+        accepted_types = ['csv']
+        help_text = "📊 Upload CSV files from VMC orders"
+        file_icon = "📊"
+    elif clean_source_name == "Davidson":
+        accepted_types = ['csv']
+        help_text = "📊 Upload CSV files from Davidson orders"
         file_icon = "📊"
     else:
         accepted_types = ['html', 'csv', 'xlsx', 'pdf']
@@ -780,7 +834,7 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
     with col1:
         source_filter = st.selectbox(
             "Filter by Source",
-            ["All", "Whole Foods", "UNFI West", "UNFI", "TK Maxx"]
+            ["All", "Whole Foods", "UNFI West", "UNFI", "TJ Maxx"]
         )
     
     with col2:
@@ -2538,28 +2592,28 @@ def mapping_documentation_page(db_service: DatabaseService, selected_source: str
             ]
         },
         "tkmaxx": {
-            "name": "TK Maxx",
+            "name": "TJ Maxx",
             "description": "Off-price retail chain with unique product sourcing",
-            "file_format": "CSV",
-            "order_structure": "Store-specific orders with fashion/retail items",
+            "file_format": "PDF/CSV",
+            "order_structure": "Distribution center orders with DC-based routing",
             "mapping_fields": {
                 "customer": {
-                    "source_field": "Store ID",
+                    "source_field": "DC Number",
                     "target_field": "Xoro Customer Name",
-                    "description": "Maps TK Maxx store IDs to customer accounts",
-                    "example": "TK001 → TK MAXX STORE 001"
+                    "description": "Maps TJ Maxx DC numbers to customer accounts",
+                    "example": "881 → CUSTOMER NAME"
                 },
                 "store": {
-                    "source_field": "Store Location",
-                    "target_field": "Xoro Store Name",
-                    "description": "Maps store locations to store names",
-                    "example": "LOC001 → TK MAXX LOCATION 001"
+                    "source_field": "DC Number",
+                    "target_field": "Xoro Store Name (Sales Store/Ship Store)",
+                    "description": "Maps DC numbers to store names for sales and shipping",
+                    "example": "881 → STORE NAME"
                 },
                 "item": {
-                    "source_field": "SKU",
+                    "source_field": "Vendor Style / TJX Style",
                     "target_field": "Xoro Item Number",
-                    "description": "Maps TK Maxx SKUs to standardized item numbers",
-                    "example": "TK123 → 12-345-6 (Fashion Item Description)"
+                    "description": "Maps TJ Maxx style numbers to standardized item numbers",
+                    "example": "12-009-1 → 12-345-6 (Item Description)"
                 }
             },
             "process_flow": [
