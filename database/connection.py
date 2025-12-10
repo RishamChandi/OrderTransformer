@@ -49,15 +49,15 @@ def create_database_engine():
     
     # Log database connection details (masked for security)
     masked_url = _mask_database_url(database_url)
-    print(f"🔌 Initializing database connection...")
+    print(f"[INFO] Initializing database connection...")
     print(f"   Environment: {env}")
     print(f"   Database URL: {masked_url}")
     
     # Verify all components use the same database
     if 'render.com' in database_url.lower():
-        print(f"   ✅ Using Render production database")
+        print(f"   [OK] Using Render production database")
     elif env == 'production':
-        print(f"   ✅ Using production database")
+        print(f"   [OK] Using production database")
     
     # Configure engine with connection pooling and stability settings
     engine_config = {
@@ -92,23 +92,23 @@ def create_database_engine():
             try:
                 connection = engine.connect()
                 connection.close()
-                print(f"✅ Connected to {env} database successfully (attempt {attempt + 1})")
+                print(f"[OK] Connected to {env} database successfully (attempt {attempt + 1})")
                 print(f"   All order processors and mappings will use this database")
                 return engine
             except Exception as retry_error:
                 if attempt < max_retries - 1:
-                    print(f"⚠️ Connection attempt {attempt + 1} failed, retrying...")
+                    print(f"[WARNING] Connection attempt {attempt + 1} failed, retrying...")
                     import time
                     time.sleep(1)  # Wait 1 second before retry
                 else:
                     raise retry_error
     except Exception as e:
-        print(f"❌ Failed to connect to {env} database: {e}")
+        print(f"[ERROR] Failed to connect to {env} database: {e}")
         print(f"   Database URL: {masked_url}")
         
         # Enhanced fallback for development environments
         if env != 'production':
-            print(f"🔄 Attempting fallback connection strategies...")
+            print(f"[INFO] Attempting fallback connection strategies...")
             
             # Strategy 1: Try with SSL allow (works with cloud databases like Neon)
             fallback_url = database_url.replace('?sslmode=require', '').replace('&sslmode=require', '')
@@ -118,26 +118,26 @@ def create_database_engine():
                 fallback_url += '?sslmode=allow' if '?' not in fallback_url else '&sslmode=allow'
             
             try:
-                print(f"📝 Trying with SSL allow: {_mask_database_url(fallback_url)}")
+                print(f"[INFO] Trying with SSL allow: {_mask_database_url(fallback_url)}")
                 engine = create_engine(fallback_url, echo=False)
                 connection = engine.connect()
                 connection.close()
-                print(f"✅ Connected to {env} database (SSL allow)")
+                print(f"[OK] Connected to {env} database (SSL allow)")
                 return engine
             except Exception as e2:
-                print(f"❌ SSL allow connection failed: {e2}")
+                print(f"[ERROR] SSL allow connection failed: {e2}")
                 
                 # Strategy 2: Try with SSL allow
                 try:
                     allow_url = fallback_url.replace('sslmode=disable', 'sslmode=allow')
-                    print(f"📝 Trying with SSL allow...")
+                    print(f"[INFO] Trying with SSL allow...")
                     engine = create_engine(allow_url, echo=False)
                     connection = engine.connect()
                     connection.close()
-                    print(f"✅ Connected to {env} database (SSL allow)")
+                    print(f"[OK] Connected to {env} database (SSL allow)")
                     return engine
                 except Exception as e3:
-                    print(f"❌ All connection strategies failed. Last error: {e3}")
+                    print(f"[ERROR] All connection strategies failed. Last error: {e3}")
         
         # If all strategies fail, raise the original error
         raise Exception(f"Database connection failed after all retry attempts. Environment: {env}, Error: {e}")

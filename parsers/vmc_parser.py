@@ -171,7 +171,7 @@ class VMCParser(BaseParser):
                     
                     # Get store mapping for SaleStoreName and StoreName fields
                     # For VMC, use store mapping (separate from customer mapping)
-                    store_name = "KL - Richmond"  # Default for VMC orders
+                    store_name = "PSS - NJ"  # Default for VMC orders
                     if ship_to_location:
                         # Try database store mapping first
                         db_mapped_store = self.mapping_utils.get_store_mapping(ship_to_location, 'vmc')

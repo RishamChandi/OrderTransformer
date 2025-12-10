@@ -834,7 +834,7 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
     with col1:
         source_filter = st.selectbox(
             "Filter by Source",
-            ["All", "Whole Foods", "UNFI West", "UNFI", "TJ Maxx"]
+            ["All", "Whole Foods", "UNFI West", "UNFI East", "KEHE - SPS", "TJ Maxx", "VMC", "Davidson"]
         )
     
     with col2:
@@ -896,7 +896,7 @@ def manage_mappings_page(db_service: DatabaseService, selected_source: str = "al
     """, unsafe_allow_html=True)
     
     # Order processor selector
-    processors = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx']
+    processors = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx', 'vmc', 'davidson']
     
     if selected_source != "all" and selected_source in processors:
         selected_processor = selected_source

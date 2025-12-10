@@ -78,7 +78,7 @@ def get_database_url() -> str:
     # CRITICAL: REJECT SQLite completely - application only uses Render database
     if 'sqlite' in db_url.lower():
         raise ValueError(
-            "❌ SQLite database is NOT supported in this application.\n"
+            "[ERROR] SQLite database is NOT supported in this application.\n"
             "This application ONLY uses the Render PostgreSQL database.\n"
             "Please set DATABASE_URL to your Render database URL.\n"
             "Example: DATABASE_URL=postgresql://user:pass@host.render.com/dbname\n"
@@ -87,7 +87,7 @@ def get_database_url() -> str:
     
     if not db_url:
         raise ValueError(
-            f"❌ DATABASE_URL environment variable not found for {env} environment.\n"
+            f"[ERROR] DATABASE_URL environment variable not found for {env} environment.\n"
             f"This application REQUIRES a Render PostgreSQL database.\n"
             f"Please set DATABASE_URL to your Render database URL.\n"
             f"Get your Render database URL from: https://dashboard.render.com"
@@ -96,9 +96,9 @@ def get_database_url() -> str:
     # CRITICAL: If DATABASE_URL contains render.com, always use it (even in local environment)
     # This ensures the local app uses the same database as production
     if 'render.com' in db_url.lower():
-        print(f"✅ Detected Render database URL - will use production database")
-        print(f"⚠️ NOTE: Local app will connect to Render production database")
-        print(f"⚠️ All data changes will affect production database")
+        print("[OK] Detected Render database URL - will use production database")
+        print("[WARNING] NOTE: Local app will connect to Render production database")
+        print("[WARNING] All data changes will affect production database")
         
         # Remove any existing sslmode parameters to avoid conflicts
         if '?' in db_url:
@@ -113,9 +113,9 @@ def get_database_url() -> str:
     
     # If not Render database, check if it's another PostgreSQL database
     if 'postgresql://' in db_url.lower() or 'postgres://' in db_url.lower():
-        print(f"⚠️ WARNING: Using non-Render PostgreSQL database")
-        print(f"⚠️ This application is designed for Render database")
-        print(f"⚠️ For production use, use Render database: https://dashboard.render.com")
+        print("[WARNING] Using non-Render PostgreSQL database")
+        print("[WARNING] This application is designed for Render database")
+        print("[WARNING] For production use, use Render database: https://dashboard.render.com")
         
         # Remove any existing sslmode parameters to avoid conflicts
         if '?' in db_url:
@@ -133,7 +133,7 @@ def get_database_url() -> str:
     
     # Reject any other database types (this should never be reached if code is correct)
     raise ValueError(
-        f"❌ Unsupported database URL: {db_url[:50]}...\n"
+        f"[ERROR] Unsupported database URL: {db_url[:50]}...\n"
         f"This application ONLY supports Render PostgreSQL database.\n"
         f"Please set DATABASE_URL to your Render database URL.\n"
         f"Get your Render database URL from: https://dashboard.render.com"
