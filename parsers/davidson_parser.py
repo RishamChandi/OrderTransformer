@@ -63,10 +63,16 @@ class DavidsonParser(BaseParser):
                     f"Expected format: CSV with Record Type column containing 'H' (header), 'D' (detail), and 'I' (invoice/discount) records."
                 )
             
+            # Strip whitespace from Record Type column to handle any formatting issues
+            # Convert to string first to handle NaN values, then strip
+            df['Record Type'] = df['Record Type'].astype(str).str.strip()
+            
             # Get header information from the first 'H' record
             header_df = df[df['Record Type'] == 'H']
             if header_df.empty:
-                record_types = df['Record Type'].unique().tolist() if 'Record Type' in df.columns else []
+                record_types = sorted(df['Record Type'].unique().tolist())
+                # Filter out nan/empty values for cleaner error message
+                record_types = [rt for rt in record_types if rt and str(rt).strip() and str(rt).lower() != 'nan']
                 raise ValueError(
                     f"No header record (Record Type='H') found in CSV file. "
                     f"Found Record Types: {record_types}. "
@@ -80,7 +86,9 @@ class DavidsonParser(BaseParser):
             discount_records_df = df[df['Record Type'] == 'I'].copy()
             
             if line_items_df.empty:
-                record_types = df['Record Type'].unique().tolist()
+                record_types = sorted(df['Record Type'].unique().tolist())
+                # Filter out nan/empty values for cleaner error message
+                record_types = [rt for rt in record_types if rt and str(rt).strip() and str(rt).lower() != 'nan']
                 raise ValueError(
                     f"No line item records (Record Type='D') found in CSV file. "
                     f"Found Record Types: {record_types}. "
@@ -179,7 +187,7 @@ class DavidsonParser(BaseParser):
                     # Look for the next 'I' record that applies to this line
                     next_discount = self._find_next_discount_record(df, int(idx), discount_records_df)
                     if next_discount is not None:
-                        discount_amount, discount_info = self._calculate_discount(next_discount, line_total, unit_price)
+                        discount_amount, discount_info = self._calculate_discount(next_discount, line_total, unit_price, quantity)
                     
                     # Apply discount to get final total
                     final_total = line_total - discount_amount
@@ -238,10 +246,12 @@ class DavidsonParser(BaseParser):
             remaining_rows = df.loc[current_idx + 1:]
             
             # Find the first 'I' record after this line item
+            # Ensure Record Type is string and stripped for comparison
             for idx, row in remaining_rows.iterrows():
-                if row.get('Record Type') == 'I':
+                record_type = str(row.get('Record Type', '')).strip()
+                if record_type == 'I':
                     return row
-                elif row.get('Record Type') == 'D':
+                elif record_type == 'D':
                     # Hit another line item, so no discount for current item
                     break
             
@@ -249,7 +259,7 @@ class DavidsonParser(BaseParser):
         except Exception:
             return None
     
-    def _calculate_discount(self, discount_row: pd.Series, line_total: float, unit_price: float) -> tuple[float, str]:
+    def _calculate_discount(self, discount_row: pd.Series, line_total: float, unit_price: float, quantity: float = 0) -> tuple[float, str]:
         """
         Calculate discount amount based on discount record
         Returns: (discount_amount, discount_description)
@@ -264,21 +274,50 @@ class DavidsonParser(BaseParser):
                 discount_amount = (line_total * percentage_discount) / 100
                 discount_info = f"Percentage: {percentage_discount}%"
             
-            # Check for flat/rate discount
+            # Check for flat amount discount
             flat_discount = self.clean_numeric_value(str(discount_row.get('Allow/Charge amt', '0')))
             if flat_discount > 0:
                 discount_amount = flat_discount
                 discount_info = f"Flat: ${flat_discount:.2f}"
             
-            # If both are present, use the larger discount (benefit customer)
-            if percentage_discount > 0 and flat_discount > 0:
-                percentage_amount = (line_total * percentage_discount) / 100
-                if flat_discount > percentage_amount:
-                    discount_amount = flat_discount
-                    discount_info = f"Flat: ${flat_discount:.2f} (better than {percentage_discount}%)"
+            # Check for rate-based discount (per-unit rate)
+            rate_discount = self.clean_numeric_value(str(discount_row.get('Allow/Charge Rate', '0')))
+            rate_qty = self.clean_numeric_value(str(discount_row.get('Allow/Charge Qty', '0')))
+            if rate_discount > 0:
+                # If Qty is specified in discount record, use it; otherwise use the line item quantity
+                if rate_qty > 0:
+                    rate_amount = rate_discount * rate_qty
                 else:
-                    discount_amount = percentage_amount
-                    discount_info = f"Percentage: {percentage_discount}% (better than ${flat_discount:.2f})"
+                    # Use the actual quantity from the line item
+                    rate_amount = rate_discount * quantity if quantity > 0 else 0
+                
+                # Only use rate if it's better than existing discount
+                if rate_amount > discount_amount:
+                    discount_amount = rate_amount
+                    discount_info = f"Rate: ${rate_discount:.2f} per unit (total: ${rate_amount:.2f})"
+            
+            # If multiple discount types are present, use the largest (benefit customer)
+            discount_options = []
+            if percentage_discount > 0:
+                percentage_amount = (line_total * percentage_discount) / 100
+                discount_options.append(('percentage', percentage_amount, f"Percentage: {percentage_discount}%"))
+            if flat_discount > 0:
+                discount_options.append(('flat', flat_discount, f"Flat: ${flat_discount:.2f}"))
+            if rate_discount > 0:
+                if rate_qty > 0:
+                    rate_amount = rate_discount * rate_qty
+                else:
+                    rate_amount = rate_discount * quantity if quantity > 0 else 0
+                discount_options.append(('rate', rate_amount, f"Rate: ${rate_discount:.2f} per unit"))
+            
+            if len(discount_options) > 1:
+                # Use the largest discount
+                best_option = max(discount_options, key=lambda x: x[1])
+                discount_amount = best_option[1]
+                discount_info = best_option[2]
+                if len(discount_options) > 1:
+                    other_options = [opt[2] for opt in discount_options if opt != best_option]
+                    discount_info += f" (better than {', '.join(other_options)})"
             
             # Get discount description if available
             discount_desc = str(discount_row.get('Allow/Charge Desc', ''))
