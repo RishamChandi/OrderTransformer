@@ -56,12 +56,22 @@ class DavidsonParser(BaseParser):
             
             # Check if required columns exist
             if 'Record Type' not in df.columns:
-                raise ValueError("CSV file missing required 'Record Type' column")
+                available_cols = ', '.join(df.columns[:10].tolist())  # Show first 10 columns
+                raise ValueError(
+                    f"CSV file missing required 'Record Type' column. "
+                    f"Available columns: {available_cols}{'...' if len(df.columns) > 10 else ''}. "
+                    f"Expected format: CSV with Record Type column containing 'H' (header), 'D' (detail), and 'I' (invoice/discount) records."
+                )
             
             # Get header information from the first 'H' record
             header_df = df[df['Record Type'] == 'H']
             if header_df.empty:
-                raise ValueError("No header record (Record Type='H') found in CSV file")
+                record_types = df['Record Type'].unique().tolist() if 'Record Type' in df.columns else []
+                raise ValueError(
+                    f"No header record (Record Type='H') found in CSV file. "
+                    f"Found Record Types: {record_types}. "
+                    f"Expected at least one 'H' record for header information."
+                )
                 
             header_info = header_df.iloc[0]
             
@@ -70,7 +80,12 @@ class DavidsonParser(BaseParser):
             discount_records_df = df[df['Record Type'] == 'I'].copy()
             
             if line_items_df.empty:
-                return None
+                record_types = df['Record Type'].unique().tolist()
+                raise ValueError(
+                    f"No line item records (Record Type='D') found in CSV file. "
+                    f"Found Record Types: {record_types}. "
+                    f"Expected at least one 'D' record for line items."
+                )
             
             orders = []
             

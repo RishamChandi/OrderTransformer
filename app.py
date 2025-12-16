@@ -734,8 +734,9 @@ def process_orders(uploaded_files, parser, source_name, db_service: DatabaseServ
                 else:
                     st.warning(f"⚠️ Processed {uploaded_file.name} but database save failed")
             else:
-                errors.append(f"Failed to parse {uploaded_file.name}")
-                st.error(f"❌ Failed to process {uploaded_file.name}")
+                error_msg = f"Failed to parse {uploaded_file.name}: Parser returned no data. Please check that the file has the correct format (Record Type column with H/D/I records)."
+                errors.append(error_msg)
+                st.error(f"❌ {error_msg}")
                 
         except Exception as e:
             error_msg = f"Error processing {uploaded_file.name}: {str(e)}"
