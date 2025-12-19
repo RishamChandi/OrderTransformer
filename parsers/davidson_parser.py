@@ -40,16 +40,43 @@ class DavidsonParser(BaseParser):
             else:
                 content_str = file_content
             
-            # Read CSV using pandas with error handling for inconsistent columns
+            # Read CSV using pandas - handle inconsistent field counts
+            # Some rows have extra trailing commas/fields, so we need to handle this gracefully
             try:
-                df = pd.read_csv(io.StringIO(content_str))
-            except pd.errors.ParserError as e:
-                # Handle files with inconsistent columns - use on_bad_lines parameter for newer pandas
-                try:
-                    df = pd.read_csv(io.StringIO(content_str), on_bad_lines='skip')
-                except TypeError:
-                    # Fallback for older pandas versions - just read normally
-                    df = pd.read_csv(io.StringIO(content_str))
+                # First, read the CSV with a more lenient approach
+                # Use Python's csv module to normalize field counts, then convert to DataFrame
+                import csv
+                csv_reader = csv.reader(io.StringIO(content_str))
+                rows = list(csv_reader)
+                
+                if not rows:
+                    raise ValueError("CSV file is empty")
+                
+                # Get header (first row)
+                header = rows[0]
+                header_len = len(header)
+                
+                # Normalize all rows to have the same number of fields as header
+                # If row has more fields, truncate; if fewer, pad with empty strings
+                normalized_rows = []
+                for row in rows:
+                    if len(row) > header_len:
+                        # Truncate extra fields
+                        normalized_rows.append(row[:header_len])
+                    elif len(row) < header_len:
+                        # Pad with empty strings
+                        normalized_rows.append(row + [''] * (header_len - len(row)))
+                    else:
+                        normalized_rows.append(row)
+                
+                # Create DataFrame from normalized rows
+                df = pd.DataFrame(normalized_rows[1:], columns=header)
+                df = df.astype(str)  # Convert all to string
+                df = df.replace('nan', '')  # Replace 'nan' strings with empty
+                
+            except Exception as e:
+                print(f"ERROR: Failed to read CSV file: {e}")
+                raise ValueError(f"Failed to parse CSV file: {str(e)}")
             except Exception as e:
                 print(f"ERROR: Failed to read CSV file: {e}")
                 raise ValueError(f"Failed to parse CSV file: {str(e)}")
@@ -64,11 +91,14 @@ class DavidsonParser(BaseParser):
                 )
             
             # Strip whitespace from Record Type column to handle any formatting issues
-            # Convert to string first to handle NaN values, then strip
-            df['Record Type'] = df['Record Type'].astype(str).str.strip()
+            df['Record Type'] = df['Record Type'].str.strip()
             
-            # Get header information from the first 'H' record
-            header_df = df[df['Record Type'] == 'H']
+            # Debug: Print Record Type values for troubleshooting
+            unique_record_types = df['Record Type'].unique().tolist()
+            print(f"DEBUG: Found Record Types after stripping: {unique_record_types}")
+            
+            # Get header information from the first 'H' record (case-insensitive)
+            header_df = df[df['Record Type'].str.strip().str.upper() == 'H']
             if header_df.empty:
                 record_types = sorted(df['Record Type'].unique().tolist())
                 # Filter out nan/empty values for cleaner error message
@@ -82,13 +112,15 @@ class DavidsonParser(BaseParser):
             header_info = header_df.iloc[0]
             
             # Filter for line item records (Record Type = 'D') and discount records (Record Type = 'I')
-            line_items_df = df[df['Record Type'] == 'D'].copy()
-            discount_records_df = df[df['Record Type'] == 'I'].copy()
+            # Use case-insensitive comparison and strip again just to be safe
+            line_items_df = df[df['Record Type'].str.strip().str.upper() == 'D'].copy()
+            discount_records_df = df[df['Record Type'].str.strip().str.upper() == 'I'].copy()
             
             if line_items_df.empty:
-                record_types = sorted(df['Record Type'].unique().tolist())
-                # Filter out nan/empty values for cleaner error message
-                record_types = [rt for rt in record_types if rt and str(rt).strip() and str(rt).lower() != 'nan']
+                record_types = sorted(df['Record Type'].str.strip().unique().tolist())
+                # Filter out empty values for cleaner error message
+                record_types = [rt for rt in record_types if rt and rt.strip()]
+                print(f"DEBUG: No 'D' records found. All Record Types in file: {record_types}")
                 raise ValueError(
                     f"No line item records (Record Type='D') found in CSV file. "
                     f"Found Record Types: {record_types}. "
@@ -141,7 +173,7 @@ class DavidsonParser(BaseParser):
                     mapped_item = self.mapping_utils.resolve_item_number(item_attributes, 'davidson')
                     
                     if mapped_item:
-                        print(f"DEBUG: Davidson Priority Mapping: {item_attributes} → '{mapped_item}'")
+                        print(f"DEBUG: Davidson Priority Mapping: {item_attributes} -> '{mapped_item}'")
                     else:
                         mapped_item = item_number  # Fallback to original number
                         print(f"DEBUG: No Davidson mapping found for '{item_number}', using raw number")
@@ -169,11 +201,11 @@ class DavidsonParser(BaseParser):
                         db_mapped_customer = self.mapping_utils.get_customer_mapping(ship_to_location, 'davidson')
                         if db_mapped_customer and db_mapped_customer != 'UNKNOWN':
                             customer_name = db_mapped_customer
-                            print(f"DEBUG: Davidson DB Customer Mapping: '{ship_to_location}' → '{customer_name}'")
+                            print(f"DEBUG: Davidson DB Customer Mapping: '{ship_to_location}' -> '{customer_name}'")
                         # Fallback to legacy CSV mapping
                         elif ship_to_location in self.customer_mapping:
                             customer_name = self.customer_mapping[ship_to_location]
-                            print(f"DEBUG: Davidson Legacy Customer Mapping: '{ship_to_location}' → '{customer_name}'")
+                            print(f"DEBUG: Davidson Legacy Customer Mapping: '{ship_to_location}' -> '{customer_name}'")
                         else:
                             print(f"DEBUG: No Davidson customer mapping found for '{ship_to_location}' (raw: '{ship_to_location_raw}'), using default: '{customer_name}'")
                     
@@ -200,7 +232,7 @@ class DavidsonParser(BaseParser):
                         db_mapped_store = self.mapping_utils.get_store_mapping(ship_to_location, 'davidson')
                         if db_mapped_store and db_mapped_store != 'UNKNOWN' and db_mapped_store != ship_to_location:
                             store_name = db_mapped_store
-                            print(f"DEBUG: Davidson DB Store Mapping: '{ship_to_location}' → '{store_name}'")
+                            print(f"DEBUG: Davidson DB Store Mapping: '{ship_to_location}' -> '{store_name}'")
                         else:
                             print(f"DEBUG: No Davidson store mapping found for '{ship_to_location}', using default: '{store_name}'")
                     
