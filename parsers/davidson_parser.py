@@ -226,7 +226,7 @@ class DavidsonParser(BaseParser):
                     
                     # Get store mapping for SaleStoreName and StoreName fields
                     # For Davidson, use store mapping (separate from customer mapping)
-                    store_name = "KL - Richmond"  # Default for Davidson orders
+                    store_name = "PSS - NJ"  # Default for Davidson orders (same as VMC)
                     if ship_to_location:
                         # Try database store mapping first
                         db_mapped_store = self.mapping_utils.get_store_mapping(ship_to_location, 'davidson')
