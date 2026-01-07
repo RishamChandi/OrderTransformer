@@ -29,6 +29,7 @@ from parsers.kehe_parser import KEHEParser
 from parsers.tkmaxx_parser import TKMaxxParser
 from parsers.vmc_parser import VMCParser
 from parsers.davidson_parser import DavidsonParser
+from parsers.ross_parser import ROSSParser
 from utils.xoro_template import XoroTemplate
 from utils.mapping_utils import MappingUtils
 from database.service import DatabaseService
@@ -254,7 +255,8 @@ def main():
             "📋 KEHE - SPS": "kehe",
             "🏬 TJ Maxx": "tkmaxx",
             "📦 VMC": "vmc",
-            "🏪 Davidson": "davidson"
+            "🏪 Davidson": "davidson",
+            "🛍️ ROSS": "ross"
         }
         
         selected_source_name = st.selectbox(
@@ -263,7 +265,7 @@ def main():
             index=0
         )
         selected_source = sources[selected_source_name]
-        source_display_name = selected_source_name.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🏪 ", "")
+        source_display_name = selected_source_name.replace("🌐 ", "").replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🏪 ", "").replace("🛍️ ", "")
         
         st.markdown("---")
         
@@ -328,6 +330,12 @@ def main():
                 "formats": "CSV with header (H) and line (D) records",
                 "features": "Item mapping, Discount support, Customer/Store mapping",
                 "color": "#98D8C8"
+            },
+            "ross": {
+                "description": "PDF files from ROSS Dress for Less purchase orders",
+                "formats": "PDF purchase orders",
+                "features": "Item mapping with case qty conversion, Customer/Store mapping, Pickup location mapping",
+                "color": "#FF6B6B"
             }
         }
         
@@ -455,7 +463,8 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
             "kehe": "KEHE - SPS",
             "tkmaxx": "TJ Maxx",
             "vmc": "VMC",
-            "davidson": "Davidson"
+            "davidson": "Davidson",
+            "ross": "ROSS"
         }
         clean_selected_name = selected_source_name.replace("🛒 ", "").replace("📦 ", "").replace("🏭 ", "").replace("📋 ", "").replace("🏬 ", "").replace("🌐 ", "").replace("🏪 ", "")
         
@@ -575,6 +584,18 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         </div>
         """, unsafe_allow_html=True)
         
+        st.markdown("""
+        <div class="feature-card">
+            <div class="card-header">
+                <div class="card-icon">🛍️</div>
+                <div>
+                    <h3 class="card-title">ROSS</h3>
+                    <p class="card-description">PDF order processing with case qty conversion</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Initialize mapping utils (all parsers use same database via MappingUtils)
@@ -615,7 +636,8 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         "KEHE - SPS": KEHEParser(),
         "TJ Maxx": TKMaxxParser(),
         "VMC": VMCParser(),
-        "Davidson": DavidsonParser()
+        "Davidson": DavidsonParser(),
+        "ROSS": ROSSParser()
     }
     
     # Determine accepted file types based on selected source
@@ -649,6 +671,10 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         accepted_types = ['csv']
         help_text = "📊 Upload CSV files from Davidson orders"
         file_icon = "📊"
+    elif clean_source_name == "ROSS":
+        accepted_types = ['pdf']
+        help_text = "📋 Upload PDF files from ROSS Dress for Less purchase orders"
+        file_icon = "📄"
     else:
         accepted_types = ['html', 'csv', 'xlsx', 'pdf']
         help_text = f"📁 Upload order files for conversion"
@@ -835,7 +861,7 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
     with col1:
         source_filter = st.selectbox(
             "Filter by Source",
-            ["All", "Whole Foods", "UNFI West", "UNFI East", "KEHE - SPS", "TJ Maxx", "VMC", "Davidson"]
+            ["All", "Whole Foods", "UNFI West", "UNFI East", "KEHE - SPS", "TJ Maxx", "VMC", "Davidson", "ROSS"]
         )
     
     with col2:
@@ -897,7 +923,7 @@ def manage_mappings_page(db_service: DatabaseService, selected_source: str = "al
     """, unsafe_allow_html=True)
     
     # Order processor selector
-    processors = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx', 'vmc', 'davidson']
+    processors = ['kehe', 'wholefoods', 'unfi_east', 'unfi_west', 'tkmaxx', 'vmc', 'davidson', 'ross']
     
     if selected_source != "all" and selected_source in processors:
         selected_processor = selected_source

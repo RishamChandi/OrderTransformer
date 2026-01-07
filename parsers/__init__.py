@@ -9,6 +9,7 @@ from .unfi_parser import UNFIParser
 from .tkmaxx_parser import TKMaxxParser
 from .vmc_parser import VMCParser
 from .davidson_parser import DavidsonParser
+from .ross_parser import ROSSParser
 
 __all__ = [
     'BaseParser',
@@ -17,5 +18,6 @@ __all__ = [
     'UNFIParser',
     'TKMaxxParser',
     'VMCParser',
-    'DavidsonParser'
+    'DavidsonParser',
+    'ROSSParser'
 ]

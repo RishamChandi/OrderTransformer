@@ -526,6 +526,56 @@ class DatabaseService:
         except Exception:
             return None
     
+    def get_item_mapping_with_case_qty(self, raw_item: str, source: str) -> Optional[Dict[str, Any]]:
+        """
+        Get item mapping with case_qty for unit to case conversion
+        
+        Args:
+            raw_item: Original item number from order file
+            source: Order source (ross, etc.)
+            
+        Returns:
+            Dictionary with 'mapped_item', 'mapped_description', and 'case_qty' if found, None otherwise
+        """
+        if not raw_item or not raw_item.strip():
+            return None
+        
+        try:
+            # Normalize source name
+            source_lower = source.lower().strip()
+            if source_lower in ['kehe', 'kehe - sps', 'kehe_sps', 'kehe___sps']:
+                normalized_source = 'kehe'
+            elif source_lower in ['whole foods', 'whole_foods']:
+                normalized_source = 'wholefoods'
+            elif source_lower in ['unfi east', 'unfi_east']:
+                normalized_source = 'unfi_east'
+            elif source_lower in ['unfi west', 'unfi_west']:
+                normalized_source = 'unfi_west'
+            else:
+                normalized_source = source_lower.replace(' ', '_').replace('-', '_')
+            
+            with get_session() as session:
+                mapping = session.query(ItemMapping)\
+                               .filter_by(source=normalized_source, raw_item=str(raw_item).strip())\
+                               .first()
+                
+                if mapping:
+                    result = {
+                        'mapped_item': str(mapping.mapped_item),
+                        'mapped_description': str(mapping.mapped_description) if mapping.mapped_description else ''
+                    }
+                    # Add case_qty if available
+                    if hasattr(mapping, 'case_qty') and mapping.case_qty is not None:
+                        result['case_qty'] = float(mapping.case_qty)
+                    
+                    return result
+                
+                return None
+                
+        except Exception as e:
+            print(f"DEBUG: Error in get_item_mapping_with_case_qty: {e}")
+            return None
+    
     def delete_store_mapping(self, source: str, raw_name: str) -> bool:
         """Delete a store mapping"""
         

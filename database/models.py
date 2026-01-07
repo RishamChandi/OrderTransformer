@@ -100,6 +100,7 @@ class ItemMapping(Base):
     active = Column(Boolean, default=True)
     vendor = Column(String(100), nullable=True)
     mapped_description = Column(Text, nullable=True)
+    case_qty = Column(Float, nullable=True)  # Units per case for converting units to cases (e.g., 6 units = 1 case)
     notes = Column(Text, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
