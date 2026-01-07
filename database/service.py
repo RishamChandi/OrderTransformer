@@ -4,7 +4,7 @@ Database service for order transformer operations
 
 from typing import List, Dict, Any, Optional, Union
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, inspect as sqlalchemy_inspect
 from datetime import datetime
 import pandas as pd
 
@@ -20,6 +20,82 @@ from .connection import get_session
 
 class DatabaseService:
     """Service class for database operations"""
+    
+    _case_qty_column_exists = None  # Cache for column existence check
+    
+    @staticmethod
+    def _check_case_qty_column_exists() -> bool:
+        """Check if case_qty column exists in item_mappings table"""
+        if DatabaseService._case_qty_column_exists is not None:
+            return DatabaseService._case_qty_column_exists
+        
+        try:
+            from .connection import get_database_engine
+            engine = get_database_engine()
+            inspector = sqlalchemy_inspect(engine)
+            columns = [col['name'] for col in inspector.get_columns('item_mappings')]
+            DatabaseService._case_qty_column_exists = 'case_qty' in columns
+            return DatabaseService._case_qty_column_exists
+        except Exception:
+            # If we can't check, assume it doesn't exist to be safe
+            DatabaseService._case_qty_column_exists = False
+            return False
+    
+    @staticmethod
+    def _safe_get_item_mapping_attr(mapping, attr_name: str, default=None):
+        """Safely get an attribute from ItemMapping, handling missing columns"""
+        try:
+            if hasattr(mapping, attr_name):
+                value = getattr(mapping, attr_name)
+                return value if value is not None else default
+            return default
+        except Exception:
+            return default
+    
+    @staticmethod
+    def _safe_query_item_mappings(session, source: str, **filters):
+        """
+        Safely query ItemMapping, handling missing case_qty column gracefully
+        
+        Args:
+            session: SQLAlchemy session
+            source: Source name to filter by
+            **filters: Additional filter criteria
+            
+        Returns:
+            List of ItemMapping objects
+        """
+        try:
+            # Try normal query first
+            query = session.query(ItemMapping).filter_by(source=source, **filters)
+            return query.all()
+        except Exception as e:
+            # If query fails due to missing case_qty column, use load_only to exclude it
+            if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                try:
+                    from sqlalchemy.orm import load_only
+                    # Query without case_qty column
+                    query = session.query(ItemMapping).options(load_only(
+                        ItemMapping.id,
+                        ItemMapping.source,
+                        ItemMapping.raw_item,
+                        ItemMapping.mapped_item,
+                        ItemMapping.key_type,
+                        ItemMapping.priority,
+                        ItemMapping.active,
+                        ItemMapping.vendor,
+                        ItemMapping.mapped_description,
+                        ItemMapping.notes,
+                        ItemMapping.created_at,
+                        ItemMapping.updated_at
+                    )).filter_by(source=source, **filters)
+                    return query.all()
+                except Exception as e2:
+                    print(f"DEBUG: Error querying ItemMapping even with load_only: {e2}")
+                    return []
+            else:
+                # Re-raise if it's a different error
+                raise
     
     @staticmethod
     def normalize_source_name(source: str) -> str:
@@ -555,18 +631,46 @@ class DatabaseService:
                 normalized_source = source_lower.replace(' ', '_').replace('-', '_')
             
             with get_session() as session:
-                mapping = session.query(ItemMapping)\
-                               .filter_by(source=normalized_source, raw_item=str(raw_item).strip())\
-                               .first()
+                # Try to query with case_qty first
+                try:
+                    mapping = session.query(ItemMapping)\
+                                   .filter_by(source=normalized_source, raw_item=str(raw_item).strip())\
+                                   .first()
+                except Exception as db_error:
+                    # If query fails due to missing column, try without case_qty
+                    if 'case_qty' in str(db_error).lower() or 'does not exist' in str(db_error).lower():
+                        # Use load_only to exclude case_qty column
+                        from sqlalchemy.orm import load_only
+                        mapping = session.query(ItemMapping)\
+                                       .options(load_only(
+                                           ItemMapping.id,
+                                           ItemMapping.source,
+                                           ItemMapping.raw_item,
+                                           ItemMapping.mapped_item,
+                                           ItemMapping.key_type,
+                                           ItemMapping.priority,
+                                           ItemMapping.active,
+                                           ItemMapping.vendor,
+                                           ItemMapping.mapped_description,
+                                           ItemMapping.notes,
+                                           ItemMapping.created_at,
+                                           ItemMapping.updated_at
+                                       ))\
+                                       .filter_by(source=normalized_source, raw_item=str(raw_item).strip())\
+                                       .first()
+                    else:
+                        raise
                 
                 if mapping:
                     result = {
                         'mapped_item': str(mapping.mapped_item),
                         'mapped_description': str(mapping.mapped_description) if mapping.mapped_description else ''
                     }
-                    # Add case_qty if available
-                    if hasattr(mapping, 'case_qty') and mapping.case_qty is not None:
-                        result['case_qty'] = float(mapping.case_qty)
+                    # Add case_qty if available and column exists
+                    if self._check_case_qty_column_exists():
+                        case_qty_value = self._safe_get_item_mapping_attr(mapping, 'case_qty')
+                        if case_qty_value is not None:
+                            result['case_qty'] = float(case_qty_value)
                     
                     return result
                 
@@ -910,7 +1014,7 @@ class DatabaseService:
                         stats['error_details'].append(f"Row {idx + 1}: Invalid priority value")
                         continue
                     
-                    validated_data.append({
+                    validated_entry = {
                         'row_index': idx + 1,
                         'source': source,
                         'raw_item': raw_item,
@@ -921,7 +1025,22 @@ class DatabaseService:
                         'vendor': mapping_data.get('vendor'),
                         'mapped_description': mapping_data.get('mapped_description'),
                         'notes': mapping_data.get('notes')
-                    })
+                    }
+                    
+                    # Handle case_qty if provided (only for ROSS, but we'll accept it for any source)
+                    if 'case_qty' in mapping_data and mapping_data['case_qty'] is not None:
+                        try:
+                            case_qty_value = float(mapping_data['case_qty'])
+                            if case_qty_value > 0:
+                                validated_entry['case_qty'] = case_qty_value
+                            else:
+                                validated_entry['case_qty'] = None
+                        except (ValueError, TypeError):
+                            validated_entry['case_qty'] = None
+                    else:
+                        validated_entry['case_qty'] = None
+                    
+                    validated_data.append(validated_entry)
                     
                 except Exception as e:
                     stats['errors'] += 1
@@ -1006,21 +1125,29 @@ class DatabaseService:
                         existing.vendor = data['vendor']  # type: ignore
                         existing.mapped_description = data['mapped_description']  # type: ignore
                         existing.notes = data['notes']  # type: ignore
+                        # Update case_qty if provided and column exists
+                        if 'case_qty' in data and hasattr(existing, 'case_qty'):
+                            existing.case_qty = data['case_qty']  # type: ignore
                         existing.updated_at = datetime.utcnow()  # type: ignore
                         stats['updated'] += 1
                     else:
                         # Create new mapping
-                        new_mapping = ItemMapping(
-                            source=data['source'],
-                            raw_item=data['raw_item'],
-                            mapped_item=data['mapped_item'],
-                            key_type=data['key_type'],
-                            priority=data['priority'],
-                            active=data['active'],
-                            vendor=data['vendor'],
-                            mapped_description=data['mapped_description'],
-                            notes=data['notes']
-                        )
+                        mapping_kwargs = {
+                            'source': data['source'],
+                            'raw_item': data['raw_item'],
+                            'mapped_item': data['mapped_item'],
+                            'key_type': data['key_type'],
+                            'priority': data['priority'],
+                            'active': data['active'],
+                            'vendor': data['vendor'],
+                            'mapped_description': data['mapped_description'],
+                            'notes': data['notes']
+                        }
+                        # Add case_qty if provided
+                        if 'case_qty' in data and data['case_qty'] is not None:
+                            mapping_kwargs['case_qty'] = data['case_qty']
+                        
+                        new_mapping = ItemMapping(**mapping_kwargs)
                         session.add(new_mapping)
                         stats['added'] += 1
                         

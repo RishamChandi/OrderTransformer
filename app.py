@@ -1085,6 +1085,59 @@ def show_item_mapping_manager(processor: str, db_service: DatabaseService):
 
 # Enhanced Mapping Management Functions
 
+def safe_query_item_mappings(session, db_service, source: str = None, **filters):
+    """
+    Safely query ItemMapping, handling missing case_qty column gracefully
+    
+    Args:
+        session: SQLAlchemy session
+        db_service: DatabaseService instance
+        source: Source name to filter by (optional)
+        **filters: Additional filter criteria (e.g., id=123)
+        
+    Returns:
+        List of ItemMapping objects
+    """
+    try:
+        # Try normal query first
+        query = session.query(db_service.ItemMapping)
+        if source:
+            query = query.filter_by(source=source, **filters)
+        else:
+            query = query.filter_by(**filters)
+        return query.all()
+    except Exception as e:
+        # If query fails due to missing case_qty column, use load_only to exclude it
+        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+            try:
+                from sqlalchemy.orm import load_only
+                # Query without case_qty column
+                query = session.query(db_service.ItemMapping).options(load_only(
+                    db_service.ItemMapping.id,
+                    db_service.ItemMapping.source,
+                    db_service.ItemMapping.raw_item,
+                    db_service.ItemMapping.mapped_item,
+                    db_service.ItemMapping.key_type,
+                    db_service.ItemMapping.priority,
+                    db_service.ItemMapping.active,
+                    db_service.ItemMapping.vendor,
+                    db_service.ItemMapping.mapped_description,
+                    db_service.ItemMapping.notes,
+                    db_service.ItemMapping.created_at,
+                    db_service.ItemMapping.updated_at
+                ))
+                if source:
+                    query = query.filter_by(source=source, **filters)
+                else:
+                    query = query.filter_by(**filters)
+                return query.all()
+            except Exception as e2:
+                print(f"DEBUG: Error querying ItemMapping even with load_only: {e2}")
+                return []
+        else:
+            # Re-raise if it's a different error
+            raise
+
 def download_mapping_template(processor: str, mapping_type: str):
     """Download CSV template for mapping type"""
     import pandas as pd
@@ -1121,6 +1174,10 @@ def download_mapping_template(processor: str, mapping_type: str):
             'Active': [True],
             'Notes': ['Example item mapping']
         }
+        # Add case_qty columns only for ROSS
+        if processor.lower() == 'ross':
+            template_data['Use Case Qty'] = [True]
+            template_data['Case Qty'] = [6]  # Example: 6 units per case
         filename = f"{processor}_item_mapping_template.csv"
     
     df = pd.DataFrame(template_data)
@@ -1200,10 +1257,33 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Notes': m.notes or ''
                     })
             elif mapping_type == "item":
-                mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                # Use safe query method that handles missing case_qty column
+                try:
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
+                except Exception as e:
+                    # If query fails due to missing case_qty column, use load_only
+                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                        from sqlalchemy.orm import load_only
+                        mappings = session.query(db_service.ItemMapping).options(load_only(
+                            db_service.ItemMapping.id,
+                            db_service.ItemMapping.source,
+                            db_service.ItemMapping.raw_item,
+                            db_service.ItemMapping.mapped_item,
+                            db_service.ItemMapping.key_type,
+                            db_service.ItemMapping.priority,
+                            db_service.ItemMapping.active,
+                            db_service.ItemMapping.vendor,
+                            db_service.ItemMapping.mapped_description,
+                            db_service.ItemMapping.notes,
+                            db_service.ItemMapping.created_at,
+                            db_service.ItemMapping.updated_at
+                        )).filter_by(source=processor).all()
+                    else:
+                        raise
+                
                 data = []
                 for m in mappings:
-                    data.append({
+                    row_data = {
                         'Source': m.source,
                         'Raw Item': m.raw_item,
                         'Mapped Item': m.mapped_item,
@@ -1211,7 +1291,18 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Priority': getattr(m, 'priority', 100),
                         'Active': getattr(m, 'active', True),
                         'Notes': getattr(m, 'notes', '')
-                    })
+                    }
+                    # Add case_qty columns only for ROSS
+                    if processor.lower() == 'ross':
+                        # Check if case_qty column exists and has a value
+                        if db_service._check_case_qty_column_exists():
+                            case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
+                            row_data['Use Case Qty'] = case_qty_value is not None and case_qty_value > 0
+                            row_data['Case Qty'] = case_qty_value if case_qty_value is not None else ''
+                        else:
+                            row_data['Use Case Qty'] = False
+                            row_data['Case Qty'] = ''
+                    data.append(row_data)
             
             if data:
                 df = pd.DataFrame(data)
@@ -1591,7 +1682,28 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
         with db_service.get_session() as session:
             mappings = []
             if mapping_type == "item":
-                mappings = session.query(db_service.ItemMapping).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
+                # Use safe query method that handles missing case_qty column
+                try:
+                    mappings = session.query(db_service.ItemMapping).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
+                except Exception as e:
+                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                        from sqlalchemy.orm import load_only
+                        mappings = session.query(db_service.ItemMapping).options(load_only(
+                            db_service.ItemMapping.id,
+                            db_service.ItemMapping.source,
+                            db_service.ItemMapping.raw_item,
+                            db_service.ItemMapping.mapped_item,
+                            db_service.ItemMapping.key_type,
+                            db_service.ItemMapping.priority,
+                            db_service.ItemMapping.active,
+                            db_service.ItemMapping.vendor,
+                            db_service.ItemMapping.mapped_description,
+                            db_service.ItemMapping.notes,
+                            db_service.ItemMapping.created_at,
+                            db_service.ItemMapping.updated_at
+                        )).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
+                    else:
+                        raise
             elif mapping_type == "customer":
                 # Customer mappings are stored ONLY in CustomerMapping table
                 # StoreMapping is separate and should NOT be used for customer mappings
@@ -1642,7 +1754,28 @@ def delete_selected_mappings(db_service: DatabaseService, processor: str, mappin
             for mapping_id in selected_ids:
                 mapping = None
                 if mapping_type == "item":
-                    mapping = session.query(db_service.ItemMapping).filter_by(id=mapping_id).first()
+                    # Use safe query method that handles missing case_qty column
+                    try:
+                        mapping = session.query(db_service.ItemMapping).filter_by(id=mapping_id).first()
+                    except Exception as e:
+                        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                            from sqlalchemy.orm import load_only
+                            mapping = session.query(db_service.ItemMapping).options(load_only(
+                                db_service.ItemMapping.id,
+                                db_service.ItemMapping.source,
+                                db_service.ItemMapping.raw_item,
+                                db_service.ItemMapping.mapped_item,
+                                db_service.ItemMapping.key_type,
+                                db_service.ItemMapping.priority,
+                                db_service.ItemMapping.active,
+                                db_service.ItemMapping.vendor,
+                                db_service.ItemMapping.mapped_description,
+                                db_service.ItemMapping.notes,
+                                db_service.ItemMapping.created_at,
+                                db_service.ItemMapping.updated_at
+                            )).filter_by(id=mapping_id).first()
+                        else:
+                            raise
                 elif mapping_type == "customer":
                     # Customer mappings are stored ONLY in CustomerMapping table
                     # StoreMapping is separate and should NOT be used for customer mappings
@@ -1693,6 +1826,20 @@ def show_add_new_mapping_form(db_service: DatabaseService, processor: str, mappi
                 raw_item = st.text_input("Raw Item", key=f"raw_item_{processor}")
                 mapped_item = st.text_input("Mapped Item", key=f"mapped_item_{processor}")
                 item_description = st.text_input("Item Description", key=f"item_description_{processor}")
+                
+                # Add case_qty fields only for ROSS
+                if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                    use_case_qty = st.checkbox("Use Case Qty", value=False, key=f"use_case_qty_new_{processor}")
+                    case_qty = st.number_input(
+                        "Case Qty (units per case)", 
+                        value=1.0,
+                        min_value=0.0,
+                        step=1.0,
+                        key=f"case_qty_new_{processor}"
+                    ) if use_case_qty else None
+                else:
+                    use_case_qty = False
+                    case_qty = None
             
             priority = st.number_input("Priority", min_value=0, max_value=1000, value=100, key=f"priority_{mapping_type}_{processor}")
             active = st.checkbox("Active", value=True, key=f"active_{mapping_type}_{processor}")
@@ -1738,7 +1885,28 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                 elif mapping_type == "store":
                     mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 else:
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                    # Use safe query method that handles missing case_qty column
+                    try:
+                        mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                    except Exception as e:
+                        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                            from sqlalchemy.orm import load_only
+                            mappings = session.query(db_service.ItemMapping).options(load_only(
+                                db_service.ItemMapping.id,
+                                db_service.ItemMapping.source,
+                                db_service.ItemMapping.raw_item,
+                                db_service.ItemMapping.mapped_item,
+                                db_service.ItemMapping.key_type,
+                                db_service.ItemMapping.priority,
+                                db_service.ItemMapping.active,
+                                db_service.ItemMapping.vendor,
+                                db_service.ItemMapping.mapped_description,
+                                db_service.ItemMapping.notes,
+                                db_service.ItemMapping.created_at,
+                                db_service.ItemMapping.updated_at
+                            )).filter_by(source=normalized_processor).all()
+                        else:
+                            raise
                 
                 if mappings:
                     # Create editable dataframe
@@ -1765,7 +1933,7 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                                 'Notes': m.notes or ''
                             })
                         else:  # item
-                            mapping_data.append({
+                            item_row = {
                                 'ID': m.id,
                                 'Raw Item': m.raw_item,
                                 'Mapped Item': m.mapped_item,
@@ -1773,7 +1941,17 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                                 'Priority': getattr(m, 'priority', 100),
                                 'Active': getattr(m, 'active', True),
                                 'Notes': getattr(m, 'notes', '')
-                            })
+                            }
+                            # Add case_qty columns only for ROSS
+                            if processor.lower() == 'ross':
+                                if db_service._check_case_qty_column_exists():
+                                    case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
+                                    item_row['Use Case Qty'] = case_qty_value is not None and case_qty_value > 0
+                                    item_row['Case Qty'] = case_qty_value if case_qty_value is not None else ''
+                                else:
+                                    item_row['Use Case Qty'] = False
+                                    item_row['Case Qty'] = ''
+                            mapping_data.append(item_row)
                     
                     df = pd.DataFrame(mapping_data)
                     edited_df = st.data_editor(
@@ -1827,7 +2005,28 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
                 elif mapping_type == "store":
                     mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 else:
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                    # Use safe query method that handles missing case_qty column
+                    try:
+                        mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                    except Exception as e:
+                        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                            from sqlalchemy.orm import load_only
+                            mappings = session.query(db_service.ItemMapping).options(load_only(
+                                db_service.ItemMapping.id,
+                                db_service.ItemMapping.source,
+                                db_service.ItemMapping.raw_item,
+                                db_service.ItemMapping.mapped_item,
+                                db_service.ItemMapping.key_type,
+                                db_service.ItemMapping.priority,
+                                db_service.ItemMapping.active,
+                                db_service.ItemMapping.vendor,
+                                db_service.ItemMapping.mapped_description,
+                                db_service.ItemMapping.notes,
+                                db_service.ItemMapping.created_at,
+                                db_service.ItemMapping.updated_at
+                            )).filter_by(source=normalized_processor).all()
+                        else:
+                            raise
                 
                 if mappings:
                     # Pagination
@@ -1863,6 +2062,25 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
                                     raw_item = st.text_input("Raw Item", value=mapping.raw_item, key=f"raw_{mapping.id}_{processor}")
                                     mapped_item = st.text_input("Mapped Item", value=mapping.mapped_item, key=f"mapped_{mapping.id}_{processor}")
                                     description = st.text_input("Description", value=getattr(mapping, 'mapped_description', ''), key=f"desc_{mapping.id}_{processor}")
+                                    
+                                    # Add case_qty fields only for ROSS
+                                    if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                                        use_case_qty = st.checkbox(
+                                            "Use Case Qty", 
+                                            value=db_service._safe_get_item_mapping_attr(mapping, 'case_qty') is not None and db_service._safe_get_item_mapping_attr(mapping, 'case_qty') > 0,
+                                            key=f"use_case_qty_{mapping.id}_{processor}"
+                                        )
+                                        case_qty_value = db_service._safe_get_item_mapping_attr(mapping, 'case_qty')
+                                        case_qty = st.number_input(
+                                            "Case Qty (units per case)", 
+                                            value=float(case_qty_value) if case_qty_value is not None else 1.0,
+                                            min_value=0.0,
+                                            step=1.0,
+                                            key=f"case_qty_{mapping.id}_{processor}"
+                                        ) if use_case_qty else None
+                                    else:
+                                        use_case_qty = False
+                                        case_qty = None
                                 
                                 priority = st.number_input("Priority", value=mapping.priority, key=f"priority_{mapping.id}_{processor}")
                                 active = st.checkbox("Active", value=mapping.active, key=f"active_{mapping.id}_{processor}")
@@ -1951,7 +2169,28 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                     db_service.StoreMapping.store_type != "customer"
                 ).all()
             else:
-                mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                # Use safe query method that handles missing case_qty column
+                try:
+                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                except Exception as e:
+                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                        from sqlalchemy.orm import load_only
+                        mappings = session.query(db_service.ItemMapping).options(load_only(
+                            db_service.ItemMapping.id,
+                            db_service.ItemMapping.source,
+                            db_service.ItemMapping.raw_item,
+                            db_service.ItemMapping.mapped_item,
+                            db_service.ItemMapping.key_type,
+                            db_service.ItemMapping.priority,
+                            db_service.ItemMapping.active,
+                            db_service.ItemMapping.vendor,
+                            db_service.ItemMapping.mapped_description,
+                            db_service.ItemMapping.notes,
+                            db_service.ItemMapping.created_at,
+                            db_service.ItemMapping.updated_at
+                        )).filter_by(source=normalized_processor).all()
+                    else:
+                        raise
             
             if mappings:
                 st.success(f"✅ Found {len(mappings)} {mapping_type} mappings")
@@ -2170,7 +2409,7 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     skipped_rows.append(f"Row {index + 1}: Missing raw_item or mapped_item")
                     continue
                 
-                mappings_data.append({
+                mapping_entry = {
                     'source': processor,
                     'raw_item': raw_item,
                     'mapped_item': mapped_item,
@@ -2178,7 +2417,38 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     'priority': priority,
                     'active': active,
                     'notes': notes
-                })
+                }
+                
+                # Handle case_qty only for ROSS
+                if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                    # Check for "Use Case Qty" flag
+                    use_case_qty_cols = ['Use Case Qty', 'use_case_qty', 'UseCaseQty', 'use case qty']
+                    use_case_qty = False
+                    for col in use_case_qty_cols:
+                        if col in row and pd.notna(row[col]):
+                            try:
+                                use_case_qty = bool(row[col]) if isinstance(row[col], bool) else str(row[col]).lower() in ('true', '1', 'yes', 'on')
+                                break
+                            except (ValueError, TypeError):
+                                continue
+                    
+                    # Get case_qty value if use_case_qty is True
+                    if use_case_qty:
+                        case_qty_cols = ['Case Qty', 'case_qty', 'CaseQty', 'case qty']
+                        case_qty_value = None
+                        for col in case_qty_cols:
+                            if col in row and pd.notna(row[col]):
+                                try:
+                                    case_qty_value = float(row[col])
+                                    if case_qty_value > 0:
+                                        break
+                                except (ValueError, TypeError):
+                                    continue
+                        mapping_entry['case_qty'] = case_qty_value if case_qty_value and case_qty_value > 0 else None
+                    else:
+                        mapping_entry['case_qty'] = None
+                
+                mappings_data.append(mapping_entry)
         
         if mapping_type in ["customer", "store"]:
                 if mapping_type == "customer":
@@ -2325,11 +2595,22 @@ def add_new_mapping_to_database(db_service: DatabaseService, processor: str, map
                 'source': normalized_source,
                 'raw_item': form_data['raw_item'],
                 'mapped_item': form_data['mapped_item'],
-                'mapped_description': form_data['description'],
+                'mapped_description': form_data.get('item_description', form_data.get('description', '')),
                 'priority': form_data['priority'],
                 'active': form_data['active'],
-                'notes': form_data['notes']
+                'notes': form_data.get('notes', '')
             }
+            # Handle case_qty only for ROSS
+            if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                use_case_qty = form_data.get('use_case_qty', False)
+                if use_case_qty and 'case_qty' in form_data and form_data['case_qty'] is not None:
+                    try:
+                        mapping_data['case_qty'] = float(form_data['case_qty'])
+                    except (ValueError, TypeError):
+                        mapping_data['case_qty'] = None
+                else:
+                    mapping_data['case_qty'] = None
+            
             result = db_service.bulk_upsert_item_mappings([mapping_data])
         
         if result['success']:
@@ -2409,7 +2690,29 @@ def save_row_changes(mapping, form_data: dict, db_service: DatabaseService, proc
                     db_mapping.active = form_data['active']
                     db_mapping.notes = form_data['notes']
             else:  # item
-                db_mapping = session.query(db_service.ItemMapping).filter_by(id=mapping.id).first()
+                # Use safe query method that handles missing case_qty column
+                try:
+                    db_mapping = session.query(db_service.ItemMapping).filter_by(id=mapping.id).first()
+                except Exception as e:
+                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
+                        from sqlalchemy.orm import load_only
+                        db_mapping = session.query(db_service.ItemMapping).options(load_only(
+                            db_service.ItemMapping.id,
+                            db_service.ItemMapping.source,
+                            db_service.ItemMapping.raw_item,
+                            db_service.ItemMapping.mapped_item,
+                            db_service.ItemMapping.key_type,
+                            db_service.ItemMapping.priority,
+                            db_service.ItemMapping.active,
+                            db_service.ItemMapping.vendor,
+                            db_service.ItemMapping.mapped_description,
+                            db_service.ItemMapping.notes,
+                            db_service.ItemMapping.created_at,
+                            db_service.ItemMapping.updated_at
+                        )).filter_by(id=mapping.id).first()
+                    else:
+                        raise
+                
                 if db_mapping:
                     db_mapping.raw_item = form_data['raw_item']
                     db_mapping.mapped_item = form_data['mapped_item']
@@ -2417,6 +2720,18 @@ def save_row_changes(mapping, form_data: dict, db_service: DatabaseService, proc
                     db_mapping.priority = form_data['priority']
                     db_mapping.active = form_data['active']
                     db_mapping.notes = form_data['notes']
+                    
+                    # Handle case_qty only for ROSS
+                    if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                        use_case_qty = form_data.get('use_case_qty', False)
+                        if use_case_qty and 'case_qty' in form_data and form_data['case_qty'] is not None:
+                            try:
+                                db_mapping.case_qty = float(form_data['case_qty'])
+                            except (ValueError, TypeError):
+                                db_mapping.case_qty = None
+                        else:
+                            db_mapping.case_qty = None
+                    
             session.commit()
             st.success("✅ Mapping updated successfully!")
             
