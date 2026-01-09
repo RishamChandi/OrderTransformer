@@ -1088,6 +1088,7 @@ def show_item_mapping_manager(processor: str, db_service: DatabaseService):
 def safe_query_item_mappings(session, db_service, source: str = None, **filters):
     """
     Safely query ItemMapping, handling missing case_qty column gracefully
+    Checks column existence BEFORE querying to avoid transaction abort
     
     Args:
         session: SQLAlchemy session
@@ -1098,45 +1099,37 @@ def safe_query_item_mappings(session, db_service, source: str = None, **filters)
     Returns:
         List of ItemMapping objects
     """
-    try:
-        # Try normal query first
+    from sqlalchemy.orm import load_only
+    
+    # Check if case_qty column exists BEFORE making any queries
+    # This prevents transaction abort errors
+    if not db_service._check_case_qty_column_exists():
+        # Column doesn't exist, use load_only from the start
+        query = session.query(db_service.ItemMapping).options(load_only(
+            db_service.ItemMapping.id,
+            db_service.ItemMapping.source,
+            db_service.ItemMapping.raw_item,
+            db_service.ItemMapping.mapped_item,
+            db_service.ItemMapping.key_type,
+            db_service.ItemMapping.priority,
+            db_service.ItemMapping.active,
+            db_service.ItemMapping.vendor,
+            db_service.ItemMapping.mapped_description,
+            db_service.ItemMapping.notes,
+            db_service.ItemMapping.created_at,
+            db_service.ItemMapping.updated_at
+        ))
+    else:
+        # Column exists, use normal query
         query = session.query(db_service.ItemMapping)
-        if source:
-            query = query.filter_by(source=source, **filters)
-        else:
-            query = query.filter_by(**filters)
-        return query.all()
-    except Exception as e:
-        # If query fails due to missing case_qty column, use load_only to exclude it
-        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-            try:
-                from sqlalchemy.orm import load_only
-                # Query without case_qty column
-                query = session.query(db_service.ItemMapping).options(load_only(
-                    db_service.ItemMapping.id,
-                    db_service.ItemMapping.source,
-                    db_service.ItemMapping.raw_item,
-                    db_service.ItemMapping.mapped_item,
-                    db_service.ItemMapping.key_type,
-                    db_service.ItemMapping.priority,
-                    db_service.ItemMapping.active,
-                    db_service.ItemMapping.vendor,
-                    db_service.ItemMapping.mapped_description,
-                    db_service.ItemMapping.notes,
-                    db_service.ItemMapping.created_at,
-                    db_service.ItemMapping.updated_at
-                ))
-                if source:
-                    query = query.filter_by(source=source, **filters)
-                else:
-                    query = query.filter_by(**filters)
-                return query.all()
-            except Exception as e2:
-                print(f"DEBUG: Error querying ItemMapping even with load_only: {e2}")
-                return []
-        else:
-            # Re-raise if it's a different error
-            raise
+    
+    # Apply filters
+    if source:
+        query = query.filter_by(source=source, **filters)
+    else:
+        query = query.filter_by(**filters)
+    
+    return query.all()
 
 def download_mapping_template(processor: str, mapping_type: str):
     """Download CSV template for mapping type"""
@@ -1257,29 +1250,8 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Notes': m.notes or ''
                     })
             elif mapping_type == "item":
-                # Use safe query method that handles missing case_qty column
-                try:
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=processor).all()
-                except Exception as e:
-                    # If query fails due to missing case_qty column, use load_only
-                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-                        from sqlalchemy.orm import load_only
-                        mappings = session.query(db_service.ItemMapping).options(load_only(
-                            db_service.ItemMapping.id,
-                            db_service.ItemMapping.source,
-                            db_service.ItemMapping.raw_item,
-                            db_service.ItemMapping.mapped_item,
-                            db_service.ItemMapping.key_type,
-                            db_service.ItemMapping.priority,
-                            db_service.ItemMapping.active,
-                            db_service.ItemMapping.vendor,
-                            db_service.ItemMapping.mapped_description,
-                            db_service.ItemMapping.notes,
-                            db_service.ItemMapping.created_at,
-                            db_service.ItemMapping.updated_at
-                        )).filter_by(source=processor).all()
-                    else:
-                        raise
+                # Use safe query method that checks column existence BEFORE querying
+                mappings = safe_query_item_mappings(session, db_service, source=processor)
                 
                 data = []
                 for m in mappings:
@@ -1549,11 +1521,13 @@ def show_delete_mapping_interface(db_service: DatabaseService, processor: str, m
                     mappings = session.query(db_service.StoreMapping).filter_by(source=store_source).filter(db_service.StoreMapping.store_type != "customer").all()
                 elif mapping_type == "item":
                     # Normalize processor name for item mappings too
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
+                    # Use safe query method that checks column existence BEFORE querying
+                    mappings = safe_query_item_mappings(session, db_service, source=normalized_processor)
+                    
                     # If no mappings found, also try alternative KEHE source names
                     if not mappings and normalized_processor == 'kehe':
                         for alt_source in ['kehe_sps', 'kehe___sps', 'kehe - sps']:
-                            alt_mappings = session.query(db_service.ItemMapping).filter_by(source=alt_source).all()
+                            alt_mappings = safe_query_item_mappings(session, db_service, source=alt_source)
                             if alt_mappings:
                                 mappings = alt_mappings
                                 break
@@ -1885,28 +1859,8 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                 elif mapping_type == "store":
                     mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 else:
-                    # Use safe query method that handles missing case_qty column
-                    try:
-                        mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
-                    except Exception as e:
-                        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-                            from sqlalchemy.orm import load_only
-                            mappings = session.query(db_service.ItemMapping).options(load_only(
-                                db_service.ItemMapping.id,
-                                db_service.ItemMapping.source,
-                                db_service.ItemMapping.raw_item,
-                                db_service.ItemMapping.mapped_item,
-                                db_service.ItemMapping.key_type,
-                                db_service.ItemMapping.priority,
-                                db_service.ItemMapping.active,
-                                db_service.ItemMapping.vendor,
-                                db_service.ItemMapping.mapped_description,
-                                db_service.ItemMapping.notes,
-                                db_service.ItemMapping.created_at,
-                                db_service.ItemMapping.updated_at
-                            )).filter_by(source=normalized_processor).all()
-                        else:
-                            raise
+                    # Use safe query method that checks column existence BEFORE querying
+                    mappings = safe_query_item_mappings(session, db_service, source=normalized_processor)
                 
                 if mappings:
                     # Create editable dataframe
@@ -2005,28 +1959,8 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
                 elif mapping_type == "store":
                     mappings = session.query(db_service.StoreMapping).filter_by(source=normalized_processor).filter(db_service.StoreMapping.store_type != "customer").all()
                 else:
-                    # Use safe query method that handles missing case_qty column
-                    try:
-                        mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
-                    except Exception as e:
-                        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-                            from sqlalchemy.orm import load_only
-                            mappings = session.query(db_service.ItemMapping).options(load_only(
-                                db_service.ItemMapping.id,
-                                db_service.ItemMapping.source,
-                                db_service.ItemMapping.raw_item,
-                                db_service.ItemMapping.mapped_item,
-                                db_service.ItemMapping.key_type,
-                                db_service.ItemMapping.priority,
-                                db_service.ItemMapping.active,
-                                db_service.ItemMapping.vendor,
-                                db_service.ItemMapping.mapped_description,
-                                db_service.ItemMapping.notes,
-                                db_service.ItemMapping.created_at,
-                                db_service.ItemMapping.updated_at
-                            )).filter_by(source=normalized_processor).all()
-                        else:
-                            raise
+                    # Use safe query method that checks column existence BEFORE querying
+                    mappings = safe_query_item_mappings(session, db_service, source=normalized_processor)
                 
                 if mappings:
                     # Pagination
@@ -2169,28 +2103,8 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                     db_service.StoreMapping.store_type != "customer"
                 ).all()
             else:
-                # Use safe query method that handles missing case_qty column
-                try:
-                    mappings = session.query(db_service.ItemMapping).filter_by(source=normalized_processor).all()
-                except Exception as e:
-                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-                        from sqlalchemy.orm import load_only
-                        mappings = session.query(db_service.ItemMapping).options(load_only(
-                            db_service.ItemMapping.id,
-                            db_service.ItemMapping.source,
-                            db_service.ItemMapping.raw_item,
-                            db_service.ItemMapping.mapped_item,
-                            db_service.ItemMapping.key_type,
-                            db_service.ItemMapping.priority,
-                            db_service.ItemMapping.active,
-                            db_service.ItemMapping.vendor,
-                            db_service.ItemMapping.mapped_description,
-                            db_service.ItemMapping.notes,
-                            db_service.ItemMapping.created_at,
-                            db_service.ItemMapping.updated_at
-                        )).filter_by(source=normalized_processor).all()
-                    else:
-                        raise
+                # Use safe query method that checks column existence BEFORE querying
+                mappings = safe_query_item_mappings(session, db_service, source=normalized_processor)
             
             if mappings:
                 st.success(f"✅ Found {len(mappings)} {mapping_type} mappings")

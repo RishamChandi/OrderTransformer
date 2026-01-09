@@ -91,14 +91,25 @@ class XoroTemplate:
             store_name = order.get('store_name') or 'KL - Richmond'
             # Customer name comes from customer mapping (e.g., "UNFI MORENO VALLEY #2")
             final_customer_name = order.get('customer_name', 'UNKNOWN')
+        elif source_name.lower() == 'ross':
+            # For ROSS: use store and customer mappings from parser
+            sale_store_name = order.get('store_name') or order.get('customer_name') or 'UNKNOWN'
+            store_name = order.get('store_name') or order.get('customer_name') or 'UNKNOWN'
+            final_customer_name = order.get('customer_name', 'UNKNOWN')
         else:
             sale_store_name = order.get('store_name')
             store_name = order.get('store_name')
             final_customer_name = order.get('customer_name', 'UNKNOWN')
         
-        # Validate required fields - fail if no mapping found
+        # Validate required fields - fail if no mapping found (with special handling for ROSS)
         if not sale_store_name or sale_store_name == 'UNKNOWN':
-            raise ValueError(f"No store mapping found for {source_name} order {order.get('order_number')}")
+            # For ROSS, use customer name as fallback for store name
+            if source_name.lower() == 'ross' and final_customer_name and final_customer_name != 'UNKNOWN':
+                sale_store_name = final_customer_name
+                store_name = final_customer_name
+            else:
+                raise ValueError(f"No store mapping found for {source_name} order {order.get('order_number')}")
+        
         if not final_customer_name or final_customer_name == 'UNKNOWN':
             # For UNFI East, provide more detailed error message with debugging info
             if source_name.lower().replace(' ', '_') in ['unfi_east', 'unfi east']:
@@ -108,6 +119,14 @@ class XoroTemplate:
                     f"Raw customer ID extracted: '{raw_customer}'. "
                     f"Please verify the PDF contains a valid IOW code (RCH, HOW, CHE, YOR, IOW, GRW, MAN, ATL, SAR, SRQ, DAY, HVA, RAC, TWC) "
                     f"or add a customer mapping for '{raw_customer}' in the database."
+                )
+            # For ROSS, provide helpful error message
+            elif source_name.lower() == 'ross':
+                pickup_location = order.get('pickup_location', 'NOT EXTRACTED')
+                raise ValueError(
+                    f"No customer mapping found for ROSS order {order.get('order_number')}. "
+                    f"Pickup location extracted: '{pickup_location}'. "
+                    f"Please add a customer mapping for '{pickup_location}' in the ROSS customer mappings."
                 )
             else:
                 raise ValueError(f"No customer mapping found for {source_name} order {order.get('order_number')}")
@@ -140,7 +159,8 @@ class XoroTemplate:
             'OrderDate': self._format_date_with_debug(order_date, 'OrderDate', source_name),
             'DateToBeShipped': self._format_date_with_debug(shipping_date, 'DateToBeShipped', source_name),
             'LastDateToBeShipped': self._format_date_with_debug(shipping_date, 'LastDateToBeShipped', source_name),
-            'DateToBeCancelled': '',
+            # Use po_cancel_date for ROSS if available
+            'DateToBeCancelled': self._format_date_with_debug(order.get('po_cancel_date'), 'DateToBeCancelled', source_name) if source_name.lower() == 'ross' else '',
             
             # Order classification - Keep empty as requested
             'OrderClassCode': '',
@@ -160,7 +180,8 @@ class XoroTemplate:
             'ItemNumber': str(order.get('item_number', '')),
             'ItemDescription': str(order.get('item_description', '')),
             'UnitPrice': float(order.get('unit_price', 0.0)),
-            'Qty': int(order.get('quantity', 1)),
+            # Ensure quantity is integer (handle float from case conversion)
+            'Qty': int(float(order.get('quantity', 1))),
             'LineTotal': float(order.get('total_price', 0.0)),
             # Extract discount information from order (for UNFI East, discounts are extracted from PDF)
             'DiscountAmount': float(order.get('discount_amount', 0.0)),

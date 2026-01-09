@@ -25,19 +25,33 @@ class DatabaseService:
     
     @staticmethod
     def _check_case_qty_column_exists() -> bool:
-        """Check if case_qty column exists in item_mappings table"""
+        """Check if case_qty column exists in item_mappings table
+        Uses a fresh connection to avoid transaction state issues
+        """
         if DatabaseService._case_qty_column_exists is not None:
             return DatabaseService._case_qty_column_exists
         
         try:
             from .connection import get_database_engine
             engine = get_database_engine()
-            inspector = sqlalchemy_inspect(engine)
-            columns = [col['name'] for col in inspector.get_columns('item_mappings')]
-            DatabaseService._case_qty_column_exists = 'case_qty' in columns
-            return DatabaseService._case_qty_column_exists
-        except Exception:
+            
+            # Use a fresh connection to avoid transaction state issues
+            # This ensures we can check even if another transaction is in a failed state
+            with engine.connect() as conn:
+                # Use raw SQL to check column existence - this avoids SQLAlchemy model issues
+                from sqlalchemy import text
+                result = conn.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'item_mappings' 
+                    AND column_name = 'case_qty'
+                """))
+                exists = result.fetchone() is not None
+                DatabaseService._case_qty_column_exists = exists
+                return exists
+        except Exception as e:
             # If we can't check, assume it doesn't exist to be safe
+            print(f"DEBUG: Could not check case_qty column existence: {e}")
             DatabaseService._case_qty_column_exists = False
             return False
     
@@ -51,6 +65,52 @@ class DatabaseService:
             return default
         except Exception:
             return default
+    
+    def _safe_query_item_mapping(self, session, source: str = None, raw_item: str = None, key_type: str = None, active: bool = None):
+        """
+        Safely query a single ItemMapping, handling missing case_qty column gracefully.
+        Returns the first matching ItemMapping or None.
+        Checks column existence BEFORE querying to avoid transaction abort.
+        """
+        from sqlalchemy.orm import load_only
+        from sqlalchemy import and_
+        
+        # Check if case_qty column exists BEFORE querying
+        if not self._check_case_qty_column_exists():
+            # Column doesn't exist, use load_only to exclude it
+            query = session.query(ItemMapping).options(load_only(
+                ItemMapping.id,
+                ItemMapping.source,
+                ItemMapping.raw_item,
+                ItemMapping.mapped_item,
+                ItemMapping.key_type,
+                ItemMapping.priority,
+                ItemMapping.active,
+                ItemMapping.vendor,
+                ItemMapping.mapped_description,
+                ItemMapping.notes,
+                ItemMapping.created_at,
+                ItemMapping.updated_at
+            ))
+        else:
+            # Column exists, use normal query
+            query = session.query(ItemMapping)
+        
+        # Build filter conditions
+        filters = []
+        if source:
+            filters.append(ItemMapping.source == source)
+        if raw_item:
+            filters.append(ItemMapping.raw_item == raw_item)
+        if key_type:
+            filters.append(ItemMapping.key_type == key_type)
+        if active is not None:
+            filters.append(ItemMapping.active == active)
+        
+        if filters:
+            query = query.filter(and_(*filters))
+        
+        return query.first()
     
     @staticmethod
     def _safe_query_item_mappings(session, source: str, **filters):
@@ -1072,25 +1132,24 @@ class DatabaseService:
                 
                 # Check existing database for constraint violations
                 for data in [v for v in validated_data if v['active']]:
-                    existing_active = session.query(ItemMapping).filter(
-                        and_(
-                            ItemMapping.source == data['source'],
-                            ItemMapping.key_type == data['key_type'],
-                            ItemMapping.raw_item == data['raw_item'],
-                            ItemMapping.active == True  # type: ignore
-                        )
-                    ).first()
+                    # Use safe query that handles missing case_qty column
+                    existing_active = self._safe_query_item_mapping(
+                        session,
+                        source=data['source'],
+                        raw_item=data['raw_item'],
+                        key_type=data['key_type'],
+                        active=True
+                    )
                     
                     if existing_active:
                         # Check if this would create a constraint violation
                         # (i.e., updating a different mapping to be active)
-                        existing_for_this_row = session.query(ItemMapping).filter(
-                            and_(
-                                ItemMapping.source == data['source'],
-                                ItemMapping.raw_item == data['raw_item'],
-                                ItemMapping.key_type == data['key_type']
-                            )
-                        ).first()
+                        existing_for_this_row = self._safe_query_item_mapping(
+                            session,
+                            source=data['source'],
+                            raw_item=data['raw_item'],
+                            key_type=data['key_type']
+                        )
                         
                         if not existing_for_this_row:  # New mapping would conflict
                             stats['errors'] += 1
@@ -1108,14 +1167,13 @@ class DatabaseService:
             # Phase 3: Apply all validated changes atomically
             for data in validated_data:
                 try:
-                    # Check if mapping exists
-                    existing = session.query(ItemMapping).filter(
-                        and_(
-                            ItemMapping.source == data['source'],
-                            ItemMapping.raw_item == data['raw_item'],
-                            ItemMapping.key_type == data['key_type']
-                        )
-                    ).first()
+                    # Check if mapping exists - use safe query that handles missing case_qty column
+                    existing = self._safe_query_item_mapping(
+                        session,
+                        source=data['source'],
+                        raw_item=data['raw_item'],
+                        key_type=data['key_type']
+                    )
                     
                     if existing:
                         # Update existing mapping

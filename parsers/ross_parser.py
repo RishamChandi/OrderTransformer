@@ -46,9 +46,18 @@ class ROSSParser(BaseParser):
                 # Create single order if no line items found
                 orders.append(order_info)
             
-            return orders if orders else None
+            if not orders:
+                raise ValueError("No orders extracted from ROSS PDF. Please verify the PDF format is correct.")
             
+            return orders
+            
+        except ValueError:
+            # Re-raise ValueError as-is
+            raise
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"DEBUG: ROSS Parser Error: {error_details}")
             raise ValueError(f"Error parsing ROSS PDF: {str(e)}")
     
     def _extract_text_from_pdf(self, file_content: bytes) -> str:
@@ -61,19 +70,38 @@ class ROSSParser(BaseParser):
             # Use PyPDF2 to read the PDF
             pdf_reader = PdfReader(pdf_stream)
             
+            # Check if PDF has pages
+            if len(pdf_reader.pages) == 0:
+                raise ValueError("PDF file appears to be empty or corrupted (no pages found)")
+            
             # Extract text from all pages
             text_content = ""
-            for page in pdf_reader.pages:
-                text_content += page.extract_text() + "\n"
+            for page_num, page in enumerate(pdf_reader.pages):
+                try:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_content += page_text + "\n"
+                except Exception as page_error:
+                    print(f"DEBUG: Warning - Could not extract text from page {page_num + 1}: {page_error}")
+                    continue
+            
+            if not text_content or len(text_content.strip()) < 50:
+                raise ValueError("PDF text extraction returned very little or no text. The PDF may be image-based or corrupted.")
             
             return text_content
             
+        except ValueError:
+            # Re-raise ValueError as-is
+            raise
         except Exception as e:
             # Fallback: try to decode as text (for text-based files)
             try:
-                return file_content.decode('utf-8', errors='ignore')
+                decoded = file_content.decode('utf-8', errors='ignore')
+                if len(decoded) > 100:  # Only use if we got substantial text
+                    return decoded
             except:
-                raise ValueError(f"Could not extract text from PDF: {str(e)}")
+                pass
+            raise ValueError(f"Could not extract text from PDF: {str(e)}")
     
     def _extract_order_header(self, text_content: str, filename: str) -> Dict[str, Any]:
         """Extract order header information from PDF text"""
@@ -240,9 +268,21 @@ class ROSSParser(BaseParser):
                     prepack_match = re.search(r'PREPACK/INNER[:\s]*(\d+)', context, re.IGNORECASE)
                     case_qty = int(prepack_match.group(1)) if prepack_match else None
                     
-                    # Get quantity - look for quantity field (might be in a separate section)
-                    # For now, we'll need to extract from the table structure
-                    quantity = 1  # Default, will need to extract from PDF structure
+                    # Get quantity - look for quantity field in context
+                    quantity = 1  # Default
+                    # Try to find quantity in the context after the item
+                    qty_patterns = [
+                        r'NESTED\s+PK\s+QTY[:\s]*(\d+)',
+                        r'\b(\d+)\s*(?:CASE|UNIT|PK|PACK)',
+                        r'QTY[:\s]*(\d+)',
+                    ]
+                    for pattern in qty_patterns:
+                        qty_match = re.search(pattern, context, re.IGNORECASE)
+                        if qty_match:
+                            potential_qty = int(qty_match.group(1))
+                            if 1 <= potential_qty <= 10000:
+                                quantity = potential_qty
+                                break
                     
                     # Apply item mapping
                     mapped_item = self.mapping_utils.get_item_mapping(ross_item, 'ross')
@@ -260,15 +300,19 @@ class ROSSParser(BaseParser):
                     # Convert units to cases if case_qty is available
                     quantity_in_cases = quantity
                     if case_qty and case_qty > 0:
-                        quantity_in_cases = quantity / case_qty
-                        print(f"DEBUG: Converted {quantity} units to {quantity_in_cases} cases (case_qty={case_qty})")
+                        try:
+                            quantity_in_cases = quantity / case_qty
+                            print(f"DEBUG: Converted {quantity} units to {quantity_in_cases} cases (case_qty={case_qty})")
+                        except ZeroDivisionError:
+                            print(f"DEBUG: Warning - case_qty is 0, using original quantity: {quantity}")
+                            quantity_in_cases = quantity
                     
                     item = {
                         'item_number': mapped_item,
                         'raw_item_number': ross_item,
                         'vendor_style': vendor_style,
                         'item_description': description,
-                        'quantity': int(quantity_in_cases) if quantity_in_cases == int(quantity_in_cases) else quantity_in_cases,
+                        'quantity': max(1, int(round(quantity_in_cases))) if quantity_in_cases > 0 else 1,
                         'unit_price': unit_cost,
                         'total_price': unit_cost * quantity_in_cases,
                         'case_qty': case_qty,
@@ -326,11 +370,28 @@ class ROSSParser(BaseParser):
             
             # Extract quantity - this might be in a separate column or section
             # For ROSS, quantity might be in "NESTED PK QTY" or another field
-            # For now, we'll try to find it in the line or nearby lines
+            # Look for quantity patterns in the line and nearby lines
             quantity = 1  # Default
-            qty_match = re.search(r'\b(\d+)\s*(?:CASE|UNIT|PK|PACK)', line, re.IGNORECASE)
-            if qty_match:
-                quantity = int(qty_match.group(1))
+            search_lines = [line] + all_lines[line_idx + 1:line_idx + 3]
+            for search_line in search_lines:
+                # Try various quantity patterns
+                qty_patterns = [
+                    r'NESTED\s+PK\s+QTY[:\s]*(\d+)',  # "NESTED PK QTY: 6"
+                    r'\b(\d+)\s*(?:CASE|UNIT|PK|PACK)',  # "6 CASE" or "6 UNIT"
+                    r'QTY[:\s]*(\d+)',  # "QTY: 6" or "QTY 6"
+                    r'\b(\d{1,4})\b',  # Any standalone number (1-4 digits) - use as last resort
+                ]
+                for pattern in qty_patterns:
+                    qty_match = re.search(pattern, search_line, re.IGNORECASE)
+                    if qty_match:
+                        potential_qty = int(qty_match.group(1))
+                        # Validate quantity is reasonable (between 1 and 10000)
+                        if 1 <= potential_qty <= 10000:
+                            quantity = potential_qty
+                            print(f"DEBUG: Found quantity: {quantity} using pattern: {pattern}")
+                            break
+                if quantity > 1:  # Found a valid quantity
+                    break
             
             # Apply item mapping
             mapped_item = self.mapping_utils.get_item_mapping(ross_item, 'ross')
@@ -348,8 +409,12 @@ class ROSSParser(BaseParser):
             # If case_qty is available, convert units to cases
             quantity_in_cases = quantity
             if case_qty and case_qty > 0:
-                quantity_in_cases = quantity / case_qty
-                print(f"DEBUG: Converted {quantity} units to {quantity_in_cases} cases (case_qty={case_qty})")
+                try:
+                    quantity_in_cases = quantity / case_qty
+                    print(f"DEBUG: Converted {quantity} units to {quantity_in_cases} cases (case_qty={case_qty})")
+                except ZeroDivisionError:
+                    print(f"DEBUG: Warning - case_qty is 0, using original quantity: {quantity}")
+                    quantity_in_cases = quantity
             
             return {
                 'item_number': mapped_item,
@@ -372,9 +437,8 @@ class ROSSParser(BaseParser):
         
         try:
             if self.mapping_utils.use_database and self.mapping_utils.db_service:
-                # Try to get case_qty from database
-                from database.service import DatabaseService
-                db_service = DatabaseService()
+                # Use existing db_service from mapping_utils instead of creating new instance
+                db_service = self.mapping_utils.db_service
                 
                 # Try with ROSS item number first
                 mapping = db_service.get_item_mapping_with_case_qty(ross_item, source)
