@@ -566,9 +566,31 @@ class DatabaseService:
             normalized_source = source_lower.replace(' ', '_').replace('-', '_')
         
         with get_session() as session:
-            mappings = session.query(ItemMapping)\
-                             .filter_by(source=normalized_source)\
-                             .all()
+            # Use safe query that handles missing case_qty column
+            from sqlalchemy.orm import load_only
+            
+            # Check if case_qty column exists BEFORE querying
+            if not self._check_case_qty_column_exists():
+                # Column doesn't exist, use load_only to exclude it
+                mappings = session.query(ItemMapping).options(load_only(
+                    ItemMapping.id,
+                    ItemMapping.source,
+                    ItemMapping.raw_item,
+                    ItemMapping.mapped_item,
+                    ItemMapping.key_type,
+                    ItemMapping.priority,
+                    ItemMapping.active,
+                    ItemMapping.vendor,
+                    ItemMapping.mapped_description,
+                    ItemMapping.notes,
+                    ItemMapping.created_at,
+                    ItemMapping.updated_at
+                )).filter_by(source=normalized_source).all()
+            else:
+                # Column exists, use normal query
+                mappings = session.query(ItemMapping)\
+                                 .filter_by(source=normalized_source)\
+                                 .all()
             
             # Normalize keys to remove .0 suffixes
             result = {}
@@ -613,9 +635,31 @@ class DatabaseService:
                 normalized_source = source_lower.replace(' ', '_').replace('-', '_')
             
             with get_session() as session:
-                mappings = session.query(ItemMapping)\
-                                 .filter_by(source=normalized_source)\
-                                 .all()
+                # Use safe query that handles missing case_qty column
+                from sqlalchemy.orm import load_only
+                
+                # Check if case_qty column exists BEFORE querying
+                if not self._check_case_qty_column_exists():
+                    # Column doesn't exist, use load_only to exclude it
+                    mappings = session.query(ItemMapping).options(load_only(
+                        ItemMapping.id,
+                        ItemMapping.source,
+                        ItemMapping.raw_item,
+                        ItemMapping.mapped_item,
+                        ItemMapping.key_type,
+                        ItemMapping.priority,
+                        ItemMapping.active,
+                        ItemMapping.vendor,
+                        ItemMapping.mapped_description,
+                        ItemMapping.notes,
+                        ItemMapping.created_at,
+                        ItemMapping.updated_at
+                    )).filter_by(source=normalized_source).all()
+                else:
+                    # Column exists, use normal query
+                    mappings = session.query(ItemMapping)\
+                                     .filter_by(source=normalized_source)\
+                                     .all()
                 
                 result = {}
                 for mapping in mappings:
@@ -647,9 +691,12 @@ class DatabaseService:
         
         try:
             with get_session() as session:
-                mapping = session.query(ItemMapping)\
-                               .filter_by(source=source, raw_item=str(raw_item).strip())\
-                               .first()
+                # Use safe query method that handles missing case_qty column
+                mapping = self._safe_query_item_mapping(
+                    session,
+                    source=source,
+                    raw_item=str(raw_item).strip()
+                )
                 
                 if mapping:
                     return {
@@ -691,35 +738,14 @@ class DatabaseService:
                 normalized_source = source_lower.replace(' ', '_').replace('-', '_')
             
             with get_session() as session:
-                # Try to query with case_qty first
-                try:
-                    mapping = session.query(ItemMapping)\
-                                   .filter_by(source=normalized_source, raw_item=str(raw_item).strip())\
-                                   .first()
-                except Exception as db_error:
-                    # If query fails due to missing column, try without case_qty
-                    if 'case_qty' in str(db_error).lower() or 'does not exist' in str(db_error).lower():
-                        # Use load_only to exclude case_qty column
-                        from sqlalchemy.orm import load_only
-                        mapping = session.query(ItemMapping)\
-                                       .options(load_only(
-                                           ItemMapping.id,
-                                           ItemMapping.source,
-                                           ItemMapping.raw_item,
-                                           ItemMapping.mapped_item,
-                                           ItemMapping.key_type,
-                                           ItemMapping.priority,
-                                           ItemMapping.active,
-                                           ItemMapping.vendor,
-                                           ItemMapping.mapped_description,
-                                           ItemMapping.notes,
-                                           ItemMapping.created_at,
-                                           ItemMapping.updated_at
-                                       ))\
-                                       .filter_by(source=normalized_source, raw_item=str(raw_item).strip())\
-                                       .first()
-                    else:
-                        raise
+                # Use safe query method that checks column existence BEFORE querying
+                # Create a temporary db_service instance to use the safe query method
+                temp_db_service = DatabaseService()
+                mapping = temp_db_service._safe_query_item_mapping(
+                    session,
+                    source=normalized_source,
+                    raw_item=str(raw_item).strip()
+                )
                 
                 if mapping:
                     result = {
@@ -1043,6 +1069,10 @@ class DatabaseService:
             transaction = session.begin()
             stats = {'added': 0, 'updated': 0, 'errors': 0, 'error_details': []}
             
+            # Check if case_qty column exists once at the beginning and cache it
+            # This prevents repeated checks and ensures consistency throughout the transaction
+            case_qty_column_exists = self._check_case_qty_column_exists()
+            
             # Phase 1: Validate all rows upfront
             validated_data = []
             for idx, mapping_data in enumerate(mappings_data):
@@ -1087,18 +1117,17 @@ class DatabaseService:
                         'notes': mapping_data.get('notes')
                     }
                     
-                    # Handle case_qty if provided (only for ROSS, but we'll accept it for any source)
-                    if 'case_qty' in mapping_data and mapping_data['case_qty'] is not None:
+                    # Handle case_qty if provided AND column exists in database
+                    # Only include it in validated_entry if the column exists to prevent INSERT errors
+                    if case_qty_column_exists and 'case_qty' in mapping_data and mapping_data['case_qty'] is not None:
                         try:
                             case_qty_value = float(mapping_data['case_qty'])
                             if case_qty_value > 0:
                                 validated_entry['case_qty'] = case_qty_value
-                            else:
-                                validated_entry['case_qty'] = None
+                            # If invalid or <= 0, don't include it (not None, just omit the key)
                         except (ValueError, TypeError):
-                            validated_entry['case_qty'] = None
-                    else:
-                        validated_entry['case_qty'] = None
+                            pass  # Invalid case_qty, skip it
+                    # If column doesn't exist, don't add case_qty to validated_entry at all
                     
                     validated_data.append(validated_entry)
                     
@@ -1201,8 +1230,8 @@ class DatabaseService:
                             'mapped_description': data['mapped_description'],
                             'notes': data['notes']
                         }
-                        # Add case_qty if provided
-                        if 'case_qty' in data and data['case_qty'] is not None:
+                        # Add case_qty if provided AND column exists in database
+                        if 'case_qty' in data and data['case_qty'] is not None and case_qty_column_exists:
                             mapping_kwargs['case_qty'] = data['case_qty']
                         
                         new_mapping = ItemMapping(**mapping_kwargs)
