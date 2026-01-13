@@ -1219,24 +1219,53 @@ class DatabaseService:
                         stats['updated'] += 1
                     else:
                         # Create new mapping
-                        mapping_kwargs = {
-                            'source': data['source'],
-                            'raw_item': data['raw_item'],
-                            'mapped_item': data['mapped_item'],
-                            'key_type': data['key_type'],
-                            'priority': data['priority'],
-                            'active': data['active'],
-                            'vendor': data['vendor'],
-                            'mapped_description': data['mapped_description'],
-                            'notes': data['notes']
-                        }
-                        # Add case_qty if provided AND column exists in database
-                        if 'case_qty' in data and data['case_qty'] is not None and case_qty_column_exists:
-                            mapping_kwargs['case_qty'] = data['case_qty']
-                        
-                        new_mapping = ItemMapping(**mapping_kwargs)
-                        session.add(new_mapping)
-                        stats['added'] += 1
+                        # If case_qty column doesn't exist, use raw SQL to exclude it from INSERT
+                        if not case_qty_column_exists:
+                            from sqlalchemy import text
+                            
+                            # Use raw SQL INSERT to exclude case_qty column
+                            insert_sql = text("""
+                                INSERT INTO item_mappings 
+                                (source, raw_item, mapped_item, key_type, priority, active, vendor, mapped_description, notes, created_at, updated_at)
+                                VALUES 
+                                (:source, :raw_item, :mapped_item, :key_type, :priority, :active, :vendor, :mapped_description, :notes, :created_at, :updated_at)
+                            """)
+                            
+                            now = datetime.utcnow()
+                            session.execute(insert_sql, {
+                                'source': data['source'],
+                                'raw_item': data['raw_item'],
+                                'mapped_item': data['mapped_item'],
+                                'key_type': data['key_type'],
+                                'priority': data['priority'],
+                                'active': data['active'],
+                                'vendor': data['vendor'],
+                                'mapped_description': data['mapped_description'],
+                                'notes': data['notes'],
+                                'created_at': now,
+                                'updated_at': now
+                            })
+                            stats['added'] += 1
+                        else:
+                            # Column exists, use normal ORM insert
+                            mapping_kwargs = {
+                                'source': data['source'],
+                                'raw_item': data['raw_item'],
+                                'mapped_item': data['mapped_item'],
+                                'key_type': data['key_type'],
+                                'priority': data['priority'],
+                                'active': data['active'],
+                                'vendor': data['vendor'],
+                                'mapped_description': data['mapped_description'],
+                                'notes': data['notes']
+                            }
+                            # Add case_qty if provided
+                            if 'case_qty' in data and data['case_qty'] is not None:
+                                mapping_kwargs['case_qty'] = data['case_qty']
+                            
+                            new_mapping = ItemMapping(**mapping_kwargs)
+                            session.add(new_mapping)
+                            stats['added'] += 1
                         
                 except Exception as e:
                     stats['errors'] += 1
