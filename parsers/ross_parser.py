@@ -160,34 +160,20 @@ class ROSSParser(BaseParser):
                 print(f"DEBUG: Found pickup location: '{pickup_location}'")
                 break
         
-        # Map pickup location to customer using customer mapping
-        # Special handling: "PICKUP LOC: NJ - New Jersey" -> "CUSTOMER PSS_NJ"
-        if pickup_location:
-            # Try to extract just the state code for mapping
-            state_code_match = re.search(r'([A-Z]{2})', pickup_location)
-            if state_code_match:
-                state_code = state_code_match.group(1)
-                # Try mapping with full pickup location first
-                mapped_customer = self.mapping_utils.get_customer_mapping(pickup_location, 'ross')
-                if mapped_customer and mapped_customer != 'UNKNOWN':
-                    order_info['customer_name'] = mapped_customer
-                    order_info['raw_customer_name'] = pickup_location
-                    print(f"DEBUG: ROSS Customer Mapping: '{pickup_location}' -> '{mapped_customer}'")
-                else:
-                    # Try with just state code
-                    mapped_customer = self.mapping_utils.get_customer_mapping(state_code, 'ross')
-                    if mapped_customer and mapped_customer != 'UNKNOWN':
-                        order_info['customer_name'] = mapped_customer
-                        order_info['raw_customer_name'] = pickup_location
-                        print(f"DEBUG: ROSS Customer Mapping (state code): '{state_code}' -> '{mapped_customer}'")
-                    else:
-                        # Default mapping for NJ
-                        if state_code == 'NJ':
-                            order_info['customer_name'] = 'CUSTOMER PSS_NJ'
-                            order_info['raw_customer_name'] = pickup_location
-                            print(f"DEBUG: Using default customer mapping for NJ: 'CUSTOMER PSS_NJ'")
-                        else:
-                            print(f"DEBUG: No customer mapping found for pickup location '{pickup_location}'")
+        # Map customer - ROSS has only one customer, so use the first/only customer mapping
+        # Get all customer mappings for ROSS and use the first one (there should be only one)
+        customer_mappings = self.mapping_utils.db_service.get_customer_mappings('ross')
+        if customer_mappings:
+            # Get the first mapped customer name (there should be only one for ROSS)
+            mapped_customer_name = list(customer_mappings.values())[0]
+            order_info['customer_name'] = mapped_customer_name
+            order_info['raw_customer_name'] = 'ROSS'  # Use generic identifier since there's only one customer
+            print(f"DEBUG: ROSS Customer Mapping: Using default customer '{mapped_customer_name}' (single customer for ROSS)")
+        else:
+            # Fallback if no customer mapping found
+            print(f"DEBUG: No customer mapping found for ROSS, using default")
+            order_info['customer_name'] = 'UNKNOWN'
+            order_info['raw_customer_name'] = pickup_location or 'ROSS'
         
         # Apply store mapping (separate from customer mapping)
         # For ROSS, store mapping might use pickup location or other identifiers
