@@ -56,6 +56,9 @@ class XoroTemplate:
             # For UNFI East: use Pck Date (pickup date) for shipping dates
             shipping_date = pickup_date if pickup_date else self._calculate_shipping_date(order_date)
             print(f"DEBUG: UNFI East detected - source_name: '{source_name}', pickup_date: {pickup_date}, shipping_date: {shipping_date}")
+        elif 'kehe' in source_name.lower():
+            # For KEHE: use Ship Dates column from the source file (delivery_date in parser)
+            shipping_date = delivery_date if delivery_date else self._calculate_shipping_date(order_date)
         elif source_name.lower().replace(' ', '_') == 'whole_foods' or source_name.lower() == 'whole foods':
             # For Whole Foods: use Expected Delivery Date from HTML
             shipping_date = delivery_date if delivery_date else self._calculate_shipping_date(order_date)

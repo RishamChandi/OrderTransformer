@@ -135,8 +135,8 @@ class KEHEParser(BaseParser):
                     requested_delivery_date = self.parse_date(str(header_info.get('Requested Delivery Date', '')))
                     ship_date = self.parse_date(str(header_info.get('Ship Dates', '')))
                     
-                    # Use the most appropriate date for shipping
-                    delivery_date = requested_delivery_date or ship_date or po_date
+                    # Use Ship Dates column first for shipping
+                    delivery_date = ship_date or requested_delivery_date or po_date
                     
                     # Extract Ship To Location for customer mapping
                     ship_to_location_raw = str(header_info.get('Ship To Location', '')).strip()
@@ -176,7 +176,12 @@ class KEHEParser(BaseParser):
                     # Look for the next 'I' record that applies to this line
                     next_discount = self._find_next_discount_record(df, int(idx), discount_records_df)
                     if next_discount is not None:
-                        discount_amount, discount_info = self._calculate_discount(next_discount, line_total, unit_price)
+                        discount_amount, discount_info, discount_percent, discount_type = self._calculate_discount(
+                            next_discount, line_total, unit_price, quantity
+                        )
+                    else:
+                        discount_percent = 0
+                        discount_type = ""
                     
                     # Apply discount to get final total
                     final_total = line_total - discount_amount
@@ -211,6 +216,8 @@ class KEHEParser(BaseParser):
                         'original_total': line_total,
                         'discount_amount': discount_amount,
                         'discount_info': discount_info,
+                        'discount_percent': discount_percent,
+                        'discount_type': discount_type,
                         'source_file': filename
                     }
                     
@@ -246,47 +253,64 @@ class KEHEParser(BaseParser):
         except Exception:
             return None
     
-    def _calculate_discount(self, discount_row: pd.Series, line_total: float, unit_price: float) -> tuple[float, str]:
+    def _calculate_discount(self, discount_row: pd.Series, line_total: float, unit_price: float, quantity: float = 0) -> tuple[float, str, float, str]:
         """
         Calculate discount amount based on discount record
-        Returns: (discount_amount, discount_description)
+        Returns: (discount_amount, discount_description, discount_percent, discount_type)
         """
         try:
             discount_amount = 0
             discount_info = ""
+            discount_percent = 0
+            discount_type = ""
             
-            # Check for percentage discount (column BG - typically percentage value)
-            percentage_discount = self.clean_numeric_value(str(discount_row.get('BG', '0')))
+            # KEHE files use Allow/Charge columns (same as VMC/Davidson)
+            # Fallback to lettered columns if present.
+            percentage_discount = self.clean_numeric_value(str(
+                discount_row.get('Allow/Charge %', discount_row.get('BG', '0'))
+            ))
+            flat_discount = self.clean_numeric_value(str(
+                discount_row.get('Allow/Charge amt', discount_row.get('Allow/Charge Amt', discount_row.get('BF', '0')))
+            ))
+            rate_discount = self.clean_numeric_value(str(
+                discount_row.get('Allow/Charge Rate', discount_row.get('BH', '0'))
+            ))
+            rate_qty = self.clean_numeric_value(str(
+                discount_row.get('Allow/Charge Qty', discount_row.get('BI', '0'))
+            ))
+            
+            discount_options = []
             if percentage_discount > 0:
-                discount_amount = (line_total * percentage_discount) / 100
-                discount_info = f"Percentage: {percentage_discount}%"
-            
-            # Check for flat/rate discount (column BH - typically flat amount)
-            flat_discount = self.clean_numeric_value(str(discount_row.get('BH', '0')))
-            if flat_discount > 0:
-                discount_amount = flat_discount
-                discount_info = f"Flat: ${flat_discount:.2f}"
-            
-            # If both are present, use the larger discount (benefit customer)
-            if percentage_discount > 0 and flat_discount > 0:
                 percentage_amount = (line_total * percentage_discount) / 100
-                if flat_discount > percentage_amount:
-                    discount_amount = flat_discount
-                    discount_info = f"Flat: ${flat_discount:.2f} (better than {percentage_discount}%)"
+                discount_options.append(('percentage', percentage_amount, f"Percentage: {percentage_discount}%"))
+            if flat_discount > 0:
+                discount_options.append(('flat', flat_discount, f"Flat: ${flat_discount:.2f}"))
+            if rate_discount > 0:
+                if rate_qty > 0:
+                    rate_amount = rate_discount * rate_qty
                 else:
-                    discount_amount = percentage_amount
-                    discount_info = f"Percentage: {percentage_discount}% (better than ${flat_discount:.2f})"
+                    rate_amount = rate_discount * quantity if quantity > 0 else 0
+                discount_options.append(('rate', rate_amount, f"Rate: ${rate_discount:.2f} per unit"))
+            
+            if discount_options:
+                best_option = max(discount_options, key=lambda x: x[1])
+                discount_type = best_option[0]
+                discount_amount = best_option[1]
+                discount_info = best_option[2]
+                
+                if discount_type == 'percentage':
+                    discount_percent = percentage_discount
             
             # Get discount description if available
-            discount_desc = str(discount_row.get('Product/Item Description', ''))
+            discount_desc = str(discount_row.get('Allow/Charge Desc', discount_row.get('Product/Item Description', '')))
             if discount_desc and discount_desc.strip():
                 discount_info += f" - {discount_desc.strip()}"
             
-            return discount_amount, discount_info
+            return discount_amount, discount_info, discount_percent, discount_type
             
         except Exception as e:
             print(f"Error calculating discount: {e}")
-            return 0, ""
+            return 0, "", 0, ""
     
     def _load_item_mapping(self) -> Dict[str, str]:
         """Load KEHE item mapping from CSV file"""
