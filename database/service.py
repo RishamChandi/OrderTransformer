@@ -1212,8 +1212,10 @@ class DatabaseService:
                         existing.vendor = data['vendor']  # type: ignore
                         existing.mapped_description = data['mapped_description']  # type: ignore
                         existing.notes = data['notes']  # type: ignore
-                        # Update case_qty if provided and column exists
-                        if 'case_qty' in data and hasattr(existing, 'case_qty'):
+                        # Update case_qty if provided and column exists in database
+                        # Check case_qty_column_exists (not hasattr) because hasattr will always be True for model attributes
+                        if case_qty_column_exists and 'case_qty' in data:
+                            # Set case_qty value (can be None to clear it, or a float value)
                             existing.case_qty = data['case_qty']  # type: ignore
                         existing.updated_at = datetime.utcnow()  # type: ignore
                         stats['updated'] += 1

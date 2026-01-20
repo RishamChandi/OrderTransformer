@@ -1131,6 +1131,88 @@ def safe_query_item_mappings(session, db_service, source: str = None, **filters)
     
     return query.all()
 
+def safe_query_item_mappings_by_ids(session, db_service, selected_ids: list):
+    """
+    Safely query ItemMapping by IDs, handling missing case_qty column gracefully
+    Checks column existence BEFORE querying to avoid transaction abort
+    
+    Args:
+        session: SQLAlchemy session
+        db_service: DatabaseService instance
+        selected_ids: List of mapping IDs to query
+        
+    Returns:
+        List of ItemMapping objects
+    """
+    from sqlalchemy.orm import load_only
+    
+    # Check if case_qty column exists BEFORE making any queries
+    # This prevents transaction abort errors
+    if not db_service._check_case_qty_column_exists():
+        # Column doesn't exist, use load_only from the start
+        query = session.query(db_service.ItemMapping).options(load_only(
+            db_service.ItemMapping.id,
+            db_service.ItemMapping.source,
+            db_service.ItemMapping.raw_item,
+            db_service.ItemMapping.mapped_item,
+            db_service.ItemMapping.key_type,
+            db_service.ItemMapping.priority,
+            db_service.ItemMapping.active,
+            db_service.ItemMapping.vendor,
+            db_service.ItemMapping.mapped_description,
+            db_service.ItemMapping.notes,
+            db_service.ItemMapping.created_at,
+            db_service.ItemMapping.updated_at
+        ))
+    else:
+        # Column exists, use normal query
+        query = session.query(db_service.ItemMapping)
+    
+    # Apply ID filter
+    query = query.filter(db_service.ItemMapping.id.in_(selected_ids))
+    
+    return query.all()
+
+def safe_query_item_mapping_by_id(session, db_service, mapping_id: int):
+    """
+    Safely query a single ItemMapping by ID, handling missing case_qty column gracefully
+    Checks column existence BEFORE querying to avoid transaction abort
+    
+    Args:
+        session: SQLAlchemy session
+        db_service: DatabaseService instance
+        mapping_id: Mapping ID to query
+        
+    Returns:
+        ItemMapping object or None
+    """
+    from sqlalchemy.orm import load_only
+    
+    # Check if case_qty column exists BEFORE making any queries
+    # This prevents transaction abort errors
+    if not db_service._check_case_qty_column_exists():
+        # Column doesn't exist, use load_only from the start
+        query = session.query(db_service.ItemMapping).options(load_only(
+            db_service.ItemMapping.id,
+            db_service.ItemMapping.source,
+            db_service.ItemMapping.raw_item,
+            db_service.ItemMapping.mapped_item,
+            db_service.ItemMapping.key_type,
+            db_service.ItemMapping.priority,
+            db_service.ItemMapping.active,
+            db_service.ItemMapping.vendor,
+            db_service.ItemMapping.mapped_description,
+            db_service.ItemMapping.notes,
+            db_service.ItemMapping.created_at,
+            db_service.ItemMapping.updated_at
+        ))
+    else:
+        # Column exists, use normal query
+        query = session.query(db_service.ItemMapping)
+    
+    # Apply ID filter
+    return query.filter_by(id=mapping_id).first()
+
 def download_mapping_template(processor: str, mapping_type: str):
     """Download CSV template for mapping type"""
     import pandas as pd
@@ -1656,28 +1738,8 @@ def show_delete_confirmation(db_service: DatabaseService, processor: str, mappin
         with db_service.get_session() as session:
             mappings = []
             if mapping_type == "item":
-                # Use safe query method that handles missing case_qty column
-                try:
-                    mappings = session.query(db_service.ItemMapping).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
-                except Exception as e:
-                    if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-                        from sqlalchemy.orm import load_only
-                        mappings = session.query(db_service.ItemMapping).options(load_only(
-                            db_service.ItemMapping.id,
-                            db_service.ItemMapping.source,
-                            db_service.ItemMapping.raw_item,
-                            db_service.ItemMapping.mapped_item,
-                            db_service.ItemMapping.key_type,
-                            db_service.ItemMapping.priority,
-                            db_service.ItemMapping.active,
-                            db_service.ItemMapping.vendor,
-                            db_service.ItemMapping.mapped_description,
-                            db_service.ItemMapping.notes,
-                            db_service.ItemMapping.created_at,
-                            db_service.ItemMapping.updated_at
-                        )).filter(db_service.ItemMapping.id.in_(selected_ids)).all()
-                    else:
-                        raise
+                # Use safe query method that checks column existence BEFORE querying
+                mappings = safe_query_item_mappings_by_ids(session, db_service, selected_ids)
             elif mapping_type == "customer":
                 # Customer mappings are stored ONLY in CustomerMapping table
                 # StoreMapping is separate and should NOT be used for customer mappings
@@ -1728,28 +1790,8 @@ def delete_selected_mappings(db_service: DatabaseService, processor: str, mappin
             for mapping_id in selected_ids:
                 mapping = None
                 if mapping_type == "item":
-                    # Use safe query method that handles missing case_qty column
-                    try:
-                        mapping = session.query(db_service.ItemMapping).filter_by(id=mapping_id).first()
-                    except Exception as e:
-                        if 'case_qty' in str(e).lower() or 'does not exist' in str(e).lower():
-                            from sqlalchemy.orm import load_only
-                            mapping = session.query(db_service.ItemMapping).options(load_only(
-                                db_service.ItemMapping.id,
-                                db_service.ItemMapping.source,
-                                db_service.ItemMapping.raw_item,
-                                db_service.ItemMapping.mapped_item,
-                                db_service.ItemMapping.key_type,
-                                db_service.ItemMapping.priority,
-                                db_service.ItemMapping.active,
-                                db_service.ItemMapping.vendor,
-                                db_service.ItemMapping.mapped_description,
-                                db_service.ItemMapping.notes,
-                                db_service.ItemMapping.created_at,
-                                db_service.ItemMapping.updated_at
-                            )).filter_by(id=mapping_id).first()
-                        else:
-                            raise
+                    # Use safe query method that checks column existence BEFORE querying
+                    mapping = safe_query_item_mapping_by_id(session, db_service, mapping_id)
                 elif mapping_type == "customer":
                     # Customer mappings are stored ONLY in CustomerMapping table
                     # StoreMapping is separate and should NOT be used for customer mappings
@@ -2346,18 +2388,20 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                             except (ValueError, TypeError):
                                 continue
                     
-                    # Get case_qty value if use_case_qty is True
-                    if use_case_qty:
-                        case_qty_cols = ['Case Qty', 'case_qty', 'CaseQty', 'case qty']
-                        case_qty_value = None
-                        for col in case_qty_cols:
-                            if col in row and pd.notna(row[col]):
-                                try:
-                                    case_qty_value = float(row[col])
-                                    if case_qty_value > 0:
-                                        break
-                                except (ValueError, TypeError):
-                                    continue
+                    # Get case_qty value - check even if use_case_qty is False, in case user just provided Case Qty directly
+                    case_qty_cols = ['Case Qty', 'case_qty', 'CaseQty', 'case qty']
+                    case_qty_value = None
+                    for col in case_qty_cols:
+                        if col in row and pd.notna(row[col]):
+                            try:
+                                case_qty_value = float(row[col])
+                                if case_qty_value > 0:
+                                    break
+                            except (ValueError, TypeError):
+                                continue
+                    
+                    # Set case_qty if we found a valid value, OR if use_case_qty is True (even if value is 0/None, user wants to use it)
+                    if use_case_qty or (case_qty_value and case_qty_value > 0):
                         mapping_entry['case_qty'] = case_qty_value if case_qty_value and case_qty_value > 0 else None
                     else:
                         mapping_entry['case_qty'] = None
