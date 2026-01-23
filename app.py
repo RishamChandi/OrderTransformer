@@ -1351,8 +1351,10 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         # Check if case_qty column exists and has a value
                         if db_service._check_case_qty_column_exists():
                             case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
+                            # Use Case Qty is True if case_qty is set (not None and > 0)
                             row_data['Use Case Qty'] = case_qty_value is not None and case_qty_value > 0
-                            row_data['Case Qty'] = case_qty_value if case_qty_value is not None else ''
+                            # Case Qty shows the numeric value, or empty string if not set
+                            row_data['Case Qty'] = case_qty_value if (case_qty_value is not None and case_qty_value > 0) else ''
                         else:
                             row_data['Use Case Qty'] = False
                             row_data['Case Qty'] = ''
@@ -1450,7 +1452,23 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                     df = pd.read_csv(uploaded_file, dtype=dtype_dict if dtype_dict else None)
                 
                 st.write("**File Preview:**")
-                st.dataframe(df.head())
+                # For ROSS item mappings, ensure Use Case Qty and Case Qty display correctly
+                if mapping_type == 'item' and processor.lower() == 'ross':
+                    # Create a copy for display to avoid modifying the original
+                    display_df = df.copy()
+                    # Ensure boolean columns display as True/False, not None
+                    for col in display_df.columns:
+                        col_lower = str(col).lower()
+                        if 'use case qty' in col_lower or 'usecaseqty' in col_lower:
+                            # Convert to boolean and handle NaN/None values
+                            display_df[col] = display_df[col].apply(
+                                lambda x: True if str(x).lower() in ('true', '1', 'yes', 'on') 
+                                else (False if str(x).lower() in ('false', '0', 'no', 'off', 'nan', 'none', '') 
+                                else bool(x) if pd.notna(x) else False)
+                            )
+                    st.dataframe(display_df.head())
+                else:
+                    st.dataframe(df.head())
                 
                 # Debug: Show available columns
                 st.write("**Available Columns:**")
@@ -2445,10 +2463,24 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                                 except (ValueError, TypeError):
                                     continue
                     
-                    # Set case_qty if we found a valid value, OR if use_case_qty is True (even if value is 0/None, user wants to use it)
-                    if use_case_qty or (case_qty_value and case_qty_value > 0):
-                        mapping_entry['case_qty'] = case_qty_value if case_qty_value and case_qty_value > 0 else None
+                    # Set case_qty based on use_case_qty flag and case_qty_value
+                    # If use_case_qty is True, we require a valid case_qty_value to be set
+                    # If use_case_qty is False or not set, but case_qty_value is provided, we still set it
+                    if use_case_qty:
+                        # If use_case_qty is True, set case_qty to the provided value
+                        # If case_qty_value is not provided but use_case_qty is True, set to 1.0 as default
+                        # This ensures "Use Case Qty" shows as True in UI/download
+                        if case_qty_value and case_qty_value > 0:
+                            mapping_entry['case_qty'] = case_qty_value
+                        else:
+                            # Use Case Qty is True but no value provided - set default to 1.0
+                            # This allows the flag to show as True, user can update the actual value later
+                            mapping_entry['case_qty'] = 1.0
+                    elif case_qty_value and case_qty_value > 0:
+                        # If use_case_qty is False/not set but case_qty_value is provided, set it
+                        mapping_entry['case_qty'] = case_qty_value
                     else:
+                        # Neither use_case_qty is True nor case_qty_value is provided
                         mapping_entry['case_qty'] = None
                 
                 mappings_data.append(mapping_entry)
