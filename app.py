@@ -1423,6 +1423,12 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(100).astype(int)
                         elif 'active' in col_lower:
                             df[col] = df[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
+                        # Handle case_qty conversion for ROSS - convert to float
+                        elif 'case qty' in col_lower or 'caseqty' in col_lower:
+                            df[col] = pd.to_numeric(df[col], errors='coerce')
+                        # Handle use case qty - convert to boolean
+                        elif 'use case qty' in col_lower or 'usecaseqty' in col_lower:
+                            df[col] = df[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
                 elif mapping_type in ['customer', 'store']:
                     # For customer/store mappings, read ALL columns as string first to prevent pandas auto-converting numbers to floats
                     # This prevents .0 suffix from being added to customer IDs (e.g., KeHE customer IDs like "569813000000")
@@ -2180,7 +2186,7 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                                 'Notes': m.notes or ''
                             })
                     else:  # item
-                        mapping_data.append({
+                        item_row = {
                             'ID': m.id,
                             'Raw Item': m.raw_item,
                             'Mapped Item': m.mapped_item,
@@ -2188,7 +2194,13 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                             'Priority': getattr(m, 'priority', 100),
                             'Active': getattr(m, 'active', True),
                             'Notes': getattr(m, 'notes', '')
-                        })
+                        }
+                        # Add case_qty columns only for ROSS
+                        if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                            case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
+                            item_row['Use Case Qty'] = case_qty_value is not None and case_qty_value > 0
+                            item_row['Case Qty'] = case_qty_value if case_qty_value is not None else ''
+                        mapping_data.append(item_row)
                 
                 df = pd.DataFrame(mapping_data)
                 st.dataframe(df, use_container_width=True)
@@ -2377,28 +2389,61 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                 
                 # Handle case_qty only for ROSS
                 if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
-                    # Check for "Use Case Qty" flag
-                    use_case_qty_cols = ['Use Case Qty', 'use_case_qty', 'UseCaseQty', 'use case qty']
+                    # Normalize column names for flexible matching (handle spaces, underscores, case)
+                    def normalize_col_name(col_name):
+                        return str(col_name).strip().lower().replace(' ', '').replace('_', '').replace('-', '')
+                    
+                    row_cols_normalized = {normalize_col_name(k): k for k in row.index}
+                    
+                    # Check for "Use Case Qty" flag - try multiple column name variations
                     use_case_qty = False
-                    for col in use_case_qty_cols:
-                        if col in row and pd.notna(row[col]):
+                    use_case_qty_patterns = ['usecaseqty', 'usecase', 'useqty']
+                    for pattern in use_case_qty_patterns:
+                        matching_col = row_cols_normalized.get(pattern)
+                        if matching_col and matching_col in row and pd.notna(row[matching_col]):
                             try:
-                                use_case_qty = bool(row[col]) if isinstance(row[col], bool) else str(row[col]).lower() in ('true', '1', 'yes', 'on')
-                                break
+                                use_case_qty = bool(row[matching_col]) if isinstance(row[matching_col], bool) else str(row[matching_col]).lower() in ('true', '1', 'yes', 'on')
+                                if use_case_qty:
+                                    break
                             except (ValueError, TypeError):
                                 continue
                     
+                    # Also try direct column name matches as fallback
+                    if not use_case_qty:
+                        use_case_qty_cols = ['Use Case Qty', 'use_case_qty', 'UseCaseQty', 'use case qty', 'Use Case Qty', 'UseCase Qty']
+                        for col in use_case_qty_cols:
+                            if col in row and pd.notna(row[col]):
+                                try:
+                                    use_case_qty = bool(row[col]) if isinstance(row[col], bool) else str(row[col]).lower() in ('true', '1', 'yes', 'on')
+                                    if use_case_qty:
+                                        break
+                                except (ValueError, TypeError):
+                                    continue
+                    
                     # Get case_qty value - check even if use_case_qty is False, in case user just provided Case Qty directly
-                    case_qty_cols = ['Case Qty', 'case_qty', 'CaseQty', 'case qty']
                     case_qty_value = None
-                    for col in case_qty_cols:
-                        if col in row and pd.notna(row[col]):
+                    case_qty_patterns = ['caseqty', 'case']
+                    for pattern in case_qty_patterns:
+                        matching_col = row_cols_normalized.get(pattern)
+                        if matching_col and matching_col in row and pd.notna(row[matching_col]):
                             try:
-                                case_qty_value = float(row[col])
+                                case_qty_value = float(row[matching_col])
                                 if case_qty_value > 0:
                                     break
                             except (ValueError, TypeError):
                                 continue
+                    
+                    # Also try direct column name matches (case-sensitive) as fallback
+                    if case_qty_value is None:
+                        case_qty_cols = ['Case Qty', 'case_qty', 'CaseQty', 'case qty', 'Case Qty']
+                        for col in case_qty_cols:
+                            if col in row and pd.notna(row[col]):
+                                try:
+                                    case_qty_value = float(row[col])
+                                    if case_qty_value > 0:
+                                        break
+                                except (ValueError, TypeError):
+                                    continue
                     
                     # Set case_qty if we found a valid value, OR if use_case_qty is True (even if value is 0/None, user wants to use it)
                     if use_case_qty or (case_qty_value and case_qty_value > 0):
