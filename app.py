@@ -661,7 +661,7 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         file_icon = "📊"
     elif clean_source_name == "TJ Maxx":
         accepted_types = ['pdf', 'csv', 'xlsx']
-        help_text = "📊 Upload PDF (Distribution/PO), CSV or Excel files from TJ Maxx orders"
+        help_text = "📊 Upload TJ Maxx files (PDF Distribution + PDF PO required, CSV/Excel optional)"
         file_icon = "📊"
     elif clean_source_name == "VMC":
         accepted_types = ['csv']
@@ -696,6 +696,9 @@ def process_orders_page(db_service: DatabaseService, selected_source: str = "all
         accept_multiple_files=True,
         label_visibility="collapsed"
     )
+    
+    if clean_source_name == "TJ Maxx":
+        st.info("TJ Maxx requires both PDFs for a complete order: upload the Distribution PDF (qty + DCs) and the PO PDF (prices + state).")
     
     if uploaded_files:
         # Show uploaded files with better styling
@@ -760,9 +763,13 @@ def process_orders(uploaded_files, parser, source_name, db_service: DatabaseServ
                 else:
                     st.warning(f"⚠️ Processed {uploaded_file.name} but database save failed")
             else:
-                error_msg = f"Failed to parse {uploaded_file.name}: Parser returned no data. Please check that the file has the correct format (Record Type column with H/D/I records)."
-                errors.append(error_msg)
-                st.error(f"❌ {error_msg}")
+                # TJ Maxx requires pairing PO + Distribution PDFs
+                if source_name.lower().replace(' ', '_') == 'tj_maxx' and getattr(parser, 'last_parse_status', '') == 'pending':
+                    st.info(f"⏳ TJ Maxx file stored: {uploaded_file.name}. Upload the matching PO/Distribution file to complete the order.")
+                else:
+                    error_msg = f"Failed to parse {uploaded_file.name}: Parser returned no data. Please check that the file has the correct format (Record Type column with H/D/I records)."
+                    errors.append(error_msg)
+                    st.error(f"❌ {error_msg}")
                 
         except Exception as e:
             error_msg = f"Error processing {uploaded_file.name}: {str(e)}"
@@ -903,6 +910,29 @@ def processed_orders_page(db_service: DatabaseService, selected_source: str = "a
     # Close main content container
     st.markdown('</div>', unsafe_allow_html=True)
 
+def get_processor_display_name(processor: str) -> str:
+    """Return display-friendly processor name."""
+    display_names = {
+        "wholefoods": "Whole Foods",
+        "unfi_west": "UNFI West",
+        "unfi_east": "UNFI East",
+        "kehe": "KEHE - SPS",
+        "tkmaxx": "TJ Maxx",
+        "vmc": "VMC",
+        "davidson": "Davidson",
+        "ross": "ROSS"
+    }
+    return display_names.get(processor, processor.replace('_', ' ').title())
+
+
+def uses_case_qty(processor: str) -> bool:
+    """Return True when processor supports case qty item mappings."""
+    if not processor:
+        return False
+    normalized = processor.lower().strip().replace(' ', '_').replace('-', '_')
+    return normalized in {"ross", "tkmaxx", "tj_maxx"}
+
+
 def manage_mappings_page(db_service: DatabaseService, selected_source: str = "all"):
     """Enhanced mapping management page with optimized screen usage"""
     
@@ -927,12 +957,12 @@ def manage_mappings_page(db_service: DatabaseService, selected_source: str = "al
     
     if selected_source != "all" and selected_source in processors:
         selected_processor = selected_source
-        st.info(f"Managing mappings for: **{selected_processor.replace('_', ' ').title()}**")
+        st.info(f"Managing mappings for: **{get_processor_display_name(selected_processor)}**")
     else:
         selected_processor = st.selectbox(
             "Select Order Processor:",
             processors,
-            format_func=lambda x: x.replace('_', ' ').title()
+            format_func=get_processor_display_name
         )
     
     if selected_processor:
@@ -944,7 +974,7 @@ def manage_mappings_page(db_service: DatabaseService, selected_source: str = "al
 def show_processor_mapping_management(processor: str, db_service: DatabaseService):
     """Complete mapping management for a specific processor"""
     
-    processor_display = processor.replace('_', ' ').title()
+    processor_display = get_processor_display_name(processor)
     
     # Processor overview card
     st.markdown(f"""
@@ -1249,8 +1279,8 @@ def download_mapping_template(processor: str, mapping_type: str):
             'Active': [True],
             'Notes': ['Example item mapping']
         }
-        # Add case_qty columns only for ROSS
-        if processor.lower() == 'ross':
+        # Add case_qty columns only for case-qty processors
+        if uses_case_qty(processor):
             template_data['Use Case Qty'] = [True]
             template_data['Case Qty'] = [6]  # Example: 6 units per case
         filename = f"{processor}_item_mapping_template.csv"
@@ -1346,8 +1376,8 @@ def download_current_mappings(db_service: DatabaseService, processor: str, mappi
                         'Active': getattr(m, 'active', True),
                         'Notes': getattr(m, 'notes', '')
                     }
-                    # Add case_qty columns only for ROSS
-                    if processor.lower() == 'ross':
+                    # Add case_qty columns only for case-qty processors
+                    if uses_case_qty(processor):
                         # Check if case_qty column exists and has a value
                         if db_service._check_case_qty_column_exists():
                             case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
@@ -1394,8 +1424,12 @@ kehe,CUST001,Example Customer,distributor,100,True,Example mapping""")
             st.code("""Source,Raw Store ID,Mapped Store Name,Store Type,Priority,Active,Notes
 kehe,STORE001,Example Store,distributor,100,True,Example store mapping""")
         elif mapping_type == "item":
-            st.code("""Source,Raw Item,Mapped Item,Item Description,Priority,Active,Notes
-kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
+            if uses_case_qty(processor):
+                st.code(f"""Source,Raw Item,Mapped Item,Item Description,Priority,Active,Notes,Use Case Qty,Case Qty
+{processor},ITEM001,MAPPED001,Example item,100,True,Example item mapping,True,6""")
+            else:
+                st.code(f"""Source,Raw Item,Mapped Item,Item Description,Priority,Active,Notes
+{processor},ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
         
         uploaded_file = st.file_uploader(
             "Choose CSV file",
@@ -1425,12 +1459,13 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(100).astype(int)
                         elif 'active' in col_lower:
                             df[col] = df[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
-                        # Handle case_qty conversion for ROSS - convert to float
-                        elif 'case qty' in col_lower or 'caseqty' in col_lower:
-                            df[col] = pd.to_numeric(df[col], errors='coerce')
-                        # Handle use case qty - convert to boolean
+                        # Handle use case qty FIRST (before "case qty") - convert to boolean
+                        # "Use Case Qty" contains "case qty" so we must check this before the numeric Case Qty column
                         elif 'use case qty' in col_lower or 'usecaseqty' in col_lower:
-                            df[col] = df[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
+                            df[col] = df[col].astype(str).str.strip().str.lower().isin(['true', '1', 'yes', 'on']).astype(bool)
+                        # Handle case_qty conversion for case-qty processors - convert to float (column named "Case Qty" only)
+                        elif ('case qty' in col_lower or 'caseqty' in col_lower) and 'use' not in col_lower:
+                            df[col] = pd.to_numeric(df[col], errors='coerce')
                 elif mapping_type in ['customer', 'store']:
                     # For customer/store mappings, read ALL columns as string first to prevent pandas auto-converting numbers to floats
                     # This prevents .0 suffix from being added to customer IDs (e.g., KeHE customer IDs like "569813000000")
@@ -1452,21 +1487,11 @@ kehe,ITEM001,MAPPED001,Example item,100,True,Example item mapping""")
                     df = pd.read_csv(uploaded_file, dtype=dtype_dict if dtype_dict else None)
                 
                 st.write("**File Preview:**")
-                # For ROSS item mappings, ensure Use Case Qty and Case Qty display correctly
-                if mapping_type == 'item' and processor.lower() == 'ross':
-                    # Create a copy for display to avoid modifying the original
-                    display_df = df.copy()
-                    # Ensure boolean columns display as True/False, not None
-                    for col in display_df.columns:
-                        col_lower = str(col).lower()
-                        if 'use case qty' in col_lower or 'usecaseqty' in col_lower:
-                            # Convert to boolean and handle NaN/None values
-                            display_df[col] = display_df[col].apply(
-                                lambda x: True if str(x).lower() in ('true', '1', 'yes', 'on') 
-                                else (False if str(x).lower() in ('false', '0', 'no', 'off', 'nan', 'none', '') 
-                                else bool(x) if pd.notna(x) else False)
-                            )
-                    st.dataframe(display_df.head())
+                # For case-qty item mappings, ensure Use Case Qty and Case Qty display correctly
+                if mapping_type == 'item' and uses_case_qty(processor):
+                    # The DataFrame should already have the correct conversions from the loop above
+                    # Just display it - the boolean conversion should already be done
+                    st.dataframe(df.head())
                 else:
                     st.dataframe(df.head())
                 
@@ -1867,8 +1892,8 @@ def show_add_new_mapping_form(db_service: DatabaseService, processor: str, mappi
                 mapped_item = st.text_input("Mapped Item", key=f"mapped_item_{processor}")
                 item_description = st.text_input("Item Description", key=f"item_description_{processor}")
                 
-                # Add case_qty fields only for ROSS
-                if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                # Add case_qty fields only for case-qty processors
+                if uses_case_qty(processor) and db_service._check_case_qty_column_exists():
                     use_case_qty = st.checkbox("Use Case Qty", value=False, key=f"use_case_qty_new_{processor}")
                     case_qty = st.number_input(
                         "Case Qty (units per case)", 
@@ -1962,8 +1987,8 @@ def show_bulk_editor_interface(db_service: DatabaseService, processor: str, mapp
                                 'Active': getattr(m, 'active', True),
                                 'Notes': getattr(m, 'notes', '')
                             }
-                            # Add case_qty columns only for ROSS
-                            if processor.lower() == 'ross':
+                            # Add case_qty columns only for case-qty processors
+                            if uses_case_qty(processor):
                                 if db_service._check_case_qty_column_exists():
                                     case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
                                     item_row['Use Case Qty'] = case_qty_value is not None and case_qty_value > 0
@@ -2063,8 +2088,8 @@ def show_row_by_row_interface(db_service: DatabaseService, processor: str, mappi
                                     mapped_item = st.text_input("Mapped Item", value=mapping.mapped_item, key=f"mapped_{mapping.id}_{processor}")
                                     description = st.text_input("Description", value=getattr(mapping, 'mapped_description', ''), key=f"desc_{mapping.id}_{processor}")
                                     
-                                    # Add case_qty fields only for ROSS
-                                    if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                                    # Add case_qty fields only for case-qty processors
+                                    if uses_case_qty(processor) and db_service._check_case_qty_column_exists():
                                         use_case_qty = st.checkbox(
                                             "Use Case Qty", 
                                             value=db_service._safe_get_item_mapping_attr(mapping, 'case_qty') is not None and db_service._safe_get_item_mapping_attr(mapping, 'case_qty') > 0,
@@ -2213,8 +2238,8 @@ def show_current_mappings_view(db_service: DatabaseService, processor: str, mapp
                             'Active': getattr(m, 'active', True),
                             'Notes': getattr(m, 'notes', '')
                         }
-                        # Add case_qty columns only for ROSS
-                        if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                        # Add case_qty columns only for case-qty processors
+                        if uses_case_qty(processor) and db_service._check_case_qty_column_exists():
                             case_qty_value = db_service._safe_get_item_mapping_attr(m, 'case_qty')
                             item_row['Use Case Qty'] = case_qty_value is not None and case_qty_value > 0
                             item_row['Case Qty'] = case_qty_value if case_qty_value is not None else ''
@@ -2405,12 +2430,13 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     'notes': notes
                 }
                 
-                # Handle case_qty only for ROSS
-                if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                # Handle case_qty only for case-qty processors
+                if uses_case_qty(processor) and db_service._check_case_qty_column_exists():
                     # Normalize column names for flexible matching (handle spaces, underscores, case)
                     def normalize_col_name(col_name):
                         return str(col_name).strip().lower().replace(' ', '').replace('_', '').replace('-', '')
                     
+                    # Get all column names from the row (pandas Series index)
                     row_cols_normalized = {normalize_col_name(k): k for k in row.index}
                     
                     # Check for "Use Case Qty" flag - try multiple column name variations
@@ -2418,24 +2444,38 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     use_case_qty_patterns = ['usecaseqty', 'usecase', 'useqty']
                     for pattern in use_case_qty_patterns:
                         matching_col = row_cols_normalized.get(pattern)
-                        if matching_col and matching_col in row and pd.notna(row[matching_col]):
+                        if matching_col and matching_col in row.index:
                             try:
-                                use_case_qty = bool(row[matching_col]) if isinstance(row[matching_col], bool) else str(row[matching_col]).lower() in ('true', '1', 'yes', 'on')
-                                if use_case_qty:
-                                    break
-                            except (ValueError, TypeError):
-                                continue
-                    
-                    # Also try direct column name matches as fallback
-                    if not use_case_qty:
-                        use_case_qty_cols = ['Use Case Qty', 'use_case_qty', 'UseCaseQty', 'use case qty', 'Use Case Qty', 'UseCase Qty']
-                        for col in use_case_qty_cols:
-                            if col in row and pd.notna(row[col]):
-                                try:
-                                    use_case_qty = bool(row[col]) if isinstance(row[col], bool) else str(row[col]).lower() in ('true', '1', 'yes', 'on')
+                                val = row[matching_col]
+                                if pd.notna(val):
+                                    # Handle both boolean and string values
+                                    if isinstance(val, bool):
+                                        use_case_qty = val
+                                    else:
+                                        val_str = str(val).strip().lower()
+                                        use_case_qty = val_str in ('true', '1', 'yes', 'on')
                                     if use_case_qty:
                                         break
-                                except (ValueError, TypeError):
+                            except (ValueError, TypeError, KeyError):
+                                continue
+                    
+                    # Also try direct column name matches as fallback (check all possible variations)
+                    if not use_case_qty:
+                        # Check all columns in the row for "use case qty" pattern
+                        for col_name in row.index:
+                            col_normalized = normalize_col_name(col_name)
+                            if 'usecase' in col_normalized or 'useqty' in col_normalized:
+                                try:
+                                    val = row[col_name]
+                                    if pd.notna(val):
+                                        if isinstance(val, bool):
+                                            use_case_qty = val
+                                        else:
+                                            val_str = str(val).strip().lower()
+                                            use_case_qty = val_str in ('true', '1', 'yes', 'on')
+                                        if use_case_qty:
+                                            break
+                                except (ValueError, TypeError, KeyError):
                                     continue
                     
                     # Get case_qty value - check even if use_case_qty is False, in case user just provided Case Qty directly
@@ -2443,42 +2483,41 @@ def upload_mappings_to_database_silent(df: pd.DataFrame, db_service: DatabaseSer
                     case_qty_patterns = ['caseqty', 'case']
                     for pattern in case_qty_patterns:
                         matching_col = row_cols_normalized.get(pattern)
-                        if matching_col and matching_col in row and pd.notna(row[matching_col]):
+                        if matching_col and matching_col in row.index:
                             try:
-                                case_qty_value = float(row[matching_col])
-                                if case_qty_value > 0:
-                                    break
-                            except (ValueError, TypeError):
-                                continue
-                    
-                    # Also try direct column name matches (case-sensitive) as fallback
-                    if case_qty_value is None:
-                        case_qty_cols = ['Case Qty', 'case_qty', 'CaseQty', 'case qty', 'Case Qty']
-                        for col in case_qty_cols:
-                            if col in row and pd.notna(row[col]):
-                                try:
-                                    case_qty_value = float(row[col])
+                                val = row[matching_col]
+                                if pd.notna(val):
+                                    case_qty_value = float(val)
                                     if case_qty_value > 0:
                                         break
-                                except (ValueError, TypeError):
+                            except (ValueError, TypeError, KeyError):
+                                continue
+                    
+                    # Also try direct column name matches (check all columns for case qty pattern)
+                    if case_qty_value is None:
+                        for col_name in row.index:
+                            col_normalized = normalize_col_name(col_name)
+                            # Match "caseqty" but not "usecaseqty"
+                            if 'caseqty' in col_normalized and 'use' not in col_normalized:
+                                try:
+                                    val = row[col_name]
+                                    if pd.notna(val):
+                                        case_qty_value = float(val)
+                                        if case_qty_value > 0:
+                                            break
+                                except (ValueError, TypeError, KeyError):
                                     continue
                     
                     # Set case_qty based on use_case_qty flag and case_qty_value
-                    # If use_case_qty is True, we require a valid case_qty_value to be set
-                    # If use_case_qty is False or not set, but case_qty_value is provided, we still set it
-                    if use_case_qty:
-                        # If use_case_qty is True, set case_qty to the provided value
-                        # If case_qty_value is not provided but use_case_qty is True, set to 1.0 as default
-                        # This ensures "Use Case Qty" shows as True in UI/download
-                        if case_qty_value and case_qty_value > 0:
-                            mapping_entry['case_qty'] = case_qty_value
-                        else:
-                            # Use Case Qty is True but no value provided - set default to 1.0
-                            # This allows the flag to show as True, user can update the actual value later
-                            mapping_entry['case_qty'] = 1.0
-                    elif case_qty_value and case_qty_value > 0:
-                        # If use_case_qty is False/not set but case_qty_value is provided, set it
+                    # Logic: If case_qty_value is provided, we should use it (implicitly means Use Case Qty = True)
+                    # If use_case_qty is explicitly True, we should set case_qty even if value is not provided
+                    if case_qty_value and case_qty_value > 0:
+                        # If case_qty_value is provided, set it (this implicitly means Use Case Qty should be True)
                         mapping_entry['case_qty'] = case_qty_value
+                    elif use_case_qty:
+                        # If use_case_qty is explicitly True but no value provided, set default to 1.0
+                        # This ensures "Use Case Qty" shows as True in UI/download
+                        mapping_entry['case_qty'] = 1.0
                     else:
                         # Neither use_case_qty is True nor case_qty_value is provided
                         mapping_entry['case_qty'] = None
@@ -2635,8 +2674,8 @@ def add_new_mapping_to_database(db_service: DatabaseService, processor: str, map
                 'active': form_data['active'],
                 'notes': form_data.get('notes', '')
             }
-            # Handle case_qty only for ROSS
-            if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+            # Handle case_qty only for case-qty processors
+            if uses_case_qty(processor) and db_service._check_case_qty_column_exists():
                 use_case_qty = form_data.get('use_case_qty', False)
                 if use_case_qty and 'case_qty' in form_data and form_data['case_qty'] is not None:
                     try:
@@ -2756,8 +2795,8 @@ def save_row_changes(mapping, form_data: dict, db_service: DatabaseService, proc
                     db_mapping.active = form_data['active']
                     db_mapping.notes = form_data['notes']
                     
-                    # Handle case_qty only for ROSS
-                    if processor.lower() == 'ross' and db_service._check_case_qty_column_exists():
+                    # Handle case_qty only for case-qty processors
+                    if uses_case_qty(processor) and db_service._check_case_qty_column_exists():
                         use_case_qty = form_data.get('use_case_qty', False)
                         if use_case_qty and 'case_qty' in form_data and form_data['case_qty'] is not None:
                             try:

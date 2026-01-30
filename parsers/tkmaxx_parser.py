@@ -16,6 +16,10 @@ class TKMaxxParser(BaseParser):
     def __init__(self):
         super().__init__()
         self.source_name = "TJ Maxx"
+        # Cache PO and Distribution data to combine across uploads
+        self._pending_po_data = {}
+        self._pending_distribution_data = {}
+        self.last_parse_status = None
     
     def parse(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """Parse TJ Maxx PDF/CSV/Excel order file"""
@@ -37,10 +41,38 @@ class TKMaxxParser(BaseParser):
             # Determine file type based on content
             if 'ROUTING AND DISTRIBUTION INSTRUCTIONS' in text_content.upper():
                 # This is a Distribution file
-                return self._parse_distribution_file(text_content, filename)
+                distribution_data = self._parse_distribution_data(text_content, filename)
+                if not distribution_data:
+                    return None
+                
+                po_number = distribution_data.get('po_number')
+                if po_number and po_number in self._pending_po_data:
+                    po_data = self._pending_po_data.pop(po_number)
+                    self._pending_distribution_data.pop(po_number, None)
+                    self.last_parse_status = "combined"
+                    return self._combine_po_and_distribution(po_data, distribution_data)
+                
+                # Store distribution data and wait for matching PO file
+                self._pending_distribution_data[po_number] = distribution_data
+                self.last_parse_status = "pending"
+                return []
             else:
                 # This is likely a PO file (Vendor Copy)
-                return self._parse_po_file(text_content, filename)
+                po_data = self._parse_po_data(text_content, filename)
+                if not po_data:
+                    return None
+                
+                po_number = po_data.get('po_number')
+                if po_number and po_number in self._pending_distribution_data:
+                    distribution_data = self._pending_distribution_data.pop(po_number)
+                    self._pending_po_data.pop(po_number, None)
+                    self.last_parse_status = "combined"
+                    return self._combine_po_and_distribution(po_data, distribution_data)
+                
+                # Store PO data and wait for matching Distribution file
+                self._pending_po_data[po_number] = po_data
+                self.last_parse_status = "pending"
+                return []
                 
         except Exception as e:
             raise ValueError(f"Error parsing TJ Maxx PDF: {str(e)}")
@@ -61,10 +93,8 @@ class TKMaxxParser(BaseParser):
         except Exception as e:
             raise ValueError(f"Could not extract text from PDF: {str(e)}")
     
-    def _parse_distribution_file(self, text_content: str, filename: str) -> Optional[List[Dict[str, Any]]]:
+    def _parse_distribution_data(self, text_content: str, filename: str) -> Optional[Dict[str, Any]]:
         """Parse Distribution file (ROUTING AND DISTRIBUTION INSTRUCTIONS)"""
-        
-        orders = []
         
         # Extract PO Number
         po_match = re.search(r'PO\s+Number[:\s]+(\d+)', text_content, re.IGNORECASE)
@@ -79,90 +109,19 @@ class TKMaxxParser(BaseParser):
         # Extract brand name from filename or content
         brand = self._extract_brand_name(filename, text_content)
         
-        # Extract all DC information
-        # Pattern: "PO #XX 604108 (SAN: SAN PEDRO)" or "DC #: 881"
-        dc_pattern = r'PO\s+#\d+\s+\d+\s*\([^)]+\)|DC\s*#\s*:\s*(\d+)'
-        dc_matches = re.findall(r'DC\s*#\s*:\s*(\d+)', text_content, re.IGNORECASE)
-        
-        # Also extract DC info from PO #XX pattern: "PO #10 604108 (SAN: SAN PEDRO)" -> DC info
-        po_dc_pattern = r'PO\s+#(\d+)\s+\d+\s*\(([^:)]+):\s*([^)]+)\)'
-        po_dc_matches = re.findall(po_dc_pattern, text_content, re.IGNORECASE)
-        
-        # Collect all DC numbers
-        dc_numbers = set()
-        dc_info = {}  # Map DC number to DC name/location
-        
-        # Extract from DC #: pattern
-        for dc_num in dc_matches:
-            dc_numbers.add(dc_num)
-        
-        # Extract from PO #XX pattern and map to DC numbers
-        for po_num, dc_code, dc_name in po_dc_matches:
-            # Find corresponding DC number (usually follows the pattern)
-            # Look for "DC #: XXX" near this PO entry
-            dc_numbers.add(po_num)  # Sometimes PO # matches DC #
-        
-        # More comprehensive DC extraction
-        # Look for patterns like "DC #: 881" followed by address
-        dc_section_pattern = r'DC\s*#\s*:\s*(\d+)\s*\n\s*Address:\s*([^\n]+)'
-        dc_sections = re.findall(dc_section_pattern, text_content, re.IGNORECASE | re.MULTILINE)
-        for dc_num, address in dc_sections:
-            dc_numbers.add(dc_num)
-            dc_info[dc_num] = {'address': address.strip()}
-        
         # Extract line items from the product table
         # Pattern matches the table with Vendor Style, TJX Style, Description, Units per DC
         line_items = self._extract_distribution_line_items(text_content)
+        if not line_items:
+            return None
         
-        # Create order items for each DC and line item combination
-        for item in line_items:
-            vendor_style = item.get('vendor_style', '')
-            tjx_style = item.get('tjx_style', '')
-            description = item.get('description', '')
-            total_units = item.get('total_units', 0)
-            
-            # Extract units per DC from the item
-            dc_units = item.get('dc_units', {})
-            
-            # Create an order item for each DC that has units
-            for dc_num in dc_numbers:
-                units_for_dc = dc_units.get(dc_num, 0)
-                
-                if units_for_dc > 0:
-                    # Use DC number for customer and store mapping
-                    raw_dc = str(dc_num)
-                    
-                    # Get customer mapping using DC number
-                    mapped_customer = self.mapping_utils.get_customer_mapping(raw_dc, 'tkmaxx')
-                    if not mapped_customer or mapped_customer == 'UNKNOWN':
-                        mapped_customer = f"TJ Maxx DC {dc_num}"
-                    
-                    # Get store mapping using DC number (for sales store and ship store)
-                    mapped_store = self.mapping_utils.get_store_mapping(raw_dc, 'tkmaxx')
-                    if not mapped_store or mapped_store == raw_dc:
-                        mapped_store = f"DC {dc_num}"
-                    
-                    order_item = {
-                        'order_number': po_number,
-                        'order_date': order_date,
-                        'customer_name': mapped_customer,
-                        'raw_customer_name': raw_dc,
-                        'sale_store_name': mapped_store,
-                        'store_name': mapped_store,  # Ship store
-                        'item_number': tjx_style or vendor_style,
-                        'raw_item_number': vendor_style,
-                        'item_description': description,
-                        'quantity': int(units_for_dc),
-                        'unit_price': item.get('unit_cost', 0.0),
-                        'total_price': item.get('unit_cost', 0.0) * int(units_for_dc),
-                        'source_file': filename,
-                        'brand': brand,
-                        'dc_number': dc_num
-                    }
-                    
-                    orders.append(order_item)
-        
-        return orders if orders else None
+        return {
+            'po_number': po_number,
+            'order_date': order_date,
+            'brand': brand,
+            'line_items': line_items,
+            'source_file': filename
+        }
     
     def _extract_brand_name(self, filename: str, text_content: str) -> str:
         """Extract brand name from filename or content"""
@@ -217,14 +176,11 @@ class TKMaxxParser(BaseParser):
                 if dc_code:
                     dc_code_to_number[dc_code.upper()] = dc_num
         
-        # Also extract DC numbers from the PO #XX pattern
-        po_dc_pattern = r'PO\s+#\d+\s+\d+\s*\(([A-Z]{3}):\s*[^)]+\)'
-        po_dc_matches = re.findall(po_dc_pattern, text_content, re.IGNORECASE)
-        for dc_code in po_dc_matches:
-            # Find corresponding DC number
-            dc_num_match = re.search(rf'PO\s+#\d+\s+\d+\s*\({dc_code}[^)]+\)\s*\n[^\n]*DC\s*#\s*:\s*(\d+)', text_content, re.IGNORECASE | re.MULTILINE)
-            if dc_num_match:
-                dc_code_to_number[dc_code.upper()] = dc_num_match.group(1)
+        # Also extract DC codes from distribution center list if available
+        dc_list_matches = re.findall(r'DC\s*#\s*(\d{2,5})', text_content, re.IGNORECASE)
+        for dc_num in dc_list_matches:
+            if dc_num not in dc_numbers_list:
+                dc_numbers_list.append(dc_num)
         
         # Extract line items from table
         # Look for table rows with pattern: "1-1", "1-2", etc. (PG-LN format)
@@ -339,15 +295,182 @@ class TKMaxxParser(BaseParser):
                         continue
         
         return items
-    
-    def _parse_po_file(self, text_content: str, filename: str) -> Optional[List[Dict[str, Any]]]:
-        """Parse PO file (VENDOR COPY) - to be implemented when PO samples are available"""
+
+    def _parse_po_data(self, text_content: str, filename: str) -> Optional[Dict[str, Any]]:
+        """Parse PO file (VENDOR COPY) for prices and store state"""
         
-        # TODO: Implement PO file parsing when samples are provided
-        # For now, return None to indicate PO files need to be handled separately
-        # or combined with Distribution files
+        # Extract PO Number
+        po_number = None
+        po_patterns = [
+            r'PO\s+Number[:\s]+(\d+)',
+            r'DOMESTIC\s+PO\s*#\s*(\d+)',
+            r'PO\s*#\s*(\d+)'
+        ]
+        for pattern in po_patterns:
+            po_match = re.search(pattern, text_content, re.IGNORECASE)
+            if po_match:
+                po_number = po_match.group(1)
+                break
+        if not po_number:
+            po_number = filename
         
-        return None
+        # Extract Order Date
+        order_date = None
+        order_date_match = re.search(r'ORDER\s+DATE[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})', text_content, re.IGNORECASE)
+        if order_date_match:
+            order_date = self.parse_date(order_date_match.group(1))
+        
+        # Extract state for store mapping
+        state = None
+        state_match = re.search(r'STATE[:\s]+([A-Z]{2})', text_content, re.IGNORECASE)
+        if state_match:
+            state = state_match.group(1).upper()
+        
+        # Extract line items with pricing
+        line_items = self._extract_po_line_items(text_content)
+        if not line_items:
+            return None
+        
+        return {
+            'po_number': po_number,
+            'order_date': order_date,
+            'state': state,
+            'line_items': line_items,
+            'source_file': filename
+        }
+
+    def _extract_po_line_items(self, text_content: str) -> List[Dict[str, Any]]:
+        """Extract line items (vendor/tjx style + unit cost) from PO file"""
+        
+        items = []
+        lines = text_content.split('\n')
+        in_table = False
+        
+        for line in lines:
+            line_upper = line.upper()
+            if 'VENDOR STYLE' in line_upper and 'UNIT COST' in line_upper:
+                in_table = True
+                continue
+            
+            if not in_table:
+                continue
+            
+            if not line.strip():
+                continue
+            
+            # Skip repeated headers
+            if 'VENDOR STYLE' in line_upper and 'UNIT COST' in line_upper:
+                continue
+            
+            tokens = re.split(r'\s{2,}|\s+', line.strip())
+            if not tokens:
+                continue
+            
+            # Unit cost token (e.g., 2.25 or $2.25)
+            unit_cost = None
+            unit_token = None
+            for token in tokens:
+                token_clean = token.replace('$', '')
+                if re.match(r'^\d+\.\d{2}$', token_clean):
+                    unit_cost = float(token_clean)
+                    unit_token = token
+                    break
+            
+            if unit_cost is None:
+                continue
+            
+            # Style numbers are typically 5-8 digits
+            numeric_tokens = [t for t in tokens if re.match(r'^\d{5,8}$', t)]
+            if not numeric_tokens:
+                continue
+            
+            vendor_style = numeric_tokens[0]
+            tjx_style = numeric_tokens[1] if len(numeric_tokens) > 1 else ''
+            
+            items.append({
+                'vendor_style': vendor_style,
+                'tjx_style': tjx_style,
+                'unit_cost': unit_cost,
+                'description': ''
+            })
+        
+        return items
+
+    def _combine_po_and_distribution(self, po_data: Dict[str, Any], distribution_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Combine PO pricing with Distribution quantities"""
+        
+        orders = []
+        po_number = distribution_data.get('po_number') or po_data.get('po_number')
+        order_date = po_data.get('order_date') or distribution_data.get('order_date')
+        brand = distribution_data.get('brand') or 'TJ Maxx'
+        state = po_data.get('state')
+        
+        # Build price lookup maps
+        price_by_tjx = {}
+        price_by_vendor = {}
+        for item in po_data.get('line_items', []):
+            tjx_style = item.get('tjx_style')
+            vendor_style = item.get('vendor_style')
+            if tjx_style:
+                price_by_tjx[tjx_style] = item
+            if vendor_style:
+                price_by_vendor[vendor_style] = item
+        
+        # Map store based on state (PO file)
+        raw_state = state or ''
+        mapped_store = self.mapping_utils.get_store_mapping(raw_state, 'tkmaxx') if raw_state else None
+        if not mapped_store or mapped_store == raw_state:
+            mapped_store = raw_state or 'UNKNOWN'
+        
+        for dist_item in distribution_data.get('line_items', []):
+            vendor_style = dist_item.get('vendor_style', '')
+            tjx_style = dist_item.get('tjx_style', '')
+            description = dist_item.get('description', '')
+            
+            # Match price from PO file
+            po_item = None
+            if tjx_style and tjx_style in price_by_tjx:
+                po_item = price_by_tjx[tjx_style]
+            elif vendor_style and vendor_style in price_by_vendor:
+                po_item = price_by_vendor[vendor_style]
+            
+            unit_cost = po_item.get('unit_cost', 0.0) if po_item else 0.0
+            if po_item and po_item.get('description'):
+                description = po_item['description']
+            
+            # Extract units per DC from distribution file
+            dc_units = dist_item.get('dc_units', {})
+            for dc_num, units_for_dc in dc_units.items():
+                if not units_for_dc or int(units_for_dc) <= 0:
+                    continue
+                
+                raw_dc = str(dc_num)
+                mapped_customer = self.mapping_utils.get_customer_mapping(raw_dc, 'tkmaxx')
+                if not mapped_customer or mapped_customer == 'UNKNOWN':
+                    mapped_customer = f"TJ Maxx DC {dc_num}"
+                
+                order_item = {
+                    'order_number': po_number,
+                    'order_date': order_date,
+                    'customer_name': mapped_customer,
+                    'raw_customer_name': raw_dc,
+                    'sale_store_name': mapped_store,
+                    'store_name': mapped_store,
+                    'item_number': tjx_style or vendor_style,
+                    'raw_item_number': vendor_style,
+                    'item_description': description,
+                    'quantity': int(units_for_dc),
+                    'unit_price': unit_cost,
+                    'total_price': unit_cost * int(units_for_dc),
+                    'source_file': distribution_data.get('source_file') or po_data.get('source_file'),
+                    'brand': brand,
+                    'dc_number': dc_num,
+                    'ship_state': raw_state
+                }
+                
+                orders.append(order_item)
+        
+        return orders
     
     def _parse_csv_excel(self, file_content: bytes, file_extension: str, filename: str) -> Optional[List[Dict[str, Any]]]:
         """Parse TJ Maxx CSV/Excel order file (legacy support)"""
