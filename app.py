@@ -1487,11 +1487,16 @@ kehe,STORE001,Example Store,distributor,100,True,Example store mapping""")
                     df = pd.read_csv(uploaded_file, dtype=dtype_dict if dtype_dict else None)
                 
                 st.write("**File Preview:**")
-                # For case-qty item mappings, ensure Use Case Qty and Case Qty display correctly
                 if mapping_type == 'item' and uses_case_qty(processor):
-                    # The DataFrame should already have the correct conversions from the loop above
-                    # Just display it - the boolean conversion should already be done
-                    st.dataframe(df.head())
+                    # Display Use Case Qty as text in preview (avoid checkbox)
+                    preview_df = df.copy()
+                    for col in preview_df.columns:
+                        col_lower = col.lower().strip()
+                        if 'use case qty' in col_lower or 'usecaseqty' in col_lower:
+                            preview_df[col] = preview_df[col].apply(
+                                lambda v: 'TRUE' if bool(v) else 'FALSE'
+                            )
+                    st.dataframe(preview_df.head())
                 else:
                     st.dataframe(df.head())
                 
