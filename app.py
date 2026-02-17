@@ -92,6 +92,21 @@ def initialize_database_if_needed():
             # Only show Streamlit messages in non-deployment contexts
             if not os.getenv('REPLIT_DEPLOYMENT'):
                 st.success(f"Connected to {env} database ({len(tables_exist)} tables found)")
+        
+        # Always run migrations to ensure new columns (like case_qty) are added
+        # to existing tables. create_all() only creates NEW tables, not new columns.
+        try:
+            from database.migration import migrate_item_mapping_table
+            success, msg = migrate_item_mapping_table()
+            if success:
+                print(f"✅ Migration check: {msg}")
+                # Clear the case_qty column existence cache so it gets re-checked
+                from database.service import DatabaseService
+                DatabaseService._case_qty_column_exists = None
+            else:
+                print(f"⚠️ Migration issue: {msg}")
+        except Exception as migration_err:
+            print(f"⚠️ Migration check skipped: {migration_err}")
             
     except Exception as e:
         error_msg = f"Database connection failed: {e}"
@@ -358,7 +373,13 @@ def main():
                 # Re-initialize database tables
                 engine = get_database_engine()
                 Base.metadata.create_all(bind=engine)
-                st.success("✅ Database initialized!")
+                # Run migrations to add any new columns (like case_qty) to existing tables
+                from database.migration import migrate_item_mapping_table
+                success, msg = migrate_item_mapping_table()
+                # Clear the case_qty column existence cache so it gets re-checked
+                from database.service import DatabaseService
+                DatabaseService._case_qty_column_exists = None
+                st.success(f"✅ Database initialized! Migration: {msg}")
             except Exception as e:
                 st.error(f"❌ Database init failed: {e}")
     

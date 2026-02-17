@@ -28,7 +28,8 @@ def migrate_item_mapping_table():
                 ('active', "BOOLEAN DEFAULT TRUE"),
                 ('vendor', "VARCHAR(100)"),
                 ('mapped_description', "TEXT"),
-                ('notes', "TEXT")
+                ('notes', "TEXT"),
+                ('case_qty', "FLOAT"),
             ]
             
             columns_added = []
