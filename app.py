@@ -377,7 +377,7 @@ def main():
                 from database.migration import migrate_item_mapping_table
                 success, msg = migrate_item_mapping_table()
                 # Clear the case_qty column existence cache so it gets re-checked
-                from database.service import DatabaseService
+                # DatabaseService is already imported at module level (line 35)
                 DatabaseService._case_qty_column_exists = None
                 st.success(f"✅ Database initialized! Migration: {msg}")
             except Exception as e:
