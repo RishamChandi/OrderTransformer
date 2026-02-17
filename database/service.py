@@ -25,20 +25,19 @@ class DatabaseService:
     
     @staticmethod
     def _check_case_qty_column_exists() -> bool:
-        """Check if case_qty column exists in item_mappings table
-        Uses a fresh connection to avoid transaction state issues
+        """Check if case_qty column exists in item_mappings table.
+        Uses a fresh connection to avoid transaction state issues.
+        Only caches True results. False results are NOT cached so
+        the check is retried (the column may be added by a migration).
         """
-        if DatabaseService._case_qty_column_exists is not None:
-            return DatabaseService._case_qty_column_exists
+        if DatabaseService._case_qty_column_exists is True:
+            return True
         
         try:
             from .connection import get_database_engine
             engine = get_database_engine()
             
-            # Use a fresh connection to avoid transaction state issues
-            # This ensures we can check even if another transaction is in a failed state
             with engine.connect() as conn:
-                # Use raw SQL to check column existence - this avoids SQLAlchemy model issues
                 from sqlalchemy import text
                 result = conn.execute(text("""
                     SELECT column_name 
@@ -47,12 +46,13 @@ class DatabaseService:
                     AND column_name = 'case_qty'
                 """))
                 exists = result.fetchone() is not None
-                DatabaseService._case_qty_column_exists = exists
+                if exists:
+                    # Only cache True - once the column exists it won't disappear
+                    DatabaseService._case_qty_column_exists = True
                 return exists
         except Exception as e:
-            # If we can't check, assume it doesn't exist to be safe
             print(f"DEBUG: Could not check case_qty column existence: {e}")
-            DatabaseService._case_qty_column_exists = False
+            # Don't cache failures - retry next time
             return False
     
     @staticmethod
