@@ -52,7 +52,11 @@ class XoroTemplate:
         eta_date = order.get('eta_date')
         delivery_date = order.get('delivery_date')
         
-        if source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
+        if source_name.lower() == 'ross':
+            # For ROSS: PO START DATE = ship date, PO CANCEL DATE = cancel date
+            shipping_date = order.get('po_start_date') or delivery_date or self._calculate_shipping_date(order_date)
+            print(f"DEBUG: ROSS - po_start_date: {order.get('po_start_date')}, shipping_date: {shipping_date}")
+        elif source_name.lower().replace(' ', '_') == 'unfi_east' or source_name.lower() == 'unfi east':
             # For UNFI East: use Pck Date (pickup date) for shipping dates
             shipping_date = pickup_date if pickup_date else self._calculate_shipping_date(order_date)
             print(f"DEBUG: UNFI East detected - source_name: '{source_name}', pickup_date: {pickup_date}, shipping_date: {shipping_date}")
@@ -95,21 +99,24 @@ class XoroTemplate:
             # Customer name comes from customer mapping (e.g., "UNFI MORENO VALLEY #2")
             final_customer_name = order.get('customer_name', 'UNKNOWN')
         elif source_name.lower() == 'ross':
-            # For ROSS: use store and customer mappings from parser
-            sale_store_name = order.get('store_name') or order.get('customer_name') or 'UNKNOWN'
-            store_name = order.get('store_name') or order.get('customer_name') or 'UNKNOWN'
+            # For ROSS: SaleStoreName and StoreName come from store mapping of PICKUP LOC
+            sale_store_name = order.get('sale_store_name') or order.get('store_name') or 'UNKNOWN'
+            store_name = order.get('store_name') or 'UNKNOWN'
             final_customer_name = order.get('customer_name', 'UNKNOWN')
         else:
             sale_store_name = order.get('store_name')
             store_name = order.get('store_name')
             final_customer_name = order.get('customer_name', 'UNKNOWN')
         
-        # Validate required fields - fail if no mapping found (with special handling for ROSS)
+        # Validate required fields - fail if no mapping found
         if not sale_store_name or sale_store_name == 'UNKNOWN':
-            # For ROSS, use customer name as fallback for store name
-            if source_name.lower() == 'ross' and final_customer_name and final_customer_name != 'UNKNOWN':
-                sale_store_name = final_customer_name
-                store_name = final_customer_name
+            if source_name.lower() == 'ross':
+                pickup_loc = order.get('pickup_location', 'NOT EXTRACTED')
+                raise ValueError(
+                    f"No store mapping found for ROSS order {order.get('order_number')}. "
+                    f"PICKUP LOC from PDF: '{pickup_loc}'. "
+                    f"Please add a store mapping for this PICKUP LOC in the ROSS store mappings."
+                )
             else:
                 raise ValueError(f"No store mapping found for {source_name} order {order.get('order_number')}")
         

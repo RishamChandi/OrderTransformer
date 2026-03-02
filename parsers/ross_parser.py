@@ -26,24 +26,17 @@ class ROSSParser(BaseParser):
             raise ValueError("ROSS parser only supports PDF files")
         
         try:
-            # Convert PDF content to text
             text_content = self._extract_text_from_pdf(file_content)
             
-            orders = []
-            
-            # Extract order header information
             order_info = self._extract_order_header(text_content, filename)
-            
-            # Extract line items
             line_items = self._extract_line_items(text_content)
             
-            # Combine header and line items
+            orders = []
             if line_items:
                 for item in line_items:
                     order_item = {**order_info, **item}
                     orders.append(order_item)
             else:
-                # Create single order if no line items found
                 orders.append(order_info)
             
             if not orders:
@@ -52,7 +45,6 @@ class ROSSParser(BaseParser):
             return orders
             
         except ValueError:
-            # Re-raise ValueError as-is
             raise
         except Exception as e:
             import traceback
@@ -64,17 +56,12 @@ class ROSSParser(BaseParser):
         """Extract text from PDF file content using PyPDF2"""
         
         try:
-            # Create a BytesIO object from the file content
             pdf_stream = io.BytesIO(file_content)
-            
-            # Use PyPDF2 to read the PDF
             pdf_reader = PdfReader(pdf_stream)
             
-            # Check if PDF has pages
             if len(pdf_reader.pages) == 0:
                 raise ValueError("PDF file appears to be empty or corrupted (no pages found)")
             
-            # Extract text from all pages
             text_content = ""
             for page_num, page in enumerate(pdf_reader.pages):
                 try:
@@ -91,13 +78,11 @@ class ROSSParser(BaseParser):
             return text_content
             
         except ValueError:
-            # Re-raise ValueError as-is
             raise
         except Exception as e:
-            # Fallback: try to decode as text (for text-based files)
             try:
                 decoded = file_content.decode('utf-8', errors='ignore')
-                if len(decoded) > 100:  # Only use if we got substantial text
+                if len(decoded) > 100:
                     return decoded
             except:
                 pass
@@ -124,317 +109,303 @@ class ROSSParser(BaseParser):
         if po_match:
             order_info['order_number'] = po_match.group(1)
         
-        # Extract ORDER DATE
-        order_date_match = re.search(r'ORDER\s+DATE[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})', text_content, re.IGNORECASE)
-        if order_date_match:
-            order_info['order_date'] = self.parse_date(order_date_match.group(1))
+        # --- Date extraction ---
+        # The PDF layout has dates in a table that gets extracted as:
+        #   "10/13/23 YPO CANCEL DATE"    (preticket date + Y flag + label)
+        #   "10/12/23 12/05/23"            (ORDER DATE value + PO CANCEL DATE value)
+        #   ...
+        #   "PO START DATE"
+        #   "12/01/23"
         
-        # Extract PO START DATE
-        po_start_match = re.search(r'PO\s+START\s+DATE[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})', text_content, re.IGNORECASE)
-        if po_start_match:
-            order_info['po_start_date'] = self.parse_date(po_start_match.group(1))
-            # Use PO START DATE as delivery date if available
-            order_info['delivery_date'] = order_info['po_start_date']
+        # Strategy: find the line containing "PO CANCEL DATE", then the NEXT line
+        # has ORDER DATE (first date) and PO CANCEL DATE (second date)
+        lines = text_content.split('\n')
+        date_pattern = r'(\d{1,2}/\d{1,2}/\d{2,4})'
         
-        # Extract PO CANCEL DATE
-        po_cancel_match = re.search(r'PO\s+CANCEL\s+DATE[:\s]+(\d{1,2}/\d{1,2}/\d{2,4})', text_content, re.IGNORECASE)
-        if po_cancel_match:
-            order_info['po_cancel_date'] = self.parse_date(po_cancel_match.group(1))
-        
-        # Extract Pickup Location - this is critical for customer mapping
-        # Pattern: "PICKUP LOC: NJ - New Jersey" or "Domestic PICKUP LOC: NJ - New Je"
-        pickup_patterns = [
-            r'PICKUP\s+LOC[:\s]+([A-Z]{2})\s*[-–]\s*([^:\n]+)',
-            r'Domestic\s+PICKUP\s+LOC[:\s]+([A-Z]{2})\s*[-–]\s*([^:\n]+)',
-            r'PICKUP\s+LOC[:\s]+([A-Z]{2})',
-        ]
-        
-        pickup_location = None
-        for pattern in pickup_patterns:
-            pickup_match = re.search(pattern, text_content, re.IGNORECASE)
-            if pickup_match:
-                state_code = pickup_match.group(1).strip()
-                state_name = pickup_match.group(2).strip() if len(pickup_match.groups()) > 1 else state_code
-                pickup_location = f"{state_code} - {state_name}"
-                order_info['pickup_location'] = pickup_location
-                print(f"DEBUG: Found pickup location: '{pickup_location}'")
+        for i, line in enumerate(lines):
+            if 'PO CANCEL DATE' in line.upper():
+                # Look at the next few lines for dates
+                for j in range(i + 1, min(i + 3, len(lines))):
+                    dates_on_line = re.findall(date_pattern, lines[j])
+                    if len(dates_on_line) >= 2:
+                        # First date = ORDER DATE, Second date = PO CANCEL DATE
+                        order_info['order_date'] = self.parse_date(dates_on_line[0])
+                        order_info['po_cancel_date'] = self.parse_date(dates_on_line[1])
+                        print(f"DEBUG: Extracted ORDER DATE: {order_info['order_date']}, PO CANCEL DATE: {order_info['po_cancel_date']}")
+                        break
+                    elif len(dates_on_line) == 1:
+                        # Single date after PO CANCEL DATE label = cancel date
+                        order_info['po_cancel_date'] = self.parse_date(dates_on_line[0])
+                        break
                 break
         
-        # Map customer - ROSS has only one customer, so use the first/only customer mapping
-        # Get all customer mappings for ROSS and use the first one (there should be only one)
+        # Extract PO START DATE (ship date)
+        po_start_match = re.search(r'PO\s+START\s+DATE\s*[:\s]*(\d{1,2}/\d{1,2}/\d{2,4})', text_content, re.IGNORECASE)
+        if po_start_match:
+            order_info['po_start_date'] = self.parse_date(po_start_match.group(1))
+            order_info['delivery_date'] = order_info['po_start_date']
+            print(f"DEBUG: Extracted PO START DATE: {order_info['po_start_date']}")
+        
+        # If ORDER DATE still not found, try a direct regex
+        if not order_info['order_date']:
+            # Try: "ORDER DATE" possibly followed by other text, then a date on a nearby line
+            order_date_match = re.search(r'ORDER\s+DATE[:\s]*(\d{1,2}/\d{1,2}/\d{2,4})', text_content, re.IGNORECASE)
+            if order_date_match:
+                order_info['order_date'] = self.parse_date(order_date_match.group(1))
+        
+        # Extract Pickup Location
+        # Pattern: "PICKUP LOC: CA - California" (stop before "THIS ORDER")
+        pickup_match = re.search(
+            r'PICKUP\s+LOC[:\s]+([A-Z]{2})\s*[-–]\s*([A-Za-z\s]+?)(?=THIS|$)',
+            text_content, re.IGNORECASE
+        )
+        if pickup_match:
+            state_code = pickup_match.group(1).strip()
+            state_name = pickup_match.group(2).strip()
+            order_info['pickup_location'] = f"{state_code} - {state_name}"
+            print(f"DEBUG: Found pickup location: '{order_info['pickup_location']}'")
+        else:
+            # Simpler fallback: just get the state code
+            pickup_simple = re.search(r'PICKUP\s+LOC[:\s]+([A-Z]{2})', text_content, re.IGNORECASE)
+            if pickup_simple:
+                order_info['pickup_location'] = pickup_simple.group(1)
+        
+        # Map customer - ROSS has one customer, use the first/only customer mapping
         customer_mappings = self.mapping_utils.db_service.get_customer_mappings('ross')
         if customer_mappings:
-            # Get the first mapped customer name (there should be only one for ROSS)
             mapped_customer_name = list(customer_mappings.values())[0]
             order_info['customer_name'] = mapped_customer_name
-            order_info['raw_customer_name'] = 'ROSS'  # Use generic identifier since there's only one customer
-            print(f"DEBUG: ROSS Customer Mapping: Using default customer '{mapped_customer_name}' (single customer for ROSS)")
+            order_info['raw_customer_name'] = 'ROSS'
+            print(f"DEBUG: ROSS Customer Mapping: '{mapped_customer_name}'")
         else:
-            # Fallback if no customer mapping found
             print(f"DEBUG: No customer mapping found for ROSS, using default")
             order_info['customer_name'] = 'UNKNOWN'
-            order_info['raw_customer_name'] = pickup_location or 'ROSS'
+            order_info['raw_customer_name'] = 'ROSS'
         
-        # Apply store mapping (separate from customer mapping)
-        # For ROSS, store mapping might use pickup location or other identifiers
+        # Apply store mapping using PICKUP LOC from PDF
+        # Both SaleStoreName and StoreName in Xoro should come from this mapping
+        pickup_location = order_info.get('pickup_location', '')
         if pickup_location:
             mapped_store = self.mapping_utils.get_store_mapping(pickup_location, 'ross')
             if mapped_store and mapped_store != 'UNKNOWN' and mapped_store != pickup_location:
                 order_info['store_name'] = mapped_store
-                print(f"DEBUG: ROSS Store Mapping: '{pickup_location}' -> '{mapped_store}'")
+                order_info['sale_store_name'] = mapped_store
+                print(f"DEBUG: ROSS Store Mapping: PICKUP LOC '{pickup_location}' -> '{mapped_store}'")
             else:
-                # Default store name (same as customer for ROSS)
-                order_info['store_name'] = order_info['customer_name']
+                print(f"DEBUG: ROSS - No store mapping found for PICKUP LOC '{pickup_location}'")
+                order_info['store_name'] = 'UNKNOWN'
+                order_info['sale_store_name'] = 'UNKNOWN'
+        else:
+            print("DEBUG: ROSS - No PICKUP LOC found in PDF")
+            order_info['store_name'] = 'UNKNOWN'
+            order_info['sale_store_name'] = 'UNKNOWN'
         
         return order_info
     
     def _extract_line_items(self, text_content: str) -> List[Dict[str, Any]]:
-        """Extract line items from ROSS PDF text"""
+        """Extract line items from ROSS PDF text.
         
-        line_items = []
+        ROSS PDFs have items in a table. For multi-item POs the PDF
+        extraction stacks per-column values, so we detect the number
+        of items from header duplication and parse accordingly.
+        """
         
-        # Split text into lines for easier processing
-        lines = text_content.split('\n')
+        text_lines = text_content.split('\n')
         
-        # Look for the item table section
-        # Items are typically in a table with columns:
-        # VENDOR STYLE #, ITEM DESCRIPTION, UNIT COST, ROSS ITEM#, LABEL, PREPACK/INNER, etc.
-        
-        # Pattern to find item rows - look for vendor style numbers (e.g., "7-210-66")
-        # Vendor style pattern: digits-digits-digits (e.g., "7-210-66", "7-210-71")
-        vendor_style_pattern = r'(\d+-\d+-\d+)'
-        
-        # Also look for ROSS ITEM# (12-digit numbers like "400284764788")
-        ross_item_pattern = r'(\d{12})'
-        
-        # Find all potential item lines
-        item_section_started = False
-        for i, line in enumerate(lines):
-            # Check if we've reached the item section (look for table headers)
-            if 'VENDOR STYLE' in line.upper() or 'ITEM DESCRIPTION' in line.upper():
-                item_section_started = True
+        # Collect text between the last "NESTED PK QTY" header and "ALL CARTONS"
+        item_text = ""
+        in_items = False
+        for line in text_lines:
+            upper = line.upper()
+            if 'NESTED PK QTY' in upper:
+                idx = upper.rfind('NESTED PK QTY')
+                after_header = line[idx + len('NESTED PK QTY'):]
+                if after_header.strip():
+                    item_text += after_header + "\n"
+                in_items = True
                 continue
-            
-            # Check if we've reached the end of items
-            if item_section_started and ('TOTAL' in line.upper() or 'SUMMARY' in line.upper()):
-                break
-            
-            if item_section_started:
-                # Try to extract item information from this line
-                vendor_style_match = re.search(vendor_style_pattern, line)
-                ross_item_match = re.search(ross_item_pattern, line)
-                
-                if vendor_style_match or ross_item_match:
-                    try:
-                        item = self._parse_item_line(line, lines, i)
-                        if item:
-                            line_items.append(item)
-                    except Exception as e:
-                        print(f"DEBUG: Error parsing item line: {e}")
-                        continue
+            if in_items:
+                if 'ALL CARTONS MUST BE MARKED' in upper:
+                    # Keep text BEFORE the marker (e.g. "NO SIZES 8ALL CARTONS...")
+                    marker_idx = upper.find('ALL CARTONS MUST BE MARKED')
+                    before_marker = line[:marker_idx].strip()
+                    if before_marker:
+                        item_text += before_marker + "\n"
+                    break
+                item_text += line + "\n"
         
-        # If no items found with line-by-line method, try regex on full text
-        if not line_items:
-            # Look for patterns in the full text
-            # Pattern: Vendor Style, Description, Unit Cost, ROSS Item#, etc.
-            item_pattern = r'(\d+-\d+-\d+)\s+([A-Z0-9\s:]+?)\s+(\d+\.\d{2})\s+(\d{12})'
-            matches = re.finditer(item_pattern, text_content)
-            
-            for match in matches:
-                try:
-                    vendor_style = match.group(1)
-                    description = match.group(2).strip()
-                    unit_cost = float(match.group(3))
-                    ross_item = match.group(4)
-                    
-                    # Try to find PREPACK/INNER (case qty) - look for number after the item
-                    # Pattern: "PREPACK/INNER" followed by a number
-                    context_start = match.end()
-                    context = text_content[context_start:context_start + 200]
-                    prepack_match = re.search(r'PREPACK/INNER[:\s]*(\d+)', context, re.IGNORECASE)
-                    case_qty = int(prepack_match.group(1)) if prepack_match else None
-                    
-                    # Get quantity - look for quantity field in context
-                    quantity = 1  # Default
-                    # Try to find quantity in the context after the item
-                    qty_patterns = [
-                        r'NESTED\s+PK\s+QTY[:\s]*(\d+)',
-                        r'\b(\d+)\s*(?:CASE|UNIT|PK|PACK)',
-                        r'QTY[:\s]*(\d+)',
-                    ]
-                    for pattern in qty_patterns:
-                        qty_match = re.search(pattern, context, re.IGNORECASE)
-                        if qty_match:
-                            potential_qty = int(qty_match.group(1))
-                            if 1 <= potential_qty <= 10000:
-                                quantity = potential_qty
-                                break
-                    
-                    # Apply item mapping
-                    mapped_item = self.mapping_utils.get_item_mapping(ross_item, 'ross')
-                    if not mapped_item or mapped_item == ross_item:
-                        # Try mapping with vendor style as fallback
-                        mapped_item = self.mapping_utils.get_item_mapping(vendor_style, 'ross')
-                        if not mapped_item or mapped_item == vendor_style:
-                            mapped_item = ross_item
-                    
-                    # Get case_qty from item mapping for unit to case conversion
-                    case_qty_from_mapping = self._get_case_qty_from_mapping(ross_item, vendor_style, 'ross')
-                    if case_qty_from_mapping:
-                        case_qty = case_qty_from_mapping
-                    
-                    # Convert units to cases if case_qty is available
-                    quantity_in_cases = quantity
-                    if case_qty and case_qty > 0:
-                        try:
-                            quantity_in_cases = quantity / case_qty
-                            print(f"DEBUG: Converted {quantity} units to {quantity_in_cases} cases (case_qty={case_qty})")
-                        except ZeroDivisionError:
-                            print(f"DEBUG: Warning - case_qty is 0, using original quantity: {quantity}")
-                            quantity_in_cases = quantity
-                    
-                    item = {
-                        'item_number': mapped_item,
-                        'raw_item_number': ross_item,
-                        'vendor_style': vendor_style,
-                        'item_description': description,
-                        'quantity': max(1, int(round(quantity_in_cases))) if quantity_in_cases > 0 else 1,
-                        'unit_price': unit_cost,
-                        'total_price': unit_cost * quantity_in_cases,
-                        'case_qty': case_qty,
-                        'original_quantity_units': quantity
-                    }
-                    
-                    line_items.append(item)
-                    
-                except Exception as e:
-                    print(f"DEBUG: Error parsing item from regex: {e}")
-                    continue
+        if not item_text.strip():
+            print("DEBUG: No item text found")
+            return []
+        
+        print(f"DEBUG: Item section text:\n{item_text[:600]}")
+        
+        # --- Step 1: Extract vendor styles from line beginnings ---
+        # In ROSS PDFs vendor styles appear at the start of lines.
+        # Pattern: 1-2 digits, hyphen, 1-3 digits, optional hyphen + 1-2 digits
+        # e.g. "8-100-9", "8-100-10", "17-001-5", "17-601"
+        vendor_styles = []
+        remaining_text_parts = []
+        
+        for line in item_text.split('\n'):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            # Try to extract a vendor style from the start of the line
+            m = re.match(r'(\d{1,2}-\d{1,3}(?:-\d{1,2})?)(.*)', stripped)
+            if m:
+                style = m.group(1)
+                rest = m.group(2).strip()
+                if style not in vendor_styles:
+                    vendor_styles.append(style)
+                if rest:
+                    remaining_text_parts.append(rest)
+            else:
+                remaining_text_parts.append(stripped)
+        
+        if not vendor_styles:
+            print("DEBUG: No vendor style numbers found in item text")
+            return []
+        
+        remaining_text = '\n'.join(remaining_text_parts)
+        num_items = len(vendor_styles)
+        print(f"DEBUG: Found {num_items} vendor styles: {vendor_styles}")
+        
+        # --- Step 2: Extract descriptions ---
+        # Descriptions contain product info (e.g. "7.9OZ VEGAN BASIL PESTO")
+        # They may be preceded by a date (e.g. "5/1/24") which we strip
+        desc_lines = []
+        skip_words = {'NO COLOR', 'NO SIZES', 'CUCINA AMORE', 'CUCINA', 'ALL CARTONS'}
+        for part in remaining_text_parts:
+            # Strip leading date if present (e.g. "5/1/24 ")
+            cleaned = re.sub(r'^\d{1,2}/\d{1,2}/\d{2,4}\s*', '', part).strip()
+            # Stop at first price on the line
+            cleaned = re.split(r'\s+\d+\.\d{2}', cleaned)[0].strip()
+            # Remove trailing :NO COLOR:NO SIZES
+            cleaned = re.sub(r':NO COLOR.*$', '', cleaned, flags=re.IGNORECASE).strip()
+            cleaned = re.sub(r':NO SIZES.*$', '', cleaned, flags=re.IGNORECASE).strip()
+            # Must contain letters, be > 2 chars, not be a known non-description
+            if (cleaned and len(cleaned) > 2
+                    and re.search(r'[A-Z]', cleaned, re.IGNORECASE)
+                    and cleaned.upper() not in skip_words
+                    and not re.match(r'^(NO COLOR|NO SIZES|CUCINA|ALL CARTONS)', cleaned, re.IGNORECASE)):
+                desc_lines.append(cleaned)
+        
+        # --- Step 3: Extract prices (unit cost) ---
+        # Prices are decimal numbers like "1.50", "5.00"
+        # Filter out remaining_text to remove vendor styles before scanning
+        all_prices = re.findall(r'(\d+\.\d{2})', remaining_text)
+        # First N prices are unit costs, next N are comp retail
+        unit_costs = []
+        for p in all_prices:
+            unit_costs.append(float(p))
+            if len(unit_costs) >= num_items:
+                break
+        
+        # --- Step 4: Extract ORDER QTY ---
+        # Look for comma-separated thousands (e.g. "6,000", "1,200") or plain large numbers
+        all_qty_strs = re.findall(r'(?<!\d)(\d{1,3}(?:,\d{3})+)(?!\d)', remaining_text)
+        all_qtys = [int(q.replace(',', '')) for q in all_qty_strs]
+        if len(all_qtys) < num_items:
+            # Fallback: find plain numbers >= 3 digits.
+            # Exclude numbers preceded by comma (fragments of comma-separated numbers like "600" from "1,600")
+            # and numbers that are part of prices (preceded/followed by ".")
+            plain_nums = re.findall(r'(?<!\d)(?<!\.)(?<!,)(\d{3,})(?!\d)(?!\.)', remaining_text)
+            for n in plain_nums:
+                val = int(n)
+                if val > 10 and val not in all_qtys:
+                    all_qtys.append(val)
+        
+        # --- Step 5: Extract NESTED PK QTY ---
+        # Small numbers (typically 6 or 8) appearing near the end of the item section.
+        # Exclude digits that are part of prices or dates.
+        nested_pks = []
+        for part in reversed(remaining_text_parts):
+            # Remove dates (e.g. "5/1/24") and prices (e.g. "12.99") to avoid false matches
+            cleaned_part = re.sub(r'\d{1,2}/\d{1,2}/\d{2,4}', '', part)
+            cleaned_part = re.sub(r'\d+\.\d+', '', cleaned_part)
+            nums = re.findall(r'(?<!\d)(?<!\.)(\d{1,2})(?!\d)(?!\.)', cleaned_part)
+            for n in reversed(nums):
+                val = int(n)
+                if 2 <= val <= 48:
+                    nested_pks.insert(0, val)
+                    if len(nested_pks) >= num_items:
+                        break
+            if len(nested_pks) >= num_items:
+                break
+        
+        # If fewer nested_pks found than items, repeat values to fill
+        if nested_pks and len(nested_pks) < num_items:
+            while len(nested_pks) < num_items:
+                nested_pks.insert(0, nested_pks[0])
+        
+        # --- Step 6: Build item records ---
+        line_items = []
+        for i, style in enumerate(vendor_styles):
+            try:
+                unit_cost = unit_costs[i] if i < len(unit_costs) else 0.0
+                order_qty = all_qtys[i] if i < len(all_qtys) else 1
+                description = desc_lines[i] if i < len(desc_lines) else ''
+                nested_pk = nested_pks[i] if i < len(nested_pks) else None
+                
+                # Apply item mapping
+                mapped_item = self.mapping_utils.get_item_mapping(style, 'ross')
+                if not mapped_item or mapped_item == style:
+                    mapped_item = style
+                
+                # Get case_qty from item mapping (takes priority over PDF nested_pk)
+                case_qty_from_mapping = self._get_case_qty_from_mapping(style, style, 'ross')
+                case_qty = case_qty_from_mapping if case_qty_from_mapping else nested_pk
+                
+                # Convert units to cases: Xoro qty = ORDER QTY / case_qty
+                quantity_in_cases = order_qty
+                if case_qty and case_qty > 0:
+                    try:
+                        quantity_in_cases = order_qty / case_qty
+                        print(f"DEBUG: Item {style}: {order_qty} units / {case_qty} case_qty = {quantity_in_cases} cases")
+                    except ZeroDivisionError:
+                        quantity_in_cases = order_qty
+                
+                final_qty = max(1, int(round(quantity_in_cases)))
+                
+                print(f"DEBUG: Parsed item: style={style}, desc='{description}', "
+                      f"cost={unit_cost}, order_qty={order_qty}, "
+                      f"case_qty={case_qty}, final_qty={final_qty}")
+                
+                line_items.append({
+                    'item_number': mapped_item,
+                    'raw_item_number': style,
+                    'vendor_style': style,
+                    'item_description': description,
+                    'quantity': final_qty,
+                    'unit_price': unit_cost,
+                    'total_price': unit_cost * final_qty,
+                    'case_qty': case_qty,
+                    'original_quantity_units': order_qty
+                })
+                
+            except Exception as e:
+                print(f"DEBUG: Error parsing item {style}: {e}")
+                continue
         
         print(f"DEBUG: Extracted {len(line_items)} line items from ROSS PDF")
         return line_items
-    
-    def _parse_item_line(self, line: str, all_lines: List[str], line_idx: int) -> Optional[Dict[str, Any]]:
-        """Parse a single item line from the ROSS PDF"""
-        
-        try:
-            # Extract vendor style number (e.g., "7-210-66")
-            vendor_style_match = re.search(r'(\d+-\d+-\d+)', line)
-            if not vendor_style_match:
-                return None
-            
-            vendor_style = vendor_style_match.group(1)
-            
-            # Extract ROSS ITEM# (12-digit number)
-            ross_item_match = re.search(r'(\d{12})', line)
-            if not ross_item_match:
-                return None
-            
-            ross_item = ross_item_match.group(1)
-            
-            # Extract UNIT COST (decimal number like "1.50")
-            unit_cost_match = re.search(r'(\d+\.\d{2})', line)
-            unit_cost = float(unit_cost_match.group(1)) if unit_cost_match else 0.0
-            
-            # Extract description - text between vendor style and unit cost
-            # Description format: "16OZ ORG FUSILLI PASTA:NO COLOR:NO SIZES"
-            desc_start = vendor_style_match.end()
-            desc_end = unit_cost_match.start() if unit_cost_match else len(line)
-            description = line[desc_start:desc_end].strip()
-            
-            # Clean up description (remove extra spaces, colons at end)
-            description = re.sub(r'\s+', ' ', description).strip().rstrip(':')
-            
-            # Extract PREPACK/INNER (case qty) - look in current line and next few lines
-            case_qty = None
-            search_lines = [line] + all_lines[line_idx + 1:line_idx + 3]
-            for search_line in search_lines:
-                prepack_match = re.search(r'PREPACK/INNER[:\s]*(\d+)', search_line, re.IGNORECASE)
-                if prepack_match:
-                    case_qty = int(prepack_match.group(1))
-                    break
-            
-            # Extract quantity - this might be in a separate column or section
-            # For ROSS, quantity might be in "NESTED PK QTY" or another field
-            # Look for quantity patterns in the line and nearby lines
-            quantity = 1  # Default
-            search_lines = [line] + all_lines[line_idx + 1:line_idx + 3]
-            for search_line in search_lines:
-                # Try various quantity patterns
-                qty_patterns = [
-                    r'NESTED\s+PK\s+QTY[:\s]*(\d+)',  # "NESTED PK QTY: 6"
-                    r'\b(\d+)\s*(?:CASE|UNIT|PK|PACK)',  # "6 CASE" or "6 UNIT"
-                    r'QTY[:\s]*(\d+)',  # "QTY: 6" or "QTY 6"
-                    r'\b(\d{1,4})\b',  # Any standalone number (1-4 digits) - use as last resort
-                ]
-                for pattern in qty_patterns:
-                    qty_match = re.search(pattern, search_line, re.IGNORECASE)
-                    if qty_match:
-                        potential_qty = int(qty_match.group(1))
-                        # Validate quantity is reasonable (between 1 and 10000)
-                        if 1 <= potential_qty <= 10000:
-                            quantity = potential_qty
-                            print(f"DEBUG: Found quantity: {quantity} using pattern: {pattern}")
-                            break
-                if quantity > 1:  # Found a valid quantity
-                    break
-            
-            # Apply item mapping
-            mapped_item = self.mapping_utils.get_item_mapping(ross_item, 'ross')
-            if not mapped_item or mapped_item == ross_item:
-                # Try mapping with vendor style as fallback
-                mapped_item = self.mapping_utils.get_item_mapping(vendor_style, 'ross')
-                if not mapped_item or mapped_item == vendor_style:
-                    mapped_item = ross_item
-            
-            # Get case_qty from item mapping for unit to case conversion
-            case_qty_from_mapping = self._get_case_qty_from_mapping(ross_item, vendor_style, 'ross')
-            if case_qty_from_mapping:
-                case_qty = case_qty_from_mapping
-            
-            # If case_qty is available, convert units to cases
-            quantity_in_cases = quantity
-            if case_qty and case_qty > 0:
-                try:
-                    quantity_in_cases = quantity / case_qty
-                    print(f"DEBUG: Converted {quantity} units to {quantity_in_cases} cases (case_qty={case_qty})")
-                except ZeroDivisionError:
-                    print(f"DEBUG: Warning - case_qty is 0, using original quantity: {quantity}")
-                    quantity_in_cases = quantity
-            
-            return {
-                'item_number': mapped_item,
-                'raw_item_number': ross_item,
-                'vendor_style': vendor_style,
-                'item_description': description,
-                'quantity': int(quantity_in_cases) if quantity_in_cases == int(quantity_in_cases) else quantity_in_cases,
-                'unit_price': unit_cost,
-                'total_price': unit_cost * quantity_in_cases,
-                'case_qty': case_qty,
-                'original_quantity_units': quantity
-            }
-            
-        except Exception as e:
-            print(f"DEBUG: Error in _parse_item_line: {e}")
-            return None
     
     def _get_case_qty_from_mapping(self, ross_item: str, vendor_style: str, source: str) -> Optional[float]:
         """Get case_qty from item mapping for unit to case conversion"""
         
         try:
             if self.mapping_utils.use_database and self.mapping_utils.db_service:
-                # Use existing db_service from mapping_utils instead of creating new instance
                 db_service = self.mapping_utils.db_service
                 
-                # Try with ROSS item number first
                 mapping = db_service.get_item_mapping_with_case_qty(ross_item, source)
                 if mapping and mapping.get('case_qty'):
                     return float(mapping['case_qty'])
                 
-                # Try with vendor style as fallback
-                mapping = db_service.get_item_mapping_with_case_qty(vendor_style, source)
-                if mapping and mapping.get('case_qty'):
-                    return float(mapping['case_qty'])
+                if vendor_style != ross_item:
+                    mapping = db_service.get_item_mapping_with_case_qty(vendor_style, source)
+                    if mapping and mapping.get('case_qty'):
+                        return float(mapping['case_qty'])
             
         except Exception as e:
             print(f"DEBUG: Error getting case_qty from mapping: {e}")
