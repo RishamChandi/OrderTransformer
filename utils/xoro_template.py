@@ -141,6 +141,25 @@ class XoroTemplate:
             else:
                 raise ValueError(f"No customer mapping found for {source_name} order {order.get('order_number')}")
         
+        # Build item pricing for Xoro.
+        # For ROSS, parser quantity is already in cases, so UnitPrice must be case price.
+        base_unit_price = float(order.get('unit_price', 0.0))
+        qty_value = int(float(order.get('quantity', 1)))
+        effective_unit_price = base_unit_price
+        if source_name.lower() == 'ross':
+            try:
+                case_qty = float(order.get('case_qty', 0) or 0)
+            except (TypeError, ValueError):
+                case_qty = 0.0
+            if case_qty > 0:
+                effective_unit_price = base_unit_price * case_qty
+                print(
+                    f"DEBUG: ROSS pricing - unit_price_per_unit={base_unit_price}, "
+                    f"case_qty={case_qty}, unit_price_per_case={effective_unit_price}"
+                )
+
+        effective_line_total = effective_unit_price * qty_value
+
         # Create Xoro order
         xoro_order = {
             # Import metadata
@@ -189,10 +208,10 @@ class XoroTemplate:
             # Line item information
             'ItemNumber': str(order.get('item_number', '')),
             'ItemDescription': str(order.get('item_description', '')),
-            'UnitPrice': float(order.get('unit_price', 0.0)),
+            'UnitPrice': effective_unit_price,
             # Ensure quantity is integer (handle float from case conversion)
-            'Qty': int(float(order.get('quantity', 1))),
-            'LineTotal': float(order.get('total_price', 0.0)),
+            'Qty': qty_value,
+            'LineTotal': effective_line_total,
             # Extract discount information from order (for UNFI East, discounts are extracted from PDF)
             'DiscountAmount': float(order.get('discount_amount', 0.0)),
             'DiscountPercent': float(order.get('discount_percent', 0.0)),
@@ -200,7 +219,7 @@ class XoroTemplate:
             'TaxPercent': 0.0,
             
             # Custom fields
-            'CustomFieldD1': float(order.get('unit_price', 0.0)),
+            'CustomFieldD1': effective_unit_price,
             'CustomFieldD2': ''
         }
         
