@@ -297,6 +297,22 @@ class ROSSParser(BaseParser):
             order_info['sale_store_name'] = 'UNKNOWN'
         
         return order_info
+
+    def _normalize_ross_description_ocr(self, text: str) -> str:
+        """Normalize common OCR artifacts in ROSS item descriptions."""
+        if not text:
+            return ""
+
+        cleaned = re.sub(r'\s+', ' ', str(text)).strip()
+
+        # Common OCR variants for "16OZ" seen in NJ sample:
+        # - t60Z, I60Z, 1602, 16O2
+        cleaned = re.sub(r'\b[tTIl1]60[Zz2]\b', '16OZ', cleaned)
+        cleaned = re.sub(r'\b16[O0][Zz2]\b', '16OZ', cleaned)
+        cleaned = re.sub(r'\b1602\b', '16OZ', cleaned)
+        cleaned = re.sub(r'\b16O2\b', '16OZ', cleaned)
+
+        return cleaned
     
     def _extract_line_items(self, text_content: str) -> List[Dict[str, Any]]:
         """Extract line items from ROSS PDF text.
@@ -385,7 +401,7 @@ class ROSSParser(BaseParser):
                     and re.search(r'[A-Z]', cleaned, re.IGNORECASE)
                     and cleaned.upper() not in skip_words
                     and not re.match(r'^(NO COLOR|NO SIZES|CUCINA|ALL CARTONS)', cleaned, re.IGNORECASE)):
-                desc_lines.append(cleaned)
+                desc_lines.append(self._normalize_ross_description_ocr(cleaned))
         
         # --- Step 3: Extract prices (unit cost) ---
         # Prices are decimal numbers like "1.50", "5.00"
@@ -509,6 +525,7 @@ class ROSSParser(BaseParser):
             rest = re.sub(r':NO COLOR.*$', '', rest, flags=re.IGNORECASE).strip()
             rest = re.sub(r':NO SIZES.*$', '', rest, flags=re.IGNORECASE).strip()
             rest = re.sub(r'\s+', ' ', rest).strip()
+            rest = self._normalize_ross_description_ocr(rest)
             if rest and 'VENDOR ITEM COMMENTS' not in rest.upper():
                 style_to_desc[style] = rest
             elif style not in style_to_desc:
